@@ -1,0 +1,16 @@
+{
+    "extends": "@football-portal/config/tsconfig.base.json",
+    "compilerOptions": {
+      "target": "ES2017",
+      "lib": ["dom", "dom.iterable", "esnext"],
+      "allowJs": true,
+      "moduleResolution": "bundler",
+      "module": "esnext",
+      "jsx": "preserve",
+      "incremental": true,
+      "plugins": [{ "name": "next" }],
+      "paths": { "@/*": ["./src/*"] }
+    },
+    "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+    "exclude": ["node_modules"]
+  }

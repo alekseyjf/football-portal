@@ -1,0 +1,26 @@
+{
+  "name": "football-portal",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "private": true,
+  "scripts": {
+    "prepare": "pnpm run db:generate",
+    "db:generate": "pnpm --filter @football-portal/api exec prisma generate",
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  },
+  "engines": {
+    "node": ">=22.20.0 <23",
+    "pnpm": ">=10.33.0",
+    "npm": ">=11.12.0"
+  }
+}

@@ -1,0 +1,127 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+// generator client {
+//   provider = "prisma-client"
+//   output   = "../generated/prisma"
+// }
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String
+  role      Role      @default(USER)
+  avatar    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  posts     Post[]
+  comments  Comment[]
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  excerpt     String
+  content     String
+  coverImage  String?
+  published   Boolean   @default(false)
+  authorId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  author      User      @relation(fields: [authorId], references: [id])
+  comments    Comment[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  postId    String
+  authorId  String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model League {
+  id      String  @id @default(cuid())
+  name    String
+  slug    String  @unique
+  country String
+  season  String
+
+  clubs   Club[]
+  matches Match[]
+  table   LeagueTable[]
+}
+
+model Club {
+  id       String  @id @default(cuid())
+  name     String
+  slug     String  @unique
+  logo     String?
+  leagueId String
+
+  league       League        @relation(fields: [leagueId], references: [id])
+  homeMatches  Match[]       @relation("HomeClub")
+  awayMatches  Match[]       @relation("AwayClub")
+  tableEntries LeagueTable[]
+}
+
+model Match {
+  id         String      @id @default(cuid())
+  homeScore  Int?
+  awayScore  Int?
+  date       DateTime
+  status     MatchStatus @default(SCHEDULED)
+  leagueId   String
+  homeClubId String
+  awayClubId String
+
+  league   League @relation(fields: [leagueId], references: [id])
+  homeClub Club   @relation("HomeClub", fields: [homeClubId], references: [id])
+  awayClub Club   @relation("AwayClub", fields: [awayClubId], references: [id])
+}
+
+model LeagueTable {
+  id       String @id @default(cuid())
+  position Int
+  played   Int    @default(0)
+  won      Int    @default(0)
+  drawn    Int    @default(0)
+  lost     Int    @default(0)
+  points   Int    @default(0)
+  leagueId String
+  clubId   String
+
+  league League @relation(fields: [leagueId], references: [id])
+  club   Club   @relation(fields: [clubId], references: [id])
+
+  @@unique([leagueId, clubId])
+}
