@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateCommentDto } from './dto/create-comment.dto';
+
+// Базовий select для автора — використовується скрізь
+const authorSelect = {
+  select: { id: true, name: true, avatar: true },
+};
 
 @Injectable()
 export class CommentRepository {
@@ -7,34 +13,99 @@ export class CommentRepository {
 
   async findByPostId(postId: string) {
     return this.prisma.comment.findMany({
-      where: { postId },
+      where: {
+        postId,
+        parentId: null,   // тільки коментарі першого рівня
+        deletedAt: null,
+      },
       select: {
         id: true,
         content: true,
+        pinnedAt: true,
         createdAt: true,
-        author: { select: { id: true, name: true, avatar: true } },
+        author: authorSelect,
+        // Replies вкладено
+        replies: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            author: authorSelect,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
-      orderBy: { createdAt: 'desc' },
+      // Спочатку закріплені, потім нові
+      orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
-  async create(content: string, postId: string, authorId: string) {
+  async findByMatchId(matchId: string) {
+    return this.prisma.comment.findMany({
+      where: {
+        matchId,
+        parentId: null,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        content: true,
+        pinnedAt: true,
+        createdAt: true,
+        author: authorSelect,
+        replies: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            author: authorSelect,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async create(dto: CreateCommentDto, authorId: string) {
     return this.prisma.comment.create({
-      data: { content, postId, authorId },
+      data: {
+        content: dto.content,
+        authorId,
+        postId: dto.postId,
+        matchId: dto.matchId,
+        parentId: dto.parentId,
+      },
       select: {
         id: true,
         content: true,
         createdAt: true,
-        author: { select: { id: true, name: true, avatar: true } },
+        parentId: true,
+        author: authorSelect,
       },
     });
   }
 
   async findById(id: string) {
-    return this.prisma.comment.findUnique({ where: { id } });
+    return this.prisma.comment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        authorId: true,
+        deletedAt: true,
+        parentId: true,
+      },
+    });
   }
 
-  async delete(id: string) {
-    return this.prisma.comment.delete({ where: { id } });
+
+  async softDelete(id: string) {
+    // Soft delete — зберігаємо в БД для модерації
+    return this.prisma.comment.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 }

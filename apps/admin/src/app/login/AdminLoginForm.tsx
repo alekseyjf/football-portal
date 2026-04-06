@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api/client';
+import { useAdminLogin } from '@/hooks/useAdminLogin';
 import { useAuthStore } from '@/store/auth.store';
 
 const schema = z.object({
@@ -19,23 +19,27 @@ export function AdminLoginForm() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
   const [serverError, setServerError] = useState<string | null>(null);
+  const { mutateAsync: login, isPending } = useAdminLogin();
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
   const onSubmit = async (data: FormData) => {
     setServerError(null);
     try {
-      const res = await api.post<{ user: { id: string; email: string; name: string; role: 'USER' | 'ADMIN' } }>('/auth/login', data);
-
+      const res = await login(data);
       if (res.user.role !== 'ADMIN') {
         setServerError('Access denied. Admin only.');
         return;
       }
-
       setUser(res.user);
       router.push('/dashboard');
+      router.refresh();
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Something went wrong');
     }
@@ -73,10 +77,10 @@ export function AdminLoginForm() {
 
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isPending}
         className="w-full bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-not-allowed rounded-lg px-4 py-3 font-semibold transition-colors"
       >
-        {isSubmitting ? 'Signing in...' : 'Sign in'}
+        {isPending ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
   );

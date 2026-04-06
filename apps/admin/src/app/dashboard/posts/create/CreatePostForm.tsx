@@ -1,19 +1,41 @@
 "use client";
 
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api/client';
+import { useState } from 'react';
+import { useCreatePost } from '@/hooks/useCreatePost';
 
-const schema = z.object({
-  title: z.string().min(5, 'Title must be at least 5 characters'),
-  excerpt: z.string().min(10, 'Excerpt must be at least 10 characters'),
-  content: z.string().min(20, 'Content must be at least 20 characters'),
-  coverImage: z.string().url('Must be a valid URL').optional().or(z.literal('')),
-  published: z.boolean(),
-});
+const schema = z
+  .object({
+    titleEn: z.string().min(5, 'Title (EN) at least 5 characters'),
+    excerptEn: z.string().min(10, 'Excerpt (EN) at least 10 characters'),
+    contentEn: z.string().min(20, 'Content (EN) at least 20 characters'),
+    titleUa: z.string().optional(),
+    excerptUa: z.string().optional(),
+    contentUa: z.string().optional(),
+    coverImage: z
+      .string()
+      .url('Must be a valid URL')
+      .optional()
+      .or(z.literal('')),
+    published: z.boolean(),
+  })
+  .refine(
+    (d) => {
+      const a = d.titleUa?.trim();
+      const b = d.excerptUa?.trim();
+      const c = d.contentUa?.trim();
+      const anyUa = !!(a || b || c);
+      if (!anyUa) return true;
+      return !!(a && b && c);
+    },
+    {
+      message: 'Fill all Ukrainian fields or leave all empty',
+      path: ['titleUa'],
+    },
+  );
 
 type FormData = z.infer<typeof schema>;
 
@@ -23,16 +45,47 @@ const inputClass = (hasError: boolean) =>
 export function CreatePostForm() {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+  const { mutateAsync: createPost, isPending } = useCreatePost();
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { published: false },
+    defaultValues: { published: false, titleUa: '', excerptUa: '', contentUa: '' },
   });
 
   const onSubmit = async (data: FormData) => {
     setServerError(null);
+    const translations: Array<{
+      language: 'en' | 'ua';
+      title: string;
+      excerpt: string;
+      content: string;
+    }> = [
+      {
+        language: 'en',
+        title: data.titleEn.trim(),
+        excerpt: data.excerptEn.trim(),
+        content: data.contentEn.trim(),
+      },
+    ];
+    if (data.titleUa?.trim() && data.excerptUa?.trim() && data.contentUa?.trim()) {
+      translations.push({
+        language: 'ua',
+        title: data.titleUa.trim(),
+        excerpt: data.excerptUa.trim(),
+        content: data.contentUa.trim(),
+      });
+    }
+
     try {
-      await api.post('/posts', data);
+      await createPost({
+        translations,
+        published: data.published,
+        ...(data.coverImage?.trim() ? { coverImage: data.coverImage.trim() } : {}),
+      });
       router.push('/dashboard/posts');
       router.refresh();
     } catch (err) {
@@ -48,27 +101,53 @@ export function CreatePostForm() {
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Title</label>
-        <input {...register('title')} placeholder="Post title..." className={inputClass(!!errors.title)} />
-        {errors.title && <p className="text-red-400 text-xs">{errors.title.message}</p>}
+      <p className="text-sm text-gray-400">
+        Slug генерується з англійського заголовка на API. Створення постів лише з адмінки (POST /posts).
+      </p>
+
+      <div className="space-y-4 border border-gray-800 rounded-xl p-4">
+        <h2 className="text-sm font-semibold text-green-400">English (required)</h2>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-300">Title</label>
+          <input {...register('titleEn')} placeholder="Post title…" className={inputClass(!!errors.titleEn)} />
+          {errors.titleEn && <p className="text-red-400 text-xs">{errors.titleEn.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-300">Excerpt</label>
+          <textarea {...register('excerptEn')} rows={2} placeholder="Short description…" className={inputClass(!!errors.excerptEn)} />
+          {errors.excerptEn && <p className="text-red-400 text-xs">{errors.excerptEn.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-300">Content</label>
+          <textarea {...register('contentEn')} rows={10} placeholder="Full post…" className={inputClass(!!errors.contentEn)} />
+          {errors.contentEn && <p className="text-red-400 text-xs">{errors.contentEn.message}</p>}
+        </div>
+      </div>
+
+      <div className="space-y-4 border border-gray-800 rounded-xl p-4">
+        <h2 className="text-sm font-semibold text-gray-400">Українська (опційно)</h2>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-300">Title</label>
+          <input {...register('titleUa')} className={inputClass(!!errors.titleUa)} />
+          {errors.titleUa && <p className="text-red-400 text-xs">{errors.titleUa.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-300">Excerpt</label>
+          <textarea {...register('excerptUa')} rows={2} className={inputClass(!!errors.excerptUa)} />
+          {errors.excerptUa && <p className="text-red-400 text-xs">{errors.excerptUa.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-gray-300">Content</label>
+          <textarea {...register('contentUa')} rows={6} className={inputClass(!!errors.contentUa)} />
+          {errors.contentUa && <p className="text-red-400 text-xs">{errors.contentUa.message}</p>}
+        </div>
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Excerpt</label>
-        <textarea {...register('excerpt')} rows={2} placeholder="Short description..." className={inputClass(!!errors.excerpt)} />
-        {errors.excerpt && <p className="text-red-400 text-xs">{errors.excerpt.message}</p>}
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Content</label>
-        <textarea {...register('content')} rows={10} placeholder="Write your post..." className={inputClass(!!errors.content)} />
-        {errors.content && <p className="text-red-400 text-xs">{errors.content.message}</p>}
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Cover Image URL <span className="text-gray-500">(optional)</span></label>
-        <input {...register('coverImage')} placeholder="https://..." className={inputClass(!!errors.coverImage)} />
+        <label className="text-sm font-medium text-gray-300">
+          Cover image URL <span className="text-gray-500">(optional)</span>
+        </label>
+        <input {...register('coverImage')} placeholder="https://…" className={inputClass(!!errors.coverImage)} />
         {errors.coverImage && <p className="text-red-400 text-xs">{errors.coverImage.message}</p>}
       </div>
 
@@ -80,10 +159,10 @@ export function CreatePostForm() {
       <div className="flex gap-3 pt-2">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isPending}
           className="bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold transition-colors"
         >
-          {isSubmitting ? 'Creating...' : 'Create Post'}
+          {isPending ? 'Creating…' : 'Create Post'}
         </button>
         <button
           type="button"

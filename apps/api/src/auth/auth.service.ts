@@ -9,6 +9,7 @@ import {
   import { LoginDto } from './dto/login.dto';
   import * as bcrypt from 'bcrypt';
   
+  
   @Injectable()
   export class AuthService {
     constructor(
@@ -17,8 +18,11 @@ import {
     ) {}
   
     async register(dto: RegisterDto) {
+      // Нормалізуємо email — запобігає дублікатам User@mail.com і user@mail.com
+      const email = dto.email.toLowerCase().trim();
+  
       const exists = await this.prisma.user.findUnique({
-        where: { email: dto.email },
+        where: { email },
       });
   
       if (exists) throw new ConflictException('Email already in use');
@@ -27,11 +31,10 @@ import {
   
       const user = await this.prisma.user.create({
         data: {
-          email: dto.email,
-          name: dto.name,
+          email,
+          name: dto.name.trim(),
           password: hashedPassword,
         },
-        // Ніколи не повертаємо password у відповіді
         select: { id: true, email: true, name: true, role: true },
       });
   
@@ -39,8 +42,11 @@ import {
     }
   
     async login(dto: LoginDto) {
+      // Нормалізуємо email так само як при реєстрації
+      const email = dto.email.toLowerCase().trim();
+  
       const user = await this.prisma.user.findUnique({
-        where: { email: dto.email },
+        where: { email },
       });
   
       if (!user) throw new UnauthorizedException('Invalid credentials');
@@ -49,7 +55,10 @@ import {
       if (!passwordMatch) throw new UnauthorizedException('Invalid credentials');
   
       const tokens = await this.generateTokens(user.id, user.email, user.role);
-      return { user: { id: user.id, email: user.email, name: user.name, role: user.role }, ...tokens };
+      return {
+        user: { id: user.id, email: user.email, name: user.name, role: user.role },
+        ...tokens,
+      };
     }
   
     async refreshTokens(userId: string) {

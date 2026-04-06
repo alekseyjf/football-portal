@@ -7,8 +7,8 @@ import { UpdatePostDto } from './dto/update-post.dto';
 export class PostService {
   constructor(private postRepository: PostRepository) {}
 
-  async getPosts(page = 1, limit = 10) {
-    const { posts, total } = await this.postRepository.findAll(page, limit);
+  async getPosts(page = 1, limit = 10, lang = 'en') {
+    const { posts, total } = await this.postRepository.findAll(page, limit, lang);
     return {
       data: posts,
       total,
@@ -18,26 +18,29 @@ export class PostService {
     };
   }
 
-  async getPostBySlug(slug: string) {
-    const post = await this.postRepository.findBySlug(slug);
+  async getPostBySlug(slug: string, lang = 'en') {
+    const post = await this.postRepository.findBySlug(slug, lang);
     if (!post) throw new NotFoundException('Post not found');
     return post;
   }
 
-  async getAllForAdmin() {
-    return this.postRepository.findAllForAdmin();
+  async getAllForAdmin(lang = 'en') {
+    return this.postRepository.findAllForAdmin(lang);
   }
 
   async createPost(dto: CreatePostDto, authorId: string) {
+    if (!dto.translations?.length) {
+      throw new Error('At least one translation is required');
+    }
     return this.postRepository.create(dto, authorId);
   }
 
   async updatePost(id: string, dto: UpdatePostDto, userId: string, userRole: string) {
     const post = await this.postRepository.findById(id);
     if (!post) throw new NotFoundException('Post not found');
+    if (post.deletedAt) throw new NotFoundException('Post not found');
 
-    // Редагувати може або сам автор або адмін
-    const isAuthor = (post as any).author?.id === userId;
+    const isAuthor = post.author?.id === userId;
     const isAdmin = userRole === 'ADMIN';
     if (!isAuthor && !isAdmin) throw new ForbiddenException('No access');
 
@@ -47,6 +50,7 @@ export class PostService {
   async deletePost(id: string) {
     const post = await this.postRepository.findById(id);
     if (!post) throw new NotFoundException('Post not found');
-    return this.postRepository.delete(id);
+    // Soft delete — зберігаємо в БД для модерації і аудиту
+    return this.postRepository.softDelete(id);
   }
 }

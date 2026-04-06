@@ -85,7 +85,7 @@ pnpm --filter @football-portal/api dev
 ## Принципи (коротко)
 
 - **Backend:** Controller → Service → Repository; Prisma лише в репозиторії; DTO з валідацією; обережно зі зміною схеми після запуску.
-- **Frontend:** за замовчуванням Server Components; клієнт до API через **`lib/api/client`**; форми — RHF + Zod; не рендерити небезпечний HTML без санітизації (**DOMPurify**).
+- **Frontend:** Server Components де можливо; **`lib/api/http.ts`** + **TanStack Query** (`useQuery` / `useMutation`, prefetch + HydrationBoundary); форми — RHF + Zod; не рендерити небезпечний HTML без санітизації (**DOMPurify**).
 - **Безпека:** httpOnly cookies для JWT, не віддавати паролі з API, CORS / Helmet / rate limiting у міру впровадження.
 - **Git:** Conventional Commits (`feat:`, `fix:`, `chore:` тощо).
 

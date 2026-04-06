@@ -1,23 +1,45 @@
-import { IsString, IsBoolean, IsOptional, MinLength } from 'class-validator';
+import { IsString, IsBoolean, IsOptional, IsArray, ValidateNested, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
 
-export class CreatePostDto {
+export class PostTranslationDto {
   @IsString()
-  @MinLength(5)
+  @IsIn(['en', 'ua'])
+  language: string;
+
+  @IsString()
   title: string;
 
   @IsString()
-  @MinLength(10)
   excerpt: string;
 
   @IsString()
-  @MinLength(20)
   content: string;
+}
+
+export class CreatePostDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PostTranslationDto)
+  translations: PostTranslationDto[];
 
   @IsString()
   @IsOptional()
   coverImage?: string;
 
+  @IsString()
+  @IsOptional()
+  videoUrl?: string;
+
   @IsBoolean()
   @IsOptional()
   published?: boolean;
+
+  @IsString()
+  @IsOptional()
+  sourceUrl?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tagIds?: string[];
 }
