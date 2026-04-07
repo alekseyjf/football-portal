@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { useAdminPosts } from '@/hooks/useAdminPosts';
 import { adminPostTitle } from '@/lib/api/types';
+import { getPublicWebUrl } from '@/lib/publicWebUrl';
 
-const PUBLIC_WEB_URL =
-  process.env.NEXT_PUBLIC_PUBLIC_WEB_URL ?? 'http://localhost:3000';
+const PUBLIC_WEB_URL = getPublicWebUrl();
 
 export default function PostsPage() {
   const { data: posts, isLoading, isError } = useAdminPosts();

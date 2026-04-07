@@ -237,6 +237,8 @@ model Match {
   date       DateTime
   status     MatchStatus @default(SCHEDULED)
   minute     Int?
+  /// Номер туру з football-data (для групування «майбутні / минулі тури» у UI)
+  matchday   Int?
   leagueId   String
   homeClubId String
   awayClubId String

@@ -15,7 +15,9 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // Глобальна валідація — всі DTO автоматично валідуються
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, transform: true }),
+  );
 
   app.setGlobalPrefix('api/v1');
   
