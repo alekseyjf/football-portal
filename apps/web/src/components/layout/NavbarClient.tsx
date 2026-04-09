@@ -1,12 +1,14 @@
-"use client";
+'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogoutMutation } from '@/hooks/useAuth';
 
 export function NavbarClient() {
   const router = useRouter();
+  const tNav = useTranslations('nav');
+  const tAuth = useTranslations('auth');
   const { user, logout } = useAuthStore();
   const { mutateAsync: logoutApi } = useLogoutMutation();
 
@@ -29,23 +31,24 @@ export function NavbarClient() {
           {user.name}
           {user.role === 'ADMIN' && (
             <span className="ml-2 text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
-              Admin
+              {tAuth('adminBadge')}
             </span>
           )}
         </span>
         {user.role === 'ADMIN' && (
-          <Link
-            href="/admin"
+          <a
+            href={process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3001'}
             className="text-sm text-green-400 hover:text-green-300 transition-colors"
           >
-            Admin Panel
-          </Link>
+            {tNav('adminPanel')}
+          </a>
         )}
         <button
+          type="button"
           onClick={handleLogout}
           className="text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors"
         >
-          Logout
+          {tNav('logout')}
         </button>
       </div>
     );
@@ -57,13 +60,13 @@ export function NavbarClient() {
         href="/auth/login"
         className="text-sm text-gray-400 hover:text-white transition-colors"
       >
-        Sign in
+        {tNav('signIn')}
       </Link>
       <Link
         href="/auth/register"
         className="text-sm bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg transition-colors"
       >
-        Register
+        {tNav('register')}
       </Link>
     </div>
   );

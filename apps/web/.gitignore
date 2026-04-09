@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# next-intl — згенеровані типи для ICU-повідомлень
+src/messages/*.d.json.ts

@@ -2,10 +2,11 @@ import { queryOptions, useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api/http';
 import {
   DEFAULT_CONTENT_LANG,
+  type ApiContentLanguage,
   type PostDetail,
 } from '@/lib/api/types';
 
-export function postDetailQueryOptions(slug: string, lang: string) {
+export function postDetailQueryOptions(slug: string, lang: ApiContentLanguage) {
   return queryOptions({
     queryKey: ['post', 'detail', slug, lang] as const,
     queryFn: () =>
@@ -18,7 +19,7 @@ export function postDetailQueryOptions(slug: string, lang: string) {
 
 export function usePostDetail(
   slug: string,
-  lang: string = DEFAULT_CONTENT_LANG,
+  lang: ApiContentLanguage = DEFAULT_CONTENT_LANG,
 ) {
   return useQuery(postDetailQueryOptions(slug, lang));
 }

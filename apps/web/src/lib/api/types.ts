@@ -20,9 +20,17 @@ export interface PostTranslation {
     translations: PostTranslation[];
     tags?: { tag: { id: string; name: string; slug: string } }[];
   }
+
+  /** Мова контенту для запитів до API (query `lang`). */
+  export type ApiContentLanguage = 'en' | 'ua';
+
+  export const DEFAULT_CONTENT_LANG: ApiContentLanguage = 'en';
   
   // Хелпер — отримати переклад з масиву
-  export function getTranslation(post: Post, lang = 'en'): PostTranslation {
+  export function getTranslation(
+    post: Post,
+    lang: ApiContentLanguage = DEFAULT_CONTENT_LANG,
+  ): PostTranslation {
     return (
       post.translations.find(t => t.language === lang) ??
       post.translations[0] ?? { language: lang, title: '', excerpt: '' }
@@ -74,9 +82,6 @@ export interface PostTranslation {
   export interface PostDetail extends Post {
     comments: Comment[];
   }
-
-  /** Мова контенту для запитів до API (query `lang`). */
-  export const DEFAULT_CONTENT_LANG = 'en' as const;
 
   // ─── Football (GET з нашої БД) ───
 

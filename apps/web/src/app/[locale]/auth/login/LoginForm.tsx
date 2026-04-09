@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { useLoginMutation } from '@/hooks/useAuth';
 
@@ -19,6 +19,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const router = useRouter();
+  const t = useTranslations('auth');
   const setUser = useAuthStore((s) => s.setUser);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -56,7 +57,7 @@ export function LoginForm() {
 
       {/* Email */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Email</label>
+        <label className="text-sm font-medium text-gray-300">{t('email')}</label>
         <input
           {...register('email')}
           type="email"
@@ -75,7 +76,7 @@ export function LoginForm() {
 
       {/* Password */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Password</label>
+        <label className="text-sm font-medium text-gray-300">{t('password')}</label>
         <input
           {...register('password')}
           type="password"
@@ -100,13 +101,13 @@ export function LoginForm() {
           disabled:cursor-not-allowed rounded-lg px-4 py-3 font-semibold 
           transition-colors"
       >
-        {isPending ? 'Signing in...' : 'Sign in'}
+        {isPending ? t('signingIn') : t('signIn')}
       </button>
 
       <p className="text-center text-sm text-gray-400">
-        Don&apos;t have an account?{' '}
+        {t('noAccount')}{' '}
         <Link href="/auth/register" className="text-green-400 hover:text-green-300">
-          Register
+          {t('registerLink')}
         </Link>
       </p>
     </form>

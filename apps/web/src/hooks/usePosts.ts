@@ -2,13 +2,14 @@ import { queryOptions, useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api/http';
 import {
   DEFAULT_CONTENT_LANG,
+  type ApiContentLanguage,
   type PaginatedPosts,
 } from '@/lib/api/types';
 
 export function postsQueryOptions(
   page: number,
   limit: number,
-  lang: string,
+  lang: ApiContentLanguage,
 ) {
   return queryOptions({
     queryKey: ['posts', page, limit, lang] as const,
@@ -23,7 +24,7 @@ export function postsQueryOptions(
 export function usePosts(
   page = 1,
   limit = 10,
-  lang: string = DEFAULT_CONTENT_LANG,
+  lang: ApiContentLanguage = DEFAULT_CONTENT_LANG,
 ) {
   return useQuery(postsQueryOptions(page, limit, lang));
 }

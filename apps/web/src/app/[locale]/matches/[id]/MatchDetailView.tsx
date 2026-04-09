@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   footballKeys,
@@ -9,26 +10,30 @@ import {
   requestLiveTouch,
 } from '@/hooks/useFootball';
 import type { MatchDetail, MatchStatusDto } from '@/lib/api/types';
-
-function statusUk(s: MatchStatusDto): string {
-  const m: Record<MatchStatusDto, string> = {
-    SCHEDULED: 'Заплановано',
-    LIVE: 'Наживо',
-    FINISHED: 'Завершено',
-    POSTPONED: 'Перенесено',
-    CANCELLED: 'Скасовано',
-  };
-  return m[s] ?? s;
-}
+import { localeToBcp47 } from '@/lib/i18n/content-lang';
 
 export function MatchDetailView({ matchId }: { matchId: string }) {
   const qc = useQueryClient();
   const liveTouchSent = useRef(false);
+  const locale = useLocale();
+  const dateLocale = localeToBcp47(locale);
+  const t = useTranslations('match');
+
+  const formatStatus = (status: MatchStatusDto) => {
+    const labels: Record<MatchStatusDto, string> = {
+      SCHEDULED: t('status.SCHEDULED'),
+      LIVE: t('status.LIVE'),
+      FINISHED: t('status.FINISHED'),
+      POSTPONED: t('status.POSTPONED'),
+      CANCELLED: t('status.CANCELLED'),
+    };
+    return labels[status] ?? status;
+  };
 
   const { data: match, isLoading, isError } = useQuery({
     ...matchDetailQueryOptions(matchId),
-    refetchInterval: (q) =>
-      (q.state.data as MatchDetail | undefined)?.status === 'LIVE'
+    refetchInterval: (query) =>
+      (query.state.data as MatchDetail | undefined)?.status === 'LIVE'
         ? 45_000
         : false,
   });
@@ -36,9 +41,9 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
   useEffect(() => {
     if (!match || match.status !== 'LIVE' || liveTouchSent.current) return;
     liveTouchSent.current = true;
-    void requestLiveTouch(matchId).then((r) => {
-      if (r.accepted) {
-        // Фоновий синк на API ~7–15 с; оновлюємо кеш після паузи
+    void requestLiveTouch(matchId).then((response) => {
+      if (response.accepted) {
+         // Фоновий синк на API ~7–15 с; оновлюємо кеш після паузи
         setTimeout(() => {
           qc.invalidateQueries({ queryKey: footballKeys.match(matchId) });
         }, 14_000);
@@ -48,15 +53,13 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
 
   if (isLoading) {
     return (
-      <p className="text-neutral-400 text-center py-16">Завантаження матчу…</p>
+      <p className="text-neutral-400 text-center py-16">{t('loading')}</p>
     );
   }
 
   if (isError || !match) {
     return (
-      <p className="text-red-400/90 text-center py-16">
-        Матч не знайдено або помилка мережі.
-      </p>
+      <p className="text-red-400/90 text-center py-16">{t('notFound')}</p>
     );
   }
 
@@ -72,7 +75,7 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
         href="/"
         className="text-sm text-neutral-500 hover:text-white transition-colors mb-8 inline-block"
       >
-        ← На головну
+        {t('backHome')}
       </Link>
 
       <div
@@ -88,7 +91,7 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
           {match.matchday != null && (
             <>
               <span className="text-neutral-700">·</span>
-              <span>Тур {match.matchday}</span>
+              <span>{t('matchday', { n: String(match.matchday) })}</span>
             </>
           )}
         </div>
@@ -102,11 +105,11 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
             }
           >
             {live && match.minute != null
-              ? `${match.minute}′ · ${statusUk(match.status)}`
-              : statusUk(match.status)}
+              ? `${match.minute}′ · ${formatStatus(match.status)}`
+              : formatStatus(match.status)}
           </span>
           <time className="text-sm text-neutral-400">
-            {new Date(match.date).toLocaleString('uk-UA', {
+            {new Date(match.date).toLocaleString(dateLocale, {
               dateStyle: 'full',
               timeStyle: 'short',
             })}
@@ -143,9 +146,7 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
 
         {live && (
           <p className="mt-8 text-xs text-neutral-500 border-t border-neutral-800 pt-4">
-            Статус оновлюється з нашої бази; при відкритті сторінки ми один раз
-            запитуємо свіжі LIVE-дані у football-data (не частіше ніж раз на 90 с
-            на змагання), далі — автооновлення кожні 45 с.
+            {t('liveNote')}
           </p>
         )}
       </div>

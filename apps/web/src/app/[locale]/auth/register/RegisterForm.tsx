@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useRegisterMutation } from '@/hooks/useAuth';
 
 const registerSchema = z.object({
@@ -31,6 +31,7 @@ const inputClass = (hasError: boolean) =>
 
 export function RegisterForm() {
   const router = useRouter();
+  const t = useTranslations('auth');
   const [serverError, setServerError] = useState<string | null>(null);
   const { mutateAsync: registerUser, isPending } = useRegisterMutation();
 
@@ -66,7 +67,7 @@ export function RegisterForm() {
       )}
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Name</label>
+        <label className="text-sm font-medium text-gray-300">{t('name')}</label>
         <input
           {...register('name')}
           placeholder="Your name"
@@ -76,7 +77,7 @@ export function RegisterForm() {
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Email</label>
+        <label className="text-sm font-medium text-gray-300">{t('email')}</label>
         <input
           {...register('email')}
           type="email"
@@ -87,7 +88,7 @@ export function RegisterForm() {
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Password</label>
+        <label className="text-sm font-medium text-gray-300">{t('password')}</label>
         <input
           {...register('password')}
           type="password"
@@ -98,7 +99,7 @@ export function RegisterForm() {
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">Confirm Password</label>
+        <label className="text-sm font-medium text-gray-300">{t('confirmPassword')}</label>
         <input
           {...register('confirmPassword')}
           type="password"
@@ -116,13 +117,13 @@ export function RegisterForm() {
         className="w-full bg-green-600 hover:bg-green-500 disabled:bg-green-800 
           disabled:cursor-not-allowed rounded-lg px-4 py-3 font-semibold transition-colors"
       >
-        {isPending ? 'Creating account...' : 'Create account'}
+        {isPending ? t('creating') : t('createAccount')}
       </button>
 
       <p className="text-center text-sm text-gray-400">
-        Already have an account?{' '}
+        {t('hasAccount')}{' '}
         <Link href="/auth/login" className="text-green-400 hover:text-green-300">
-          Sign in
+          {t('signInLink')}
         </Link>
       </p>
     </form>

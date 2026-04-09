@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "title": "Football Portal",
+    "description": "Football news, matches and clubs"
+  },
+  "nav": {
+    "brand": "Football Portal",
+    "news": "News",
+    "leagues": "Leagues",
+    "clubs": "Clubs",
+    "adminPanel": "Admin Panel",
+    "logout": "Logout",
+    "signIn": "Sign in",
+    "register": "Register"
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "ua": "Українська"
+  },
+  "home": {
+    "title": "Football Portal",
+    "subtitle": "News in the centre, standings and match rounds on the left — like on club sites such as <site>Bayer 04</site>."
+  },
+  "feed": {
+    "latestNews": "Latest News",
+    "loading": "Loading news…",
+    "error": "Could not load posts. Please try again later.",
+    "empty": "No posts yet. Check back soon!"
+  },
+  "news": {
+    "loading": "Loading article…",
+    "loadError": "Failed to load post",
+    "by": "By"
+  },
+  "match": {
+    "loading": "Loading match…",
+    "notFound": "Match not found or network error.",
+    "backHome": "← Back to home",
+    "matchday": "Round {n}",
+    "noMatchday": "No round",
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "liveNote": "Status updates from our database; when you open the page we request fresh LIVE data from football-data once (no more than every 90s per competition), then auto-refresh every 45s.",
+    "status": {
+      "SCHEDULED": "Scheduled",
+      "LIVE": "Live",
+      "FINISHED": "Finished",
+      "POSTPONED": "Postponed",
+      "CANCELLED": "Cancelled"
+    }
+  },
+  "football": {
+    "standingsTitle": "Standings",
+    "competition": "Competition",
+    "table": "Table",
+    "noLeague": "No league in the database. Add FOOTBALL_API_KEY, run sync in admin or set NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG.",
+    "loadingTable": "Loading table…",
+    "tableError": "Could not load table.",
+    "tableEmpty": "Table is empty — run sync in admin.",
+    "upcomingRounds": "Upcoming rounds",
+    "pastRounds": "Past rounds",
+    "loadingFixtures": "Loading fixtures…",
+    "fixturesError": "Could not load fixtures.",
+    "noUpcoming": "No scheduled matches in the selected league.",
+    "noPast": "No finished matches in the database yet.",
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "roundLabel": "{kind} · Round {n}",
+    "roundLabelNoDay": "{kind} · No round",
+    "colPosition": "#",
+    "colTeam": "Team",
+    "colPlayed": "P",
+    "colGd": "GF:GA",
+    "colPoints": "Pts"
+  },
+  "comments": {
+    "sectionTitle": "Comments",
+    "replyPlaceholder": "Write a reply…",
+    "commentPlaceholder": "Write a comment…",
+    "postComment": "Post comment",
+    "postReply": "Post reply",
+    "posting": "Posting…",
+    "reply": "Reply",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "signInCta": "Please <auth>sign in</auth> to leave a comment.",
+    "loading": "Loading comments…",
+    "none": "No comments yet. Be the first!",
+    "pinned": "Pinned"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "confirmPassword": "Confirm Password",
+    "signingIn": "Signing in…",
+    "signIn": "Sign in",
+    "noAccount": "Don't have an account?",
+    "registerLink": "Register",
+    "creating": "Creating account…",
+    "createAccount": "Create account",
+    "hasAccount": "Already have an account?",
+    "signInLink": "Sign in",
+    "adminBadge": "Admin"
+  }
+}
