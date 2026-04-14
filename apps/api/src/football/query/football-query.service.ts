@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { FootballRepository } from './football.repository';
-import { groupMatchesByMatchday } from './football-matchday.util';
+import { groupMatchesByMatchday } from '../football-matchday.util';
+import { FootballRepository } from '../persistence/football.repository';
 
 /**
  * Усі read-only сценарії футболу з БД.

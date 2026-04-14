@@ -33,6 +33,13 @@
     "loadError": "Failed to load post",
     "by": "By"
   },
+  "likes": {
+    "ariaGroup": "Reactions",
+    "like": "Like",
+    "dislike": "Dislike",
+    "likesSuspended": "Likes are temporarily disabled on your account after unusual activity. Try again after 24 hours.",
+    "accountLocked": "This account is locked. Contact support if you think this is a mistake."
+  },
   "match": {
     "loading": "Loading match…",
     "notFound": "Match not found or network error.",
@@ -87,7 +94,12 @@
     "signInCta": "Please <auth>sign in</auth> to leave a comment.",
     "loading": "Loading comments…",
     "none": "No comments yet. Be the first!",
-    "pinned": "Pinned"
+    "pinned": "Pinned",
+    "cooldown": "Please wait before posting another comment.",
+    "commentsSuspended": "Commenting is temporarily disabled on your account after unusual activity.",
+    "accountLocked": "This account is locked. Contact support if you think this is a mistake.",
+    "hideReplies": "Hide replies",
+    "showReplies": "Show {count} replies"
   },
   "auth": {
     "email": "Email",
@@ -102,6 +114,7 @@
     "createAccount": "Create account",
     "hasAccount": "Already have an account?",
     "signInLink": "Sign in",
-    "adminBadge": "Admin"
+    "adminBadge": "Admin",
+    "accountLocked": "This account is locked. Contact support if you think this is a mistake."
   }
 }

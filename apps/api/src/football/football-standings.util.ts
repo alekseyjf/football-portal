@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import type { FdStanding, FdStandingRow } from './football.mapper';
+import type { FdStanding, FdStandingRow } from './integration/football.mapper';
 
 export function pickStandingsTableRows(
   standingGroups: FdStanding[],

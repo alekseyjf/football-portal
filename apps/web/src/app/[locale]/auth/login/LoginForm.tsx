@@ -41,7 +41,12 @@ export function LoginForm() {
       router.push('/');
       router.refresh();
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Something went wrong');
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      if (message === 'ACCOUNT_LOCKED') {
+        setServerError(t('accountLocked'));
+      } else {
+        setServerError(message);
+      }
     }
   };
 

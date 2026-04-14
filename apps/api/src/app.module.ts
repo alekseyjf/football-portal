@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { PostModule } from './posts/post.module';
 import { CommentModule } from './comments/comment.module';
 import { FootballModule } from './football/football.module';
+import { LikeModule } from './likes/like.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { FootballModule } from './football/football.module';
     PostModule,
     CommentModule,
     FootballModule,
+    LikeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

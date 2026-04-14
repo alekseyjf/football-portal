@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { readConfiguredCompetitionIds } from './football.constants';
+import { readConfiguredCompetitionIds } from '../football.constants';
 import { FootballSyncService } from './football-sync.service';
 
 @Injectable()

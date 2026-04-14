@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import createIntlMiddleware from 'next-intl/middleware';
-import { withUaLocaleAlias } from '@/i18n/accept-language';
+import { normalizeAcceptLanguageForAppLocales } from '@/i18n/accept-language';
 import { routing } from '@/i18n/routing';
 
 const runIntl = createIntlMiddleware(routing);
@@ -10,7 +10,7 @@ const runIntl = createIntlMiddleware(routing);
  * React 19 + next-intl: та сама логіка інтернаціоналізації, інша точка входу.
  */
 export default function proxy(request: NextRequest) {
-  const normalizedRequest = withUaLocaleAlias(request);
+  const normalizedRequest = normalizeAcceptLanguageForAppLocales(request);
   return runIntl(normalizedRequest);
 }
 

@@ -5,7 +5,7 @@ export const routing = defineRouting({
   locales: ['en', 'ua'],
   defaultLocale: 'en',
   localePrefix: 'always',
-  /** Cookie + Accept-Language (див. `accept-language.ts` для en → ua). */
+  /** Cookie + Accept-Language після нормалізації в `proxy.ts` (браузерний `uk` → сегмент `ua`). */
   localeDetection: true,
 });
 

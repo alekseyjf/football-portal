@@ -6,6 +6,7 @@ import { getTranslation } from '@/lib/api/types';
 import { localeToBcp47 } from '@/lib/i18n/content-lang';
 import { postDetailQueryOptions } from '@/hooks/usePostDetail';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
+import { LikeBar } from '@/components/features/LikeBar';
 import { CommentSection } from './CommentSection';
 
 export function NewsPostView({ slug }: { slug: string }) {
@@ -74,6 +75,10 @@ export function NewsPostView({ slug }: { slug: string }) {
           <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
             {translation.content ?? ''}
           </p>
+        </div>
+
+        <div className="mt-8 flex items-center">
+          <LikeBar targetType="post" targetId={post.id} />
         </div>
       </article>
 

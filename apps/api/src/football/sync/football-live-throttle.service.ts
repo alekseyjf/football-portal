@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { FOOTBALL_LIVE_THROTTLE_MS } from './football.constants';
+import { FOOTBALL_LIVE_THROTTLE_MS } from '../football.constants';
 
 /**
  * Троттлінг LIVE-синку по `league.externalId`.

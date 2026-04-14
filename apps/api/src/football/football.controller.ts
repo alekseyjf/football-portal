@@ -16,8 +16,8 @@ import { Roles } from '../auth/guards/roles.decorator';
 import { readConfiguredCompetitionIds } from './football.constants';
 import { LiveTouchDto } from './dto/live-touch.dto';
 import { SyncFootballDto } from './dto/sync-football.dto';
-import { FootballQueryService } from './football-query.service';
-import { FootballSyncService } from './football-sync.service';
+import { FootballQueryService } from './query/football-query.service';
+import { FootballSyncService } from './sync/football-sync.service';
 
 @Controller('football')
 export class FootballController {

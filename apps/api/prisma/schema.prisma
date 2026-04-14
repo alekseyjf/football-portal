@@ -44,11 +44,27 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Після серії швидких лайків — тимчасово заборона POST /likes
+  likesSuspendedUntil DateTime?
+  /// Після спаму коментарів — тимчасово заборона POST /comments
+  commentsSuspendedUntil DateTime?
+  /// Останній прийнятий коментар (інтервал між коментарями, анти-спам)
+  lastCommentAt DateTime?
+  /// Скільки разів накладали 24h бан на лайки; при другому — блок акаунта
+  likeAbuseStrikes Int @default(0)
+  /// Аналогічно для коментарів
+  commentAbuseStrikes Int @default(0)
+  /// Повний блок входу / JWT (крім ADMIN у strategy)
+  accountLockedAt DateTime?
+
   posts        Post[]
   comments     Comment[]
   postLikes    PostLike[]
   commentLikes CommentLike[]
   matchLikes   MatchLike[]
+  likeBurstLogs    LikeBurstLog[]
+  commentBurstLogs CommentBurstLog[]
+  reactionActivities UserReactionActivity[]
 }
 
 // ─────────────────────────────
@@ -72,6 +88,11 @@ model Post {
   likes        PostLike[]
   tags         PostTag[]
   translations PostTranslation[]
+
+  /// Денормалізовано з PostLike (LIKE) — швидке читання для UI
+  likeCount    Int @default(0)
+  /// Денормалізовано (DISLIKE); у публічному API не віддаємо
+  dislikeCount Int @default(0)
 
   @@index([createdAt])
   @@index([authorId])
@@ -135,6 +156,9 @@ model Comment {
   replies Comment[] @relation("CommentReplies")
   likes   CommentLike[]
 
+  likeCount    Int @default(0)
+  dislikeCount Int @default(0)
+
   @@index([createdAt])
   @@index([postId])
   @@index([matchId])
@@ -190,6 +214,43 @@ model MatchLike {
 
   @@unique([userId, matchId])
   @@index([matchId])
+}
+
+/// Події POST /likes для виявлення burst (5 у вікні → 24h бан)
+model LikeBurstLog {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+/// Події створення коментаря (burst + cooldown окремо)
+model CommentBurstLog {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+/// Історія реакцій користувача (профіль / аналітика)
+model UserReactionActivity {
+  id         String   @id @default(cuid())
+  userId     String
+  targetType String
+  targetId   String
+  /// LIKE | DISLIKE | NONE (знято голос)
+  state      String
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // ─────────────────────────────
@@ -249,6 +310,9 @@ model Match {
 
   comments Comment[]
   likes    MatchLike[]
+
+  likeCount    Int @default(0)
+  dislikeCount Int @default(0)
 
   @@index([leagueId])
   @@index([date])

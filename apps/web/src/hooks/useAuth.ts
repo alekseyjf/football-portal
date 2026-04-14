@@ -3,9 +3,13 @@ import { apiPost } from '@/lib/api/http';
 import type { User } from '@/lib/api/types';
 
 export function useLoginMutation() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: { email: string; password: string }) =>
       apiPost<{ user: User; message: string }>('/auth/login', data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['likes'] });
+    },
   });
 }
 

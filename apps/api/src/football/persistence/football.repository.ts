@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MatchStatus, Prisma } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 const clubPublicSelect = {
   id: true,

@@ -11,6 +11,7 @@ import {
 } from '@/hooks/useFootball';
 import type { MatchDetail, MatchStatusDto } from '@/lib/api/types';
 import { localeToBcp47 } from '@/lib/i18n/content-lang';
+import { LikeBar } from '@/components/features/LikeBar';
 
 export function MatchDetailView({ matchId }: { matchId: string }) {
   const qc = useQueryClient();
@@ -142,6 +143,10 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
               </p>
             )}
           </div>
+        </div>
+
+        <div className="mt-8 flex items-center border-t border-neutral-800 pt-6">
+          <LikeBar targetType="match" targetId={match.id} />
         </div>
 
         {live && (

@@ -28,7 +28,7 @@ import {
     @UseGuards(JwtAuthGuard)
     createComment(@Body() dto: CreateCommentDto, @Req() req: Request) {
       const user = req.user as { id: string; role: string };
-      return this.commentService.createComment(dto, user.id);
+      return this.commentService.createComment(dto, user.id, user.role);
     }
   
     // Автор або адмін — soft delete

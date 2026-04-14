@@ -1,3 +1,11 @@
+/**
+ * HTTP-клієнт до API (cookies, JSON).
+ *
+ * CSRF / SameSite (перед продом):
+ * — Див. `apps/api/docs/csrf-samesite-checklist.md`.
+ * — Після впровадження CSRF-токена: додати заголовок (або double-submit cookie)
+ *   у всіх мутаціях (`apiPost` / `apiPut` / `apiDelete`) і перевірку на Nest.
+ */
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 

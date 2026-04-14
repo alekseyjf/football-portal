@@ -1,22 +1,15 @@
 import { Module } from '@nestjs/common';
 import { FootballController } from './football.controller';
-import { FootballCronService } from './football.cron';
-import { FootballDataClient } from './football-data.client';
-import { FootballLiveThrottleService } from './football-live-throttle.service';
-import { FootballQueryService } from './football-query.service';
-import { FootballRepository } from './football.repository';
-import { FootballSyncService } from './football-sync.service';
+import { FootballQueryModule } from './query/football-query.module';
+import { FootballSyncModule } from './sync/football-sync.module';
 
+/**
+ * Кореневий модуль футболу: підмодулі query (читання БД), sync (імпорт + LIVE + cron).
+ * Інтеграція зовнішнього API — у FootballIntegrationModule (підключений з FootballSyncModule).
+ */
 @Module({
+  imports: [FootballQueryModule, FootballSyncModule],
   controllers: [FootballController],
-  providers: [
-    FootballRepository,
-    FootballDataClient,
-    FootballLiveThrottleService,
-    FootballQueryService,
-    FootballSyncService,
-    FootballCronService,
-  ],
-  exports: [FootballQueryService, FootballSyncService],
+  exports: [FootballQueryModule, FootballSyncModule],
 })
 export class FootballModule {}

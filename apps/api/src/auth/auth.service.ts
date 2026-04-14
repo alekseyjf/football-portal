@@ -2,13 +2,14 @@ import {
     Injectable,
     UnauthorizedException,
     ConflictException,
+    HttpException,
+    HttpStatus,
   } from '@nestjs/common';
   import { JwtService } from '@nestjs/jwt';
   import { PrismaService } from '../../prisma/prisma.service';
   import { RegisterDto } from './dto/register.dto';
   import { LoginDto } from './dto/login.dto';
   import * as bcrypt from 'bcrypt';
-  
   
   @Injectable()
   export class AuthService {
@@ -47,9 +48,21 @@ import {
   
       const user = await this.prisma.user.findUnique({
         where: { email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          password: true,
+          accountLockedAt: true,
+        },
       });
   
       if (!user) throw new UnauthorizedException('Invalid credentials');
+
+      if (user.accountLockedAt) {
+        throw new HttpException('ACCOUNT_LOCKED', HttpStatus.FORBIDDEN);
+      }
   
       const passwordMatch = await bcrypt.compare(dto.password, user.password);
       if (!passwordMatch) throw new UnauthorizedException('Invalid credentials');
@@ -62,8 +75,19 @@ import {
     }
   
     async refreshTokens(userId: string) {
-      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          accountLockedAt: true,
+        },
+      });
       if (!user) throw new UnauthorizedException();
+      if (user.accountLockedAt) {
+        throw new HttpException('ACCOUNT_LOCKED', HttpStatus.FORBIDDEN);
+      }
   
       return this.generateTokens(user.id, user.email, user.role);
     }

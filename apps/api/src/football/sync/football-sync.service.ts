@@ -4,9 +4,7 @@ import {
   FOOTBALL_MATCH_PAGES_MAX,
   pauseMilliseconds,
   readConfiguredCompetitionIds,
-} from './football.constants';
-import { FootballDataClient } from './football-data.client';
-import { FootballLiveThrottleService } from './football-live-throttle.service';
+} from '../football.constants';
 import {
   clubSlugFromFd,
   FdCompetition,
@@ -17,12 +15,14 @@ import {
   leagueSlugFromFd,
   mapMatchStatus,
   seasonLabelFromFd,
-} from './football.mapper';
-import { FootballRepository } from './football.repository';
+} from '../integration/football.mapper';
+import { FootballDataClient } from '../integration/football-data.client';
+import { FootballRepository } from '../persistence/football.repository';
 import {
   buildLeagueTableCreateRows,
   pickStandingsTableRows,
-} from './football-standings.util';
+} from '../football-standings.util';
+import { FootballLiveThrottleService } from './football-live-throttle.service';
 
 /**
  * Синхронізація з football-data.org та LIVE-оновлення.
