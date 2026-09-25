@@ -6,121 +6,296 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─────────────────────────────
+// ═════════════════════════════════════════
 // ENUMS
-// ─────────────────────────────
+// ═════════════════════════════════════════
 
 enum Role {
   USER
   ADMIN
 }
 
-enum MatchStatus {
-  SCHEDULED
-  LIVE
-  FINISHED
-  POSTPONED
-  CANCELLED
+/// Поточний стан (швидка перевірка в JwtStrategy). Історія — у UserSanction.
+enum UserStatus {
+  ACTIVE
+  LOCKED
+  /// Акаунт анонімізовано (self-service або admin). Рядок User лишається — див. D19.
+  DELETED
 }
 
-/// Як на YouTube: один запис на користувача на сутність; у API публічно показуємо лише LIKE (дизлайк — для рейтингу/алгоритму)
+enum SanctionType {
+  LIKES_SUSPENDED
+  COMMENTS_SUSPENDED
+  ACCOUNT_LOCKED
+  /// Admin ініціював видалення чужого акаунта (self-delete сюди не логується — deletedAt і так аудит)
+  ACCOUNT_DELETED
+}
+
+enum SanctionReason {
+  LIKE_BURST
+  COMMENT_BURST
+  MANUAL
+}
+
+enum RateLimitAction {
+  LIKE
+  COMMENT
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+/// Як на YouTube: публічно показуємо лише LIKE
 enum LikeType {
   LIKE
   DISLIKE
 }
 
-// ─────────────────────────────
-// USER
-// ─────────────────────────────
+enum ReactionTarget {
+  POST
+  COMMENT
+  MATCH
+}
 
+/// Новий провайдер = ALTER TYPE ADD VALUE (адитивно)
+enum DataProvider {
+  FOOTBALL_DATA
+}
+
+enum CompetitionType {
+  LEAGUE
+  CUP
+}
+
+enum ClubKind {
+  CLUB
+  NATIONAL
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  PAUSED
+  FINISHED
+  POSTPONED
+  SUSPENDED
+  CANCELLED
+  AWARDED
+}
+
+enum MatchWinner {
+  HOME
+  AWAY
+  DRAW
+}
+
+enum StandingType {
+  TOTAL
+  HOME
+  AWAY
+}
+
+enum SyncScope {
+  COMPETITION_FULL
+  MATCHES_LIVE
+  STANDINGS
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+}
+
+enum SyncTrigger {
+  ADMIN
+  CRON
+  LIVE_TOUCH
+}
+
+// ═════════════════════════════════════════
+// IDENTITY
+// ═════════════════════════════════════════
+
+/// Лише ідентичність і доступ. Публічні дані — UserProfile.
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(USER)
-  avatar    String?
-  bio       String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String     @id @default(cuid())
+  /// Завжди toLowerCase().trim()
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(USER)
+  status       UserStatus @default(ACTIVE)
+  lockedAt     DateTime?
+  /// Встановлюється при видаленні акаунта (D19); email/passwordHash/профіль вже анонімізовані
+  deletedAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  /// Після серії швидких лайків — тимчасово заборона POST /likes
-  likesSuspendedUntil DateTime?
-  /// Після спаму коментарів — тимчасово заборона POST /comments
-  commentsSuspendedUntil DateTime?
-  /// Останній прийнятий коментар (інтервал між коментарями, анти-спам)
-  lastCommentAt DateTime?
-  /// Скільки разів накладали 24h бан на лайки; при другому — блок акаунта
-  likeAbuseStrikes Int @default(0)
-  /// Аналогічно для коментарів
-  commentAbuseStrikes Int @default(0)
-  /// Повний блок входу / JWT (крім ADMIN у strategy)
-  accountLockedAt DateTime?
-
-  posts        Post[]
-  comments     Comment[]
-  postLikes    PostLike[]
-  commentLikes CommentLike[]
-  matchLikes   MatchLike[]
-  likeBurstLogs    LikeBurstLog[]
-  commentBurstLogs CommentBurstLog[]
+  profile            UserProfile?
+  sessions           AuthSession[]
+  sanctions          UserSanction[]         @relation("SanctionedUser")
+  issuedSanctions    UserSanction[]         @relation("SanctionIssuer")
+  rateLimitEvents    RateLimitEvent[]
+  posts              Post[]
+  comments           Comment[]
+  postLikes          PostLike[]
+  commentLikes       CommentLike[]
+  matchLikes         MatchLike[]
   reactionActivities UserReactionActivity[]
 }
 
-// ─────────────────────────────
-// POSTS + i18n
-// ─────────────────────────────
+model UserProfile {
+  userId      String   @id
+  displayName String
+  avatarUrl   String?
+  bio         String?
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Refresh-сесія. У cookie — сирий токен, у БД — лише SHA-256 хеш.
+model AuthSession {
+  id         String    @id @default(cuid())
+  userId     String
+  /// Усі ротації від одного логіну мають один familyId (для reuse-detection)
+  familyId   String
+  tokenHash  String    @unique
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+// ═════════════════════════════════════════
+// MODERATION
+// ═════════════════════════════════════════
+
+model UserSanction {
+  id         String         @id @default(cuid())
+  userId     String
+  type       SanctionType
+  reason     SanctionReason
+  note       String?
+  startsAt   DateTime       @default(now())
+  /// null = безстроково
+  endsAt     DateTime?
+  revokedAt  DateTime?
+  /// null = автоматично (анти-абуз)
+  issuedById String?
+  createdAt  DateTime       @default(now())
+
+  user     User  @relation("SanctionedUser", fields: [userId], references: [id], onDelete: Cascade)
+  issuedBy User? @relation("SanctionIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, type, endsAt])
+}
+
+/// Ефемерні події для burst/cooldown. Очищається cron-ом (> 24 год).
+model RateLimitEvent {
+  id        BigInt          @id @default(autoincrement())
+  userId    String
+  action    RateLimitAction
+  createdAt DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, action, createdAt])
+  @@index([createdAt])
+}
+
+// ═════════════════════════════════════════
+// CONTENT
+// ═════════════════════════════════════════
+
+/// Нова мова = INSERT + messages/<code>.json на web. Рівно одна isDefault (partial unique у SQL).
+model Language {
+  code      String  @id
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  postTranslations PostTranslation[]
+  tagTranslations  TagTranslation[]
+}
 
 model Post {
-  id         String    @id @default(cuid())
-  slug       String    @unique
-  coverImage String?
-  videoUrl   String?
-  published  Boolean   @default(false)
-  sourceUrl  String?
-  authorId   String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+  id            String     @id @default(cuid())
+  /// Один slug на всі мови (генерується з EN-заголовка)
+  slug          String     @unique
+  status        PostStatus @default(DRAFT)
+  publishedAt   DateTime?
+  coverImageUrl String?
+  videoUrl      String?
+  sourceUrl     String?
+  authorId      String
+  /// Денормалізовано з PostLike — оновлюється в тій самій транзакції
+  likeCount     Int        @default(0)
+  dislikeCount  Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
 
-  author       User              @relation(fields: [authorId], references: [id])
-  comments     Comment[]
-  likes        PostLike[]
-  tags         PostTag[]
-  translations PostTranslation[]
+  author        User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  translations  PostTranslation[]
+  tags          PostTag[]
+  competitions  PostCompetition[]
+  clubs         PostClub[]
+  commentThread CommentThread?
+  likes         PostLike[]
 
-  /// Денормалізовано з PostLike (LIKE) — швидке читання для UI
-  likeCount    Int @default(0)
-  /// Денормалізовано (DISLIKE); у публічному API не віддаємо
-  dislikeCount Int @default(0)
-
-  @@index([createdAt])
+  @@index([status, deletedAt, publishedAt(sort: Desc)])
   @@index([authorId])
-  @@index([published])
 }
 
 model PostTranslation {
-  id       String @id @default(cuid())
-  language String
-  title    String
-  excerpt  String
-  content  String
-  postId   String
+  postId       String
+  languageCode String
+  title        String
+  excerpt      String
+  content      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageCode], references: [code])
 
-  @@unique([postId, language])
+  @@id([postId, languageCode])
 }
 
-// ─────────────────────────────
-// TAGS
-// ─────────────────────────────
-
+/// Редакційна тема (трансфери, аналітика). Назва — у TagTranslation.
 model Tag {
-  id    String    @id @default(cuid())
-  name  String    @unique
-  slug  String    @unique
-  posts PostTag[]
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  translations TagTranslation[]
+  posts        PostTag[]
+}
+
+model TagTranslation {
+  tagId        String
+  languageCode String
+  name         String
+
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageCode], references: [code])
+
+  @@id([tagId, languageCode])
 }
 
 model PostTag {
@@ -131,45 +306,84 @@ model PostTag {
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([postId, tagId])
+  @@index([tagId])
 }
 
-// ─────────────────────────────
-// COMMENTS (відповіді через parentId; pin як на YouTube)
-// ─────────────────────────────
+/// Новина стосується турніру (стрічка на сторінці ліги)
+model PostCompetition {
+  postId        String
+  competitionId String
+
+  post        Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@id([postId, competitionId])
+  @@index([competitionId])
+}
+
+/// Новина стосується клубу (стрічка на сторінці клубу)
+model PostClub {
+  postId String
+  clubId String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@id([postId, clubId])
+  @@index([clubId])
+}
+
+// ═════════════════════════════════════════
+// ENGAGEMENT
+// ═════════════════════════════════════════
+
+/// Одна гілка обговорення на об'єкт. Рівно один із postId/matchId (CHECK у SQL).
+/// Новий об'єкт для коментування (клуб, гравець) = нова nullable колонка ТУТ + оновити CHECK.
+model CommentThread {
+  id           String   @id @default(cuid())
+  postId       String?  @unique
+  matchId      String?  @unique
+  isLocked     Boolean  @default(false)
+  commentCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  post     Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  match    Match?    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  comments Comment[]
+}
 
 model Comment {
-  id        String    @id @default(cuid())
-  content   String
-  authorId  String
-  postId    String?
-  matchId   String?
-  parentId  String?
-  pinnedAt  DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id           String    @id @default(cuid())
+  threadId     String
+  authorId     String
+  /// Безпосередній батько (на кого відповіли)
+  parentId     String?
+  /// Кореневий коментар гілки; null — якщо сам корінь
+  rootId       String?
+  depth        Int       @default(0)
+  content      String
+  replyCount   Int       @default(0)
+  likeCount    Int       @default(0)
+  dislikeCount Int       @default(0)
+  pinnedAt     DateTime?
+  editedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  author  User      @relation(fields: [authorId], references: [id])
-  post    Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  match   Match?    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies Comment[] @relation("CommentReplies")
-  likes   CommentLike[]
+  thread      CommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  parent      Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Restrict)
+  replies     Comment[]     @relation("CommentReplies")
+  root        Comment?      @relation("CommentRoot", fields: [rootId], references: [id], onDelete: Restrict)
+  descendants Comment[]     @relation("CommentRoot")
+  likes       CommentLike[]
 
-  likeCount    Int @default(0)
-  dislikeCount Int @default(0)
-
-  @@index([createdAt])
-  @@index([postId])
-  @@index([matchId])
-  @@index([postId, pinnedAt])
-  @@index([matchId, pinnedAt])
+  @@index([threadId, parentId, createdAt])
+  @@index([threadId, pinnedAt])
+  @@index([rootId, createdAt])
+  @@index([authorId, createdAt])
 }
-
-// ─────────────────────────────
-// LIKES — окремі таблиці замість поліморфної Like (вимога Prisma для зв’язків).
-// Семантика як у плані v4: @@unique = один голос; type LIKE | DISLIKE.
-// ─────────────────────────────
 
 model PostLike {
   id        String   @id @default(cuid())
@@ -216,126 +430,259 @@ model MatchLike {
   @@index([matchId])
 }
 
-/// Події POST /likes для виявлення burst (5 у вікні → 24h бан)
-model LikeBurstLog {
-  id        String   @id @default(cuid())
-  userId    String
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-}
-
-/// Події створення коментаря (burst + cooldown окремо)
-model CommentBurstLog {
-  id        String   @id @default(cuid())
-  userId    String
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-}
-
-/// Історія реакцій користувача (профіль / аналітика)
+/// Історія реакцій (профіль / аналітика). Поліморфна без FK — свідомо (лог).
 model UserReactionActivity {
-  id         String   @id @default(cuid())
+  id         BigInt         @id @default(autoincrement())
   userId     String
-  targetType String
+  targetType ReactionTarget
   targetId   String
-  /// LIKE | DISLIKE | NONE (знято голос)
-  state      String
-  createdAt  DateTime @default(now())
+  /// null = голос знято
+  reaction   LikeType?
+  createdAt  DateTime       @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
 
-// ─────────────────────────────
-// FOOTBALL
-// ─────────────────────────────
+// ═════════════════════════════════════════
+// FOOTBALL (домен — без знань про провайдерів)
+// ═════════════════════════════════════════
 
-model League {
-  id         String  @id @default(cuid())
-  externalId Int     @unique
-  name       String
-  slug       String  @unique
-  country    String
-  season     String
-  logoUrl    String?
+model Area {
+  id      String  @id @default(cuid())
+  /// ENG, ITA, EUR, WORLD — стабільний код
+  code    String  @unique
+  name    String
+  flagUrl String?
 
-  clubs   Club[]
-  matches Match[]
-  table   LeagueTable[]
+  competitions Competition[]
+  clubs        Club[]
+}
+
+model Competition {
+  id        String          @id @default(cuid())
+  /// PL, CL — задається при створенні, синк НЕ перезаписує
+  slug      String          @unique
+  name      String
+  type      CompetitionType @default(LEAGUE)
+  areaId    String?
+  emblemUrl String?
+  /// Чи синкати й показувати (замість FOOTBALL_COMPETITION_IDS)
+  isActive  Boolean         @default(true)
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  area         Area?                    @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  seasons      Season[]
+  matches      Match[]
+  externalRefs CompetitionExternalRef[]
+  posts        PostCompetition[]
+}
+
+/// Один рядок на сезон турніру. Рівно один isCurrent на турнір (partial unique у SQL).
+model Season {
+  id              String   @id @default(cuid())
+  competitionId   String
+  /// "2025/26" або "2026" для турнірів в межах року
+  label           String
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  isCurrent       Boolean  @default(false)
+  currentMatchday Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  competition  Competition         @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  participants SeasonClub[]
+  matches      Match[]
+  standings    Standing[]
+  externalRefs SeasonExternalRef[]
+
+  @@unique([competitionId, label])
+}
+
+/// Участь клубу в сезоні турніру (M:N)
+model SeasonClub {
+  seasonId String
+  clubId   String
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@id([seasonId, clubId])
+  @@index([clubId])
 }
 
 model Club {
-  id         String  @id @default(cuid())
-  externalId Int     @unique
+  id         String   @id @default(cuid())
+  /// Стабільний: створюється один раз, синк НЕ перезаписує (SEO / URL)
+  slug       String   @unique
   name       String
-  slug       String  @unique
   shortName  String?
-  logo       String?
+  tla        String?
+  kind       ClubKind @default(CLUB)
+  areaId     String?
+  crestUrl   String?
   founded    Int?
-  venue      String?
-  leagueId   String
+  venueName  String?
+  websiteUrl String?
+  clubColors String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  league       League        @relation(fields: [leagueId], references: [id])
-  homeMatches  Match[]       @relation("HomeClub")
-  awayMatches  Match[]       @relation("AwayClub")
-  tableEntries LeagueTable[]
-
-  @@index([leagueId])
+  area         Area?             @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  seasons      SeasonClub[]
+  homeMatches  Match[]           @relation("HomeClub")
+  awayMatches  Match[]           @relation("AwayClub")
+  standings    Standing[]
+  externalRefs ClubExternalRef[]
+  posts        PostClub[]
 }
 
 model Match {
-  id         String      @id @default(cuid())
-  externalId Int         @unique
-  homeScore  Int?
-  awayScore  Int?
-  date       DateTime
-  status     MatchStatus @default(SCHEDULED)
-  minute     Int?
-  /// Номер туру з football-data (для групування «майбутні / минулі тури» у UI)
-  matchday   Int?
-  leagueId   String
-  homeClubId String
-  awayClubId String
+  id                String       @id @default(cuid())
+  /// Денормалізовано з Season — для швидких фільтрів без join
+  competitionId     String
+  seasonId          String
+  /// Нормалізований mapper-ом: REGULAR_SEASON, LEAGUE_STAGE, GROUP_STAGE, LAST_16, QUARTER_FINALS, SEMI_FINALS, FINAL, …
+  stage             String       @default("REGULAR_SEASON")
+  groupName         String?
+  matchday          Int?
+  kickoffAt         DateTime
+  status            MatchStatus  @default(SCHEDULED)
+  minute            Int?
+  homeClubId        String
+  awayClubId        String
+  homeScore         Int?
+  awayScore         Int?
+  homeScoreHalfTime Int?
+  awayScoreHalfTime Int?
+  homePenalties     Int?
+  awayPenalties     Int?
+  winner            MatchWinner?
+  venueName         String?
+  likeCount         Int          @default(0)
+  dislikeCount      Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  league   League @relation(fields: [leagueId], references: [id])
-  homeClub Club   @relation("HomeClub", fields: [homeClubId], references: [id])
-  awayClub Club   @relation("AwayClub", fields: [awayClubId], references: [id])
+  competition   Competition        @relation(fields: [competitionId], references: [id], onDelete: Restrict)
+  season        Season             @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  homeClub      Club               @relation("HomeClub", fields: [homeClubId], references: [id], onDelete: Restrict)
+  awayClub      Club               @relation("AwayClub", fields: [awayClubId], references: [id], onDelete: Restrict)
+  commentThread CommentThread?
+  likes         MatchLike[]
+  externalRefs  MatchExternalRef[]
 
-  comments Comment[]
-  likes    MatchLike[]
-
-  likeCount    Int @default(0)
-  dislikeCount Int @default(0)
-
-  @@index([leagueId])
-  @@index([date])
+  @@index([seasonId, matchday])
+  @@index([competitionId, kickoffAt])
+  @@index([homeClubId, kickoffAt])
+  @@index([awayClubId, kickoffAt])
   @@index([status])
-  @@index([leagueId, date])
+  @@index([kickoffAt])
 }
 
-model LeagueTable {
-  id           String @id @default(cuid())
-  position     Int
-  played       Int    @default(0)
-  won          Int    @default(0)
-  drawn        Int    @default(0)
-  lost         Int    @default(0)
-  points       Int    @default(0)
-  goalsFor     Int    @default(0)
-  goalsAgainst Int    @default(0)
-  goalDiff     Int    @default(0)
-  leagueId     String
+model Standing {
+  id           String       @id @default(cuid())
+  seasonId     String
   clubId       String
+  stage        String       @default("REGULAR_SEASON")
+  /// '' замість NULL — інакше @@unique не спрацює (NULL != NULL у Postgres)
+  groupName    String       @default("")
+  type         StandingType @default(TOTAL)
+  position     Int
+  played       Int          @default(0)
+  won          Int          @default(0)
+  drawn        Int          @default(0)
+  lost         Int          @default(0)
+  points       Int          @default(0)
+  goalsFor     Int          @default(0)
+  goalsAgainst Int          @default(0)
+  goalDiff     Int          @default(0)
+  /// "W,D,L,W,W"
+  form         String?
+  updatedAt    DateTime     @updatedAt
 
-  league League @relation(fields: [leagueId], references: [id])
-  club   Club   @relation(fields: [clubId], references: [id])
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Restrict)
 
-  @@unique([leagueId, clubId])
+  @@unique([seasonId, stage, groupName, type, clubId])
+  @@index([seasonId, stage, groupName, type, position])
+}
+
+// ═════════════════════════════════════════
+// SYNC (єдине місце, що знає про провайдерів)
+// ═════════════════════════════════════════
+
+model CompetitionExternalRef {
+  provider      DataProvider
+  externalId    String
+  competitionId String
+  lastSyncedAt  DateTime?
+  /// Хеш нормалізованого payload — пропускаємо upsert, якщо нічого не змінилось
+  payloadHash   String?
+
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@id([provider, externalId])
+  @@unique([provider, competitionId])
+}
+
+model SeasonExternalRef {
+  provider     DataProvider
+  externalId   String
+  seasonId     String
+  lastSyncedAt DateTime?
+  payloadHash  String?
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@id([provider, externalId])
+  @@unique([provider, seasonId])
+}
+
+model ClubExternalRef {
+  provider     DataProvider
+  externalId   String
+  clubId       String
+  lastSyncedAt DateTime?
+  payloadHash  String?
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@id([provider, externalId])
+  @@unique([provider, clubId])
+}
+
+model MatchExternalRef {
+  provider     DataProvider
+  externalId   String
+  matchId      String
+  lastSyncedAt DateTime?
+  payloadHash  String?
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@id([provider, externalId])
+  @@unique([provider, matchId])
+}
+
+/// Журнал синків + лок (partial unique на RUNNING у SQL)
+model SyncRun {
+  id           String       @id @default(cuid())
+  provider     DataProvider
+  scope        SyncScope
+  /// Slug турніру (PL, CL)
+  targetRef    String
+  trigger      SyncTrigger
+  status       SyncStatus   @default(RUNNING)
+  startedAt    DateTime     @default(now())
+  finishedAt   DateTime?
+  /// { matchesUpserted, matchesSkipped, clubsUpserted, standingsRows, apiCalls }
+  stats        Json?
+  errorMessage String?
+
+  @@index([provider, scope, targetRef, startedAt(sort: Desc)])
 }

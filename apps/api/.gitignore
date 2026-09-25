@@ -4,5 +4,5 @@ node_modules
 
 /generated/prisma
 
-# Експорт контенту для seed (містить хеш пароля адміна) — див. scripts/export-content.ts
+# Експорт контенту для seed (містить хеш пароля адміна) — вхід для prisma/seed.ts
 /prisma/seed-data/

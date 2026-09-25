@@ -1,6 +1,6 @@
 # 🧱 Football Portal — Intermediate Plan: Schema v5
 
-> **Статус:** ◐ у процесі — Фаза 0 ✅, далі Фаза 1
+> **Статус:** ◐ у процесі — Фази 0–1 ✅, далі Фаза 2
 > **Виконується:** ДО продовження основного плана (`football-plan-new.md`, етапи 7+)
 > **Після завершення:** перенести ключові рішення в Частину 2 основного плана, цей файл — в архів.
 > **Створено:** 2026-09-24
@@ -1018,19 +1018,25 @@ Competition (PL, LEAGUE)                        Competition (CL, CUP)
 
 > Гілка: `refactor/schema-v5`. Кожна фаза — окремий коміт (Conventional Commits). Після кожної фази: `pnpm build` + ручна перевірка.
 
+> ⚠️ **Збірка API червона з Фази 1 до кінця Фази 5 — це очікувано.** Фаза 1 міняє `schema.prisma` → `prisma generate` дає типи v5, а код модулів ще на полях v4 (`accountLockedAt`, `password`, `leagueId`, `published`, `language`, `externalId` … — ~15 файлів у `auth/`, `security/`, `posts/`, `comments/`, `likes/`, `football/`). Кожна фаза лагодить свої модулі.
+> - **Перевірка фаз 1–5** замість `pnpm build`: `pnpm --filter @football-portal/api exec tsc --noEmit -p tsconfig.build.json` — **0 помилок у модулях поточної фази**, загальна кількість помилок лише зменшується (записувати число в коміт).
+> - **Після Фази 5** — `pnpm build` (усі 3 застосунки) знову зелений; з Фази 6 правило «після кожної фази `pnpm build`» діє як раніше. Відкочувати нічого не треба: зміни Фази 0 (`src/prisma/`, `tsconfig.build.json` з `rootDir: ./src`, pnpm-guard) — постійні.
+> - `master` не чіпаємо, поки гілка не зелена; merge — лише після Фази 7.
+
 ### Фаза 0 — Підготовка ✅ (2026-09-26)
 - [x] `pg_dump` поточної dev-БД (Supabase) → зберегти поза репо — `~/Desktop/football/db-backups/football-portal-dev-20260926-001215.{dump,sql}` (схема `public`, `--no-owner --no-privileges`; pg_dump 18.6 з `brew libpq`, сервер 17.6). Відновлення: `pg_restore --no-owner -d <url> <file>.dump`
 - [x] `apps/api/scripts/export-content.ts` (лише читання): адмін (`email`, `name`, `password` → `passwordHash`, `role`) + пости з перекладами й тегами → `apps/api/prisma/seed-data/content.json`. Запуск: `pnpm db:export-content`. Одна транзакція `READ ONLY` + `REPEATABLE READ`; формат уже в термінах v5, зв'язки через `authorEmail` / `tagSlugs`; валідація: EN-переклад + автор-адмін. Результат: 1 адмін, 3 пости, 6 перекладів, 0 тегів
-- [x] `prisma/seed-data/` → `.gitignore` (містить хеш пароля); `scripts/` виключено з `tsconfig.build.json`
+- [x] `prisma/seed-data/` → `.gitignore` (містить хеш пароля)
+- [x] Попутні фікси (постійні, не відкочувати): `PrismaModule`/`PrismaService` → `src/prisma/`; `tsconfig.build.json` — `include: ["src"]`, `rootDir: ./src`, `tsBuildInfoFile` у `dist` (тепер `dist/main.js`, `start:prod` працює); pnpm-only guard (`.npmrc` `engine-strict` + `engines.npm`), `package-lock.json` прибрано
 - [x] Коментарі, лайки, другий користувач — **не** зберігаються
 - [x] Гілка `refactor/schema-v5`
 
-### Фаза 1 — Схема + baseline-міграція + seed
-- [ ] Замінити `schema.prisma` на v5 (розділ 5)
-- [ ] `apps/api/prisma/sql/constraints.sql` (розділ 5.1)
-- [ ] Squash міграцій (розділ 11): видалити `prisma/migrations/*`, згенерувати `0001_init`, дописати SQL з `constraints.sql`
-- [ ] `prisma migrate reset` на dev-БД
-- [ ] `prisma/seed.ts` + `migrations.seed` у `prisma.config.ts` (Prisma 7):
+### Фаза 1 — Схема + baseline-міграція + seed ✅ (2026-09-26)
+- [x] Замінити `schema.prisma` на v5 (розділ 5) — 31 таблиця, 17 enum-ів, `ON DELETE` звірено з розділом 5
+- [x] `apps/api/prisma/sql/constraints.sql` (розділ 5.1)
+- [x] Squash міграцій (розділ 11): видалено 4 dev-міграції, `0001_init` = `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` (без shadow-БД) + `constraints.sql`
+- [x] `prisma migrate reset` на dev-БД
+- [x] `prisma/seed.ts` + `migrations.seed` у `prisma.config.ts` (Prisma 7 **не** запускає seed автоматично після `reset` → `pnpm db:seed`). Ідемпотентний (upsert з `update: {}` — editorial-поля не перезаписує), одна транзакція, валідація `content.json` до запису:
   - мови: `en` (default), `ua`
   - адмін і пости з `seed-data/content.json` (автор = адмін, `status = PUBLISHED`, `publishedAt = createdAt`); якщо файлу немає — адмін з `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`
   - усі 9 турнірів як `Competition` + `CompetitionExternalRef` (`provider = FOOTBALL_DATA`), `isActive = true`:
@@ -1047,8 +1053,12 @@ Competition (PL, LEAGUE)                        Competition (CL, CUP)
     | WC | 2000 | CUP | 20 |
     | EC | 2018 | CUP | 21 |
 
-  - після seed — повний синк з адмінки
-- [ ] Перевірка: `prisma migrate status` чистий, `prisma generate` без помилок
+  - після seed — повний синк з адмінки → **перенесено у Фазу 5** (sync-код ще на v4, API не компілюється)
+- [x] Перевірка: `prisma migrate status` чистий, `prisma generate` без помилок; `migrate diff` БД → схема порожній (Prisma ігнорує наші CHECK / partial-індекси — не намагається їх видалити); повторний seed без дублів
+- [x] Обмеження розділу 5.1 перевірено в транзакції з `ROLLBACK`: друга default-мова, `PUBLISHED` без `publishedAt`, `CommentThread` з 0 / 2 цілями, два `RUNNING` `SyncRun`, `DELETE` автора постів — усі падають. Також перевірено: каскадне видалення треду з вкладеними відповідями не падає на `RESTRICT` самопосилань `Comment`
+- [x] Результат seed: 2 мови, 1 адмін (хеш пароля = експорт; логін перевіримо у Фазі 2 — API не компілюється), 3 пости `PUBLISHED` (en+ua), 9 турнірів + `CompetitionExternalRef`
+- [x] `tsc --noEmit -p tsconfig.build.json`: 0 → **81** помилка (auth 11, comments 23, football 25, likes 12, posts 10) — очікувано, лагодиться у Фазах 2–5
+- [x] Після успішного seed (адмін логіниться, 3 пости видно в БД): **видалити** `apps/api/scripts/export-content.ts` і скрипт `db:export-content` з `apps/api/package.json` — він написаний під типи v4 і після зміни схеми вже не компілюється. `prisma/seed-data/content.json` лишається (gitignored) — це вхід для `seed.ts`; бекап у `~/Desktop/football/db-backups/` — страховка, якщо щось піде не так
 
 ### Фаза 2 — Identity + Moderation
 - [ ] `AuthService`: `passwordHash`, створення `UserProfile` при реєстрації (транзакція)

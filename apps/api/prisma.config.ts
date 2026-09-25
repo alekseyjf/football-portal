@@ -8,6 +8,8 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // Prisma 7 не запускає seed автоматично після migrate reset/dev — лише `prisma db seed`
+    seed: "ts-node --transpile-only prisma/seed.ts",
   },
   datasource: {
     // CLI (migrate) потребує прямого з’єднання; з pooler (Supabase) — DIRECT_URL, інакше DATABASE_URL
