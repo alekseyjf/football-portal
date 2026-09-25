@@ -19,7 +19,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:export-content": "ts-node --transpile-only scripts/export-content.ts"
   },
   "dependencies": {
     "@football-portal/types": "workspace:*",
