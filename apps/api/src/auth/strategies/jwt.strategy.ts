@@ -1,43 +1,42 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
+import { UserStatus } from '@prisma/client';
+import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { PrismaService } from '../../prisma/prisma.service';
-import { Request } from 'express';
+import { UserRepository } from '../../users/user.repository';
+import type { AccessTokenPayload } from '../auth.service';
+
+/** Те, що потрапляє в `req.user` (P2-1). */
+export interface AuthenticatedUser {
+  id: string;
+  role: AccessTokenPayload['role'];
+}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private prisma: PrismaService) {
+  constructor(private userRepository: UserRepository) {
     super({
       // Читаємо токен з httpOnly cookie, а не з заголовку
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (req: Request) => req?.cookies?.['access_token'] ?? null,
+        (req: Request): string | null =>
+          (req?.cookies as Record<string, string | undefined> | undefined)
+            ?.access_token ?? null,
       ]),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET!,
     });
   }
 
-  async validate(payload: { sub: string; email: string; role: string }) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        accountLockedAt: true,
-      },
-    });
+  async validate(payload: AccessTokenPayload): Promise<AuthenticatedUser> {
+    const user = await this.userRepository.findAccessById(payload.sub);
 
     if (!user) throw new UnauthorizedException();
-    if (user.accountLockedAt) {
-      throw new UnauthorizedException('ACCOUNT_LOCKED');
+    // LOCKED і DELETED однаково закривають доступ (роль беремо з БД, не з токена)
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException(
+        user.status === UserStatus.LOCKED ? 'ACCOUNT_LOCKED' : undefined,
+      );
     }
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
+    return { id: user.id, role: user.role };
   }
 }

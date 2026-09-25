@@ -1,6 +1,6 @@
 # 🧱 Football Portal — Intermediate Plan: Schema v5
 
-> **Статус:** ◐ у процесі — Фази 0–1 ✅, далі Фаза 2
+> **Статус:** ◐ у процесі — Фази 0–1 ✅, Фаза 2 (2a–2e) у процесі
 > **Виконується:** ДО продовження основного плана (`football-plan-new.md`, етапи 7+)
 > **Після завершення:** перенести ключові рішення в Частину 2 основного плана, цей файл — в архів.
 > **Створено:** 2026-09-24
@@ -1061,20 +1061,84 @@ Competition (PL, LEAGUE)                        Competition (CL, CUP)
 - [x] Після успішного seed (адмін логіниться, 3 пости видно в БД): **видалити** `apps/api/scripts/export-content.ts` і скрипт `db:export-content` з `apps/api/package.json` — він написаний під типи v4 і після зміни схеми вже не компілюється. `prisma/seed-data/content.json` лишається (gitignored) — це вхід для `seed.ts`; бекап у `~/Desktop/football/db-backups/` — страховка, якщо щось піде не так
 
 ### Фаза 2 — Identity + Moderation
-- [ ] `AuthService`: `passwordHash`, створення `UserProfile` при реєстрації (транзакція)
-- [ ] `AuthSessionRepository` + логіка розділу 7 (`login`, `refresh`, `logout`, `logout-all`, `me`)
-- [ ] `JwtStrategy`: перевірка `status = LOCKED` замість `accountLockedAt`
-- [ ] Cookie `refresh_token` з `path=/api/v1/auth`
-- [ ] `security/`: `UserSanctionRepository`, `RateLimitRepository`; переписати `LikeAntiAbuseService` і `CommentAntiAbuseService`
-  - suspended = активна `UserSanction` (`endsAt > now`, `revokedAt IS NULL`)
-  - strikes = `count` санкцій типу
-  - cooldown коментаря = останній `RateLimitEvent(COMMENT)`
-- [ ] Блок акаунта: `User.status = LOCKED` + `UserSanction(ACCOUNT_LOCKED)` + відкликати всі `AuthSession` — одна транзакція
-- [ ] Видалення акаунта (розділ 7.5.1): `UserService.deleteAccount` — анонімізація (email/passwordHash/profile) + `status = DELETED` + `deletedAt` + відкликати всі `AuthSession`, одна транзакція
-- [ ] `DELETE /users/me` (self, підтвердження паролем) + `DELETE /users/:id` (ADMIN, той самий сервіс + `UserSanction(ACCOUNT_DELETED, issuedById)`)
-- [ ] Web/Admin: рендер автора як «Видалений користувач», якщо `author.deletedAt`
-- [ ] Cron очищення (`AuthSession`, `RateLimitEvent`)
-- [ ] web/admin `http.ts`: refresh-on-401 (single-flight); `useAuthQuery` через `GET /auth/me`
+
+> **Розбита на 5 підфаз** (кожна = окремий коміт, можна в окремому чаті). Порядок: 2a → 2b → 2c → 2d; 2e залежить лише від контракту 2b. Новий чат: «Фаза 2x з `football-plan-intermediate.md`» — усе потрібне нижче.
+> **Гілка:** `refactor/schema-v5` (перестворена 2026-09-26 від `master` = `43840d7`, куди squash-змерджено Фази 0–1).
+
+#### 2.0 Контекст (аналіз коду, 2026-09-26)
+
+Стан до Фази 2 (`tsc --noEmit -p tsconfig.build.json` = **81** помилка):
+
+| Файл | Помилок | Що зламано (поля v4) | Підфаза |
+|---|---|---|---|
+| `auth/auth.service.ts` | 8 | `name`, `password`, `accountLockedAt` | 2a |
+| `auth/strategies/jwt.strategy.ts` | 3 | `name`, `accountLockedAt` | 2a |
+| `likes/like-anti-abuse.service.ts` | 11 | `likesSuspendedUntil`, `likeAbuseStrikes`, `likeBurstLog` | 2c |
+| `comments/comment-anti-abuse.service.ts` | 13 | `commentsSuspendedUntil`, `lastCommentAt`, `commentBurstLog` | 2c |
+| `comments/comment.service.ts:70` | 1 з 3 | `tx.user.update({ lastCommentAt })` — прибрати (cooldown → `RateLimitEvent`) | 2c |
+| решта (`posts`, `comments`, `likes`, `football`) | — | — | Фази 3–5 |
+
+Поточний auth (v4): `AuthController` сам ставить cookies; `refresh_token` — JWT з тим самим payload, без `path`, ніде не зберігається; `POST /auth/refresh` немає; `logout` під `JwtAuthGuard` лише чистить cookies. `req.user` у контролерах використовується лише як `{ id, role }` (posts, comments, likes) — `name`/`email` у `req.user` нікому не потрібні.
+
+Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new Error(message)` без статусу; `useAuthStore.user` заповнюється лише в `LoginForm`/`AdminLoginForm` → після F5 сесія «губиться». Автор рендериться як `author.name` у `HomeFeed.tsx`, `news/[slug]/NewsPostView.tsx`, `components/comments/CommentThreadNode.tsx`, admin `dashboard/posts/page.tsx`. Типи — `packages/types/index.ts` (`User`, `Post.author`, `Comment.author` з `avatar?`).
+
+#### 2.1 Рішення, прийняті при аналізі (доповнюють розділи 7 і 7.5)
+
+| # | Рішення | Чому |
+|---|---|---|
+| P2-1 | Access-JWT payload = `{ sub, role }`; `JwtStrategy` вибирає лише `id, role, status`, `status !== ACTIVE` → 401 | Менше даних у токені; `req.user` = `{ id, role }` — усе, що потрібно контролерам |
+| P2-2 | `login`: `status` перевіряємо **після** пароля; для неіснуючого email — `bcrypt.compare` з фіктивним хешем | Не розкривати факт блокування / існування email по коду чи часу відповіді |
+| P2-3 | `refresh`: знайти сесію → прострочена/нема → 401 → **статус юзера** (LOCKED → 403, DELETED → 401) → лише потім `revokedAt` | Інакше блокування (яке відкликає всі сесії) виглядає як хибний «reuse detected» |
+| P2-4 | Ротація атомарна: `updateMany({ where: { id, revokedAt: null } })` + перевірка `count === 1` | Два паралельні refresh одним токеном не створять дві сесії |
+| P2-5 | Гонка вкладок: токен відкликано < 30 с тому **і** в сім'ї є живий наступник → `409 REFRESH_SUPERSEDED` без відкликання сім'ї; фронт повторює запит (cookie вже оновила інша вкладка). Інакше — reuse → відкликати сім'ю → 401 + `Logger.warn` | Дві вкладки не мають розлогінювати користувача |
+| P2-6 | Refresh-сесія — ковзне вікно 7 днів (нова сесія при ротації = `now + 7d`) | Активний користувач не вилітає; неактивний — через 7 днів |
+| P2-7 | Логін/логаут також чистять legacy cookie `refresh_token` з `path=/` (v4) | Інакше старий JWT-cookie лишається в браузерах назавжди |
+| P2-8 | Репозиторії приймають `db: Prisma.TransactionClient` (патерн уже є — `CommentRepository.createWithTx`); транзакцію відкриває сервіс | Бізнес-транзакції через кілька репозиторіїв без порушення правила «repository = Prisma only» |
+| P2-9 | Anti-abuse: один спільний сервіс у `security/` з політиками по дії (`RateLimitAction` → поріг, вікно, тип санкції, тривалість, код помилки); Like/Comment anti-abuse — тонкі обгортки (публічні методи не міняються) | Дві копії однієї логіки → одна |
+| P2-10 | Видача санкції — у транзакції під `pg_advisory_xact_lock(hashtext(userId || ':' || action))` + перевірка «вже є активна» | Burst = паралельні запити; без локу 5 запитів дають кілька санкцій і одразу блок акаунта |
+| P2-11 | `RateLimitEvent` після санкції **не** видаляємо (у v4 видаляли burst-лог); strikes = `count` **невідкликаних** санкцій типу | Cooldown рахується з цих подій; відкликана адміном санкція — не strike |
+| P2-12 | Anti-abuse **не** перевіряє блок акаунта | Це вже робить `JwtStrategy` на кожному запиті |
+| P2-13 | Публічний автор = `{ id, name, avatarUrl, isDeleted }` (замість `deletedAt` з 7.5.1); `name` = `UserProfile.displayName`. Спільні `PUBLIC_AUTHOR_SELECT` + `toPublicAuthor()` у `users/` — Фази 3–4 використовують їх у posts/comments | Не світимо дату видалення; фронт локалізує «Видалений користувач» за прапорцем |
+| P2-14 | Адміна через API не видаляємо (ні `/users/me`, ні `/users/:id`) → 403 | Захист від стану «жодного адміна» |
+| P2-15 | `DELETE /users/me` з тілом `{ password }`; web `apiDelete` отримує опційне `body` | Підтвердження паролем (7.5.1) |
+
+#### 2a — Identity core ✅ (2026-09-26)
+- [x] Видалити `apps/api/scripts/export-content.ts` + `db:export-content` (хвіст Фази 1)
+- [x] `users/`: `UsersModule`, `UserRepository` (`findCredentialsByEmail`, `findAccountById`, `findAccessById`, `createWithProfile`), `user-account.ts` (`toUserAccount` → `{ id, email, role, name, avatarUrl }` — форма `user` у відповідях auth), `public-author.ts` (`PUBLIC_AUTHOR_SELECT`, `toPublicAuthor`, `PublicAuthor`) — поки не використовується, для Фаз 3–4
+- [x] `AuthService.register`: User + `UserProfile.displayName` одним nested create, `P2002` → 409 (без попереднього `findUnique` — немає гонки)
+- [x] `AuthService.login`: `passwordHash`, P2-2. `LOCKED` → 403 лише з правильним паролем; `DELETED` → 401. Профіль вантажиться **після** пароля: relation у Prisma = окремий запит, і він давав ~50 мс різниці «email є / нема»; тепер обидві гілки ≈ 0.10 с
+- [x] DTO: `@Transform(trim)` на email (раніше `" a@b.c "` падав на `@IsEmail` до нормалізації); `RegisterDto` — `MaxLength` (email 254, name 50, password 72); `LoginDto.password` — 256 (bcrypt сам обрізає до 72)
+- [x] `JwtStrategy`: P2-1, `req.user` = `AuthenticatedUser { id, role }`; `status !== ACTIVE` → 401 (`ACCOUNT_LOCKED` для LOCKED)
+- [x] `AuthService.refreshTokens` (v4, не був підключений) видалено; `generateTokens` поки видає refresh-JWT — замінюється у 2b
+- [x] Перевірка — мінімальний Nest-застосунок лише з `PrismaModule` + `AuthModule` (повний API ще не збирається), `curl`: реєстрація (профіль створено), дубль у іншому регістрі/з пробілами → 409, name > 50 → 400, неправильний пароль / невідомий email → 401, логін → 200 + cookies, LOCKED: access-токен → 401 `ACCOUNT_LOCKED`, логін → 403, неправильний пароль → 401; DELETED → 401. Тестового юзера видалено
+- [x] Логін адміна `test@test.com` з seed → 200, `role: ADMIN`, `name: "Test User"`; захищений роут з його access-токеном → 200 (хеш з експорту Фази 0 пережив міграцію)
+- [x] `tsc`: 81 → **70** (auth 0, users 0)
+
+#### 2b — Refresh-сесії
+- [ ] `AuthSessionRepository` (create, findByTokenHash, rotate, revoke, revokeFamily, revokeAllForUser, deleteExpired)
+- [ ] Opaque refresh (`randomBytes(32)`, у БД `sha256`), `userAgent`/`ipAddress`; P2-3…P2-7
+- [ ] `POST /auth/refresh`, `POST /auth/logout` (без guard, за refresh-cookie), `POST /auth/logout-all` (guard), `GET /auth/me` (user + profile)
+- [ ] Cookie-хелпери (`auth-cookies.ts`): `refresh_token` з `path=/api/v1/auth`
+- [ ] Перевірка `curl`: ротація, reuse → відкликано сім'ю, гонка → 409, logout, logout-all, me
+
+#### 2c — Moderation
+- [ ] `security/`: `SecurityModule`, `UserSanctionRepository`, `RateLimitRepository`, спільний anti-abuse (P2-9…P2-12)
+- [ ] `LikeAntiAbuseService`, `CommentAntiAbuseService` → обгортки; прибрати `lastCommentAt` з `comment.service.ts`
+- [ ] `AccountModerationService.lockAccount`: `status = LOCKED` + `lockedAt` + `UserSanction(ACCOUNT_LOCKED)` + відкликати всі `AuthSession` — одна транзакція
+- [ ] Cron: `AuthSession` з `expiresAt < now() - 7d`; `RateLimitEvent` старші за 24 год
+- [ ] Перевірка: 0 помилок у `*-anti-abuse.service.ts`; burst → санкція → другий strike → LOCKED (SQL)
+
+#### 2d — Видалення акаунта (розділ 7.5.1)
+- [ ] `UserService.deleteAccount`: анонімізація + `status = DELETED` + `deletedAt` + відкликати сесії — одна транзакція
+- [ ] `DELETE /users/me` (P2-15, чистить cookies), `DELETE /users/:id` (ADMIN, + `UserSanction(ACCOUNT_DELETED, issuedById)`), P2-14
+- [ ] Перевірка `curl`: логін неможливий, email звільнений (повторна реєстрація), сесії відкликані
+
+#### 2e — Frontend
+- [ ] `packages/types`: `PublicAuthor`, `User` (`avatarUrl`), `Post.author`/`Comment.author` → `PublicAuthor`
+- [ ] web + admin `http.ts`: `ApiError { status }`; refresh-on-401 single-flight (лише в браузері; не для `/auth/login|register|refresh`; `409` від refresh = успіх, P2-5)
+- [ ] web: `useAuthQuery` (`GET /auth/me`, 401 → `null`) + синхронізація з `useAuthStore`; login/logout оновлюють кеш
+- [ ] Рендер «Видалений користувач» за `author.isDeleted` (4 місця з 2.0) — наживо перевіряється після Фаз 3–4, коли posts/comments віддають `PublicAuthor`
+- [ ] Перевірка: F5 зберігає сесію; після 15 хв запит проходить через refresh
 
 ### Фаза 3 — Content
 - [ ] `PostRepository`: фільтр і сортування за `status`/`publishedAt`; `select` з `translations` + fallback на default-мову, `resolvedLanguage` у відповіді
