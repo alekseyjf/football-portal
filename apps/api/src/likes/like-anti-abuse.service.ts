@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   ABUSE_STRIKES_LOCK_ACCOUNT,
   LIKE_BURST_THRESHOLD,
