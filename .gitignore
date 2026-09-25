@@ -6,6 +6,9 @@ node_modules
 
 # Package managers (keep lockfile committed)
 # pnpm-lock.yaml — НЕ ігнорувати
+# Проєкт лише на pnpm — lock-файли інших менеджерів не комітимо
+package-lock.json
+yarn.lock
 
 # Turborepo
 .turbo

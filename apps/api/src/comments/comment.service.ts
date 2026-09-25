@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { CommentAntiAbuseService } from './comment-anti-abuse.service';
 import { CommentRepository } from './comment.repository';
 import { MAX_COMMENT_THREAD_DEPTH } from './comment-thread.constants';

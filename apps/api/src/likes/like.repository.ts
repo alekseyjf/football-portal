@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LikeType } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import type { LikeTargetTypeDto } from './dto/toggle-like.dto';
 
 export type ToggleOutcome = {
