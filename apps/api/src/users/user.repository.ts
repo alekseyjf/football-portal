@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { UserStatus, type Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -67,6 +67,22 @@ export class UserRepository {
       where: { id: userId },
       select: USER_ACCESS_SELECT,
     });
+  }
+
+  /**
+   * ACTIVE → LOCKED. `false` — користувач уже LOCKED/DELETED або не існує.
+   * Умова в `where` + row lock: з двох паралельних блокувань спрацює лише одне.
+   */
+  async markLocked(
+    userId: string,
+    lockedAt: Date,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<boolean> {
+    const locked = await db.user.updateMany({
+      where: { id: userId, status: UserStatus.ACTIVE },
+      data: { status: UserStatus.LOCKED, lockedAt },
+    });
+    return locked.count === 1;
   }
 
   /** User + UserProfile одним nested create — Prisma виконує його атомарно. */

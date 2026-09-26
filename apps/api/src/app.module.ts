@@ -8,12 +8,14 @@ import { PostModule } from './posts/post.module';
 import { CommentModule } from './comments/comment.module';
 import { FootballModule } from './football/football.module';
 import { LikeModule } from './likes/like.module';
+import { SecurityModule } from './security/security.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
+    SecurityModule,
     PostModule,
     CommentModule,
     FootballModule,
