@@ -77,12 +77,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
 /** Власні помилки цих роутів — відповідь для форми, а не прострочений access. */
 const ENDPOINTS_WITHOUT_REFRESH = new Set([
   '/auth/login',
+  '/auth/login/admin',
   '/auth/register',
   '/auth/refresh',
   '/auth/logout',
 ]);
 /** Успішна відповідь ставить cookies нової сесії. */
-const SESSION_START_ENDPOINTS = new Set(['/auth/login']);
+const SESSION_START_ENDPOINTS = new Set(['/auth/login', '/auth/login/admin']);
 
 type RefreshOutcome =
   | { kind: 'refreshed' }
@@ -201,18 +202,16 @@ async function request<T>(endpoint: string, init: NextFetchInit): Promise<T> {
 
 // ─── Публічні методи ───
 
-/** GET (RSC metadata, prefetch queryFn, клієнтські запити). */
+/**
+ * GET (RSC metadata, prefetch queryFn, клієнтські запити). Без `Content-Type`: тіла немає,
+ * а цей заголовок робить запит «не простим» — браузер слав би CORS preflight перед кожним GET.
+ */
 export async function apiGet<T>(
   endpoint: string,
   init?: NextFetchInit,
 ): Promise<T> {
-  const { next, headers, ...rest } = init ?? {};
-  return request<T>(endpoint, {
-    method: 'GET',
-    ...rest,
-    headers: { 'Content-Type': 'application/json', ...(headers ?? {}) },
-    next,
-  });
+  const { next, ...rest } = init ?? {};
+  return request<T>(endpoint, { method: 'GET', ...rest, next });
 }
 
 export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {

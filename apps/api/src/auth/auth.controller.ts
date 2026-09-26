@@ -12,6 +12,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { Role } from '@prisma/client';
 import type { Response, Request } from 'express';
 import {
   LoginThrottle,
@@ -64,6 +65,30 @@ export class AuthController {
       dto,
       readSessionClientContext(req),
       readRefreshToken(req),
+    );
+    setAuthCookies(res, tokens);
+    return { message: 'Logged in successfully', user };
+  }
+
+  /**
+   * Логін адмінки: не-ADMIN → 403 `ADMIN_ONLY` після перевірки пароля, без токенів і cookies
+   * (сесія, з якою користувач уже зайшов на сайт, теж лишається). Ліміт спроб — спільний з `login`.
+   */
+  @Post('login/admin')
+  @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
+  @LoginThrottle()
+  @Header('Cache-Control', 'no-store')
+  async adminLogin(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, tokens } = await this.authService.login(
+      dto,
+      readSessionClientContext(req),
+      readRefreshToken(req),
+      { requiredRole: Role.ADMIN },
     );
     setAuthCookies(res, tokens);
     return { message: 'Logged in successfully', user };

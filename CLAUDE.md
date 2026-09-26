@@ -6,13 +6,15 @@
 - **API** (port 4000): NestJS, Prisma 7, PostgreSQL (Supabase), JWT httpOnly cookies
 - **Monorepo**: pnpm + Turborepo
 - `packages/types` — shared TypeScript types
+- `packages/validation` — спільні межі валідації: `.` — числа (API DTO на class-validator), `./forms` — zod-схеми форм web/admin. Збирається в `dist` (turbo `dev`/`build` — першим; `pnpm install` — через `prepare`)
 - `packages/config` — shared tsconfig, eslint
 
 ## Auth
-- JWT: access token 15min + refresh token 7d, stored in **httpOnly cookies**
-- Roles: `ADMIN`, `USER`
-- Guards: `JwtAuthGuard`, `RolesGuard`, `@Roles('ADMIN')` decorator
-- Login only via admin panel (port 3001) — cookies are shared on localhost
+- Access JWT 15 хв (HS256, `{ sub, role, sid }`, `sid` = `AuthSession.familyId`) + opaque refresh (у БД — SHA-256), **httpOnly cookies**; refresh — ротація, ковзне вікно 7 д, **абсолютний ліміт 30 д** від логіну
+- `JwtStrategy` на кожен запит перевіряє, що сесія `sid` жива → logout / logout-all / блокування гасять access одразу
+- Roles: `ADMIN`, `USER`; Guards: `JwtAuthGuard`, `RolesGuard`, `@Roles('ADMIN')` decorator
+- Адмінка логіниться через `POST /auth/login/admin` (не-ADMIN → 403 `ADMIN_ONLY`, сесія не створюється); cookies спільні на localhost
+- Пароль: новий ≥ 8 (межі — `packages/validation`); логін — без мінімуму (старі акаунти)
 
 ## Database (Prisma schema v4.0)
 Key models:
@@ -30,7 +32,9 @@ All routes prefixed with `/api/v1/`
 ### Auth — `src/auth/`
 - `POST /auth/register` — public
 - `POST /auth/login` — public, sets httpOnly cookies
-- `POST /auth/logout` — protected (JwtAuthGuard)
+- `POST /auth/login/admin` — public, лише ADMIN (403 `ADMIN_ONLY` до створення сесії); ліміт спроб спільний з `login`
+- `POST /auth/refresh` — ротація refresh-сесії (409 `REFRESH_SUPERSEDED` — гонка вкладок)
+- `POST /auth/logout` — без guard (читає refresh-cookie); `POST /auth/logout-all` — JwtAuthGuard; `GET /auth/me`
 - Files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`
 - DTOs: `register.dto.ts`, `login.dto.ts`
 - Guards: `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts`, `guards/roles.decorator.ts`
@@ -82,7 +86,7 @@ All routes prefixed with `/api/v1/`
 - `app/dashboard/layout.tsx` — `AdminShellBar` (навігація, публічний сайт з `NEXT_PUBLIC_PUBLIC_WEB_URL`, **Вийти** → `POST /auth/logout`)
 - `app/dashboard/page.tsx` — картка **Football data** + `FootballSyncButton` → `POST /football/sync`
 - `lib/publicWebUrl.ts`, `hooks/useAdminLogout.ts`, `hooks/useAdminSessionExpiry.ts` (refresh відхилено → `/login`)
-- `app/login/AdminLoginForm.tsx` — `useAdminLogin` (mutation)
+- `app/login/AdminLoginForm.tsx` — `useAdminLogin` (mutation, `POST /auth/login/admin`)
 - `app/dashboard/posts/page.tsx` — клієнтська сторінка, `useAdminPosts`; посилання «View on site» через `NEXT_PUBLIC_PUBLIC_WEB_URL` (fallback `http://localhost:3000`)
 - `app/dashboard/posts/create/CreatePostForm.tsx` — `useCreatePost`, тіло `CreatePostDto` (EN обов'язково, UA опційно)
 - `hooks/useAdminPosts.ts`, `useCreatePost.ts`, `useAdminLogin.ts`
@@ -115,8 +119,9 @@ FOOTBALL_API_URL=https://api.football-data.org/v4
 FOOTBALL_COMPETITION_IDS=PL
 FOOTBALL_LIVE_CRON_ENABLED=false
 FOOTBALL_HTTP_LOG=true
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001 (обов'язковий; через кому, рівно origin — без шляху і `/`; на проді лише https)
 EMAIL_HASH_SECRET=... (обов'язковий, ≥ 32 символи, випадковий; HMAC блоклиста пошт видалених акаунтів — НЕ змінювати після запуску)
-TRUST_PROXY= (порожньо в dev; за reverse proxy — кількість проксі, напр. 1; `true` заборонено)
+TRUST_PROXY= (порожньо в dev; на проді ОБОВ'ЯЗКОВИЙ — кількість проксі, напр. 1, або 0/false без проксі; `true` заборонено)
 ```
 (`FOOTBALL_HTTP_LOG` — логувати всі запити до football-data; у dev це вмикається автоматично)
 ### apps/web/.env.local

@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { mediaUrlSchema } from '@football-portal/validation/forms';
 import { useCreatePost } from '@/hooks/useCreatePost';
 
 const schema = z
@@ -15,11 +16,8 @@ const schema = z
     titleUa: z.string().optional(),
     excerptUa: z.string().optional(),
     contentUa: z.string().optional(),
-    coverImage: z
-      .string()
-      .url('Must be a valid URL')
-      .optional()
-      .or(z.literal('')),
+    // Лише https — як `@IsMediaUrl()` у DTO API
+    coverImage: mediaUrlSchema.optional().or(z.literal('')),
     published: z.boolean(),
   })
   .refine(

@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import {
+  commentFormSchema,
+  type CommentFormValues,
+} from '@football-portal/validation/forms';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useAuthStore } from '@/store/auth.store';
@@ -13,11 +16,6 @@ import {
   CommentThreadNode,
   countCommentsInTree,
 } from '@/components/comments/CommentThreadNode';
-
-const commentSchema = z.object({
-  content: z.string().min(2, 'Comment must be at least 2 characters'),
-});
-type CommentFormData = z.infer<typeof commentSchema>;
 
 interface Props {
   postId: string;
@@ -32,8 +30,8 @@ export function CommentSection({ postId }: Props) {
   const { mutate: createComment, isPending } = useCreateComment(postId);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CommentFormData>({
-    resolver: zodResolver(commentSchema),
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<CommentFormValues>({
+    resolver: zodResolver(commentFormSchema),
   });
 
   const totalCommentCount = countCommentsInTree(comments);
@@ -46,7 +44,7 @@ export function CommentSection({ postId }: Props) {
     return null;
   };
 
-  const onSubmit = (data: CommentFormData) => {
+  const onSubmit = (data: CommentFormValues) => {
     setSubmitError(null);
     createComment(
       { content: data.content, postId },

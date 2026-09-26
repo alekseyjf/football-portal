@@ -14,6 +14,7 @@ import {
   ACCESS_TOKEN_TTL_SECONDS,
   REFRESH_SESSION_TTL_MS,
   REFRESH_SUPERSEDED_GRACE_MS,
+  SESSION_ABSOLUTE_TTL_MS,
   readJwtSecret,
 } from '../auth.constants';
 import type { AccessTokenPayload } from '../auth.service';
@@ -47,22 +48,25 @@ export class AuthSessionService {
     private jwt: JwtService,
   ) {}
 
-  /** Логін: нова сім'я сесій. */
+  /** Логін: нова сім'я сесій; від її старту рахується абсолютний ліміт (2f). */
   async startSession(
     user: { id: string; role: AccessTokenPayload['role'] },
     client: SessionClientContext,
   ): Promise<AuthTokens> {
     const refreshToken = generateRefreshToken();
+    const familyId = randomUUID();
+    const startedAt = new Date();
     const session = await this.sessionRepository.create({
       userId: user.id,
-      familyId: randomUUID(),
+      familyId,
+      familyStartedAt: startedAt,
       tokenHash: hashRefreshToken(refreshToken),
-      expiresAt: refreshExpiryFrom(new Date()),
+      expiresAt: refreshExpiryFrom(startedAt, startedAt),
       ...client,
     });
 
     return {
-      accessToken: await this.signAccessToken(user),
+      accessToken: await this.signAccessToken(user, familyId),
       refreshToken,
       refreshExpiresAt: session.expiresAt,
     };
@@ -82,7 +86,13 @@ export class AuthSessionService {
     const tokenHash = hashRefreshToken(rawRefreshToken);
     const session = await this.sessionRepository.findByTokenHash(tokenHash);
     const now = new Date();
-    if (!session || session.expiresAt <= now) {
+    // `expiresAt` уже обмежений абсолютним лімітом, але перевіряємо й сам ліміт (2f):
+    // рядок з неузгодженим `expiresAt` не має продовжити сесію понад 30 днів від логіну
+    if (
+      !session ||
+      session.expiresAt <= now ||
+      absoluteDeadlineOf(session.familyStartedAt) <= now
+    ) {
       throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
     }
 
@@ -102,8 +112,9 @@ export class AuthSessionService {
         {
           userId: session.user.id,
           familyId: session.familyId,
+          familyStartedAt: session.familyStartedAt,
           tokenHash: hashRefreshToken(successorToken),
-          expiresAt: refreshExpiryFrom(now),
+          expiresAt: refreshExpiryFrom(now, session.familyStartedAt),
           ...client,
         },
         now,
@@ -122,7 +133,7 @@ export class AuthSessionService {
     }
 
     return {
-      accessToken: await this.signAccessToken(session.user),
+      accessToken: await this.signAccessToken(session.user, session.familyId),
       refreshToken: successorToken,
       refreshExpiresAt: successor.expiresAt,
     };
@@ -173,11 +184,16 @@ export class AuthSessionService {
     throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
   }
 
-  private signAccessToken(user: {
-    id: string;
-    role: AccessTokenPayload['role'];
-  }): Promise<string> {
-    const payload: AccessTokenPayload = { sub: user.id, role: user.role };
+  /** `sid` = `familyId`: `JwtStrategy` пускає токен, лише поки сім'я жива (2f). */
+  private signAccessToken(
+    user: { id: string; role: AccessTokenPayload['role'] },
+    sessionFamilyId: string,
+  ): Promise<string> {
+    const payload: AccessTokenPayload = {
+      sub: user.id,
+      role: user.role,
+      sid: sessionFamilyId,
+    };
     return this.jwt.signAsync(payload, {
       secret: this.jwtSecret,
       algorithm: ACCESS_TOKEN_ALGORITHM,
@@ -186,8 +202,18 @@ export class AuthSessionService {
   }
 }
 
-function refreshExpiryFrom(issuedAt: Date): Date {
-  return new Date(issuedAt.getTime() + REFRESH_SESSION_TTL_MS);
+/** Ковзне вікно 7 д (P2-6), але не далі за абсолютний ліміт від логіну (2f). */
+function refreshExpiryFrom(issuedAt: Date, familyStartedAt: Date): Date {
+  return new Date(
+    Math.min(
+      issuedAt.getTime() + REFRESH_SESSION_TTL_MS,
+      absoluteDeadlineOf(familyStartedAt).getTime(),
+    ),
+  );
+}
+
+function absoluteDeadlineOf(familyStartedAt: Date): Date {
+  return new Date(familyStartedAt.getTime() + SESSION_ABSOLUTE_TTL_MS);
 }
 
 /** LOCKED → 403 (власник має знати, чому його не пускає); DELETED → 401, як «сесії немає». */

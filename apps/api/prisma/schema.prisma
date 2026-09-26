@@ -169,22 +169,26 @@ model UserProfile {
 
 /// Refresh-сесія. У cookie — сирий токен, у БД — лише SHA-256 хеш.
 model AuthSession {
-  id         String    @id @default(cuid())
-  userId     String
+  id              String    @id @default(cuid())
+  userId          String
   /// Усі ротації від одного логіну мають один familyId (для reuse-detection)
-  familyId   String
-  tokenHash  String    @unique
-  userAgent  String?
-  ipAddress  String?
-  expiresAt  DateTime
-  lastUsedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
+  familyId        String
+  /// Логін, з якого почалась сім'я; абсолютний ліміт життя сесії (30 д) рахується від нього (2f)
+  familyStartedAt DateTime
+  tokenHash       String    @unique
+  userAgent       String?
+  ipAddress       String?
+  /// min(ротація + 7 д, familyStartedAt + 30 д)
+  expiresAt       DateTime
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([familyId])
+  /// JwtStrategy на кожен запит шукає живу сесію сім'ї (`revokedAt IS NULL`) — sid у access-токені
+  @@index([familyId, revokedAt])
   @@index([expiresAt])
 }
 

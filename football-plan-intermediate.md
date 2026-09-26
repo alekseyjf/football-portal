@@ -1,6 +1,6 @@
 # 🧱 Football Portal — Intermediate Plan: Schema v5
 
-> **Статус:** ◐ у процесі — Фази 0–2 ✅ (2a–2e), далі Фаза 3
+> **Статус:** ◐ у процесі — Фази 0–2 ✅ (2a–2f), далі Фаза 3
 > **Виконується:** ДО продовження основного плана (`football-plan-new.md`, етапи 7+)
 > **Після завершення:** перенести ключові рішення в Частину 2 основного плана, цей файл — в архів.
 > **Створено:** 2026-09-24
@@ -284,19 +284,23 @@ model AuthSession {
   id         String    @id @default(cuid())
   userId     String
   /// Усі ротації від одного логіну мають один familyId (для reuse-detection)
-  familyId   String
-  tokenHash  String    @unique
-  userAgent  String?
-  ipAddress  String?
-  expiresAt  DateTime
-  lastUsedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
+  familyId        String
+  /// Старт сім'ї (логін) — абсолютний ліміт 30 д (2f)
+  familyStartedAt DateTime
+  tokenHash       String    @unique
+  userAgent       String?
+  ipAddress       String?
+  /// min(ротація + 7 д, familyStartedAt + 30 д)
+  expiresAt       DateTime
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([familyId])
+  /// sid у access-токені: JwtStrategy шукає живу сесію сім'ї на кожен запит (2f)
+  @@index([familyId, revokedAt])
   @@index([expiresAt])
 }
 
@@ -962,6 +966,8 @@ Competition (PL, LEAGUE)                        Competition (CL, CUP)
 
 **`GET /auth/me`:** користувач + профіль (відновлення сесії після F5).
 
+**2f:** access-JWT несе `sid` = `familyId`; `JwtStrategy` на кожен запит перевіряє, що сім'я жива → logout / logout-all / блокування гасять access одразу. Сесія живе не довше 30 днів від логіну (`familyStartedAt`), ковзне вікно 7 д — лише всередині. Адмінка логіниться через `POST /auth/login/admin` (не-ADMIN → 403 до створення сесії).
+
 **Frontend (`lib/api/http.ts` web + admin):** на 401 один раз викликати `/auth/refresh` (single-flight: паралельні запити чекають один refresh), потім повторити запит.
 
 **Cron:** видаляти `AuthSession` з `expiresAt < now() - 7d` і `RateLimitEvent` старші за 24 год.
@@ -1235,10 +1241,37 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
 - [x] `JWT_SECRET`: `readJwtSecret()` (`auth.constants.ts`) — < 32 символів → API не стартує (як `EMAIL_HASH_SECRET`); алгоритм закріплено: підпис і `JwtStrategy` — лише `HS256`
 - [x] Перевірка (мінімальний Nest, dev-БД) 9/9: короткий секрет → старт падає; ім'я `"   "` → 400, `"  Ab  "` → `Ab`; login / me / refresh → 200; токен HS512 тим самим секретом і `alg=none` → 401. Тестового юзера прибрано
 - [x] Документація: `BlockedEmail` у розділах 4, 5, 5.1; `CLAUDE.md` — `JWT_SECRET`, admin не викликає `/auth/me`
-- ⚠️ **До проду (не код-баг, а політика):** strikes анти-абузу рахуються за весь час, а ендпоінта розблокування немає → легітимний користувач, що двічі (з будь-яким інтервалом) лайкне 5 разів за 5 с, блокується назавжди. Варіанти: strikes лише за N днів, м'якший поріг для LIKE, `POST /users/:id/unlock` (ADMIN) — разом з адмінкою користувачів
-- ⚠️ **До проду:** CORS-origin-и захардкоджені (`app.setup.ts`) → `CORS_ORIGINS` з env; абсолютний ліміт життя сім'ї refresh-сесій (напр. 90 днів); мінімальна довжина пароля 6 → 8 (DTO + zod на web)
-- Фази 3–4: `CreateCommentDto.content` — trim + `MaxLength`; `coverImage` / `videoUrl` — `IsUrl({ protocols: ['https'] })`
-- Опційно: `sid` у access-JWT + перевірка в `JwtStrategy` — logout / logout-all тоді гасять і access одразу (зараз живе ≤ 15 хв); `apiGet` без `Content-Type` (GET з ним завжди робить CORS preflight); admin-логін звичайного USER → одразу `POST /auth/logout`
+- ⚠️ **До проду (не код-баг, а політика)** → бэклог Redis-етапу в `football-plan-new.md`: strikes анти-абузу рахуються за весь час, а ендпоінта розблокування немає → легітимний користувач, що двічі (з будь-яким інтервалом) лайкне 5 разів за 5 с, блокується назавжди. Варіанти: strikes лише за N днів, м'якший поріг для LIKE, `POST /users/:id/unlock` (ADMIN) — разом з адмінкою користувачів
+- [x] ~~До проду: CORS з env, абсолютний ліміт сесії, пароль ≥ 8~~ → зроблено у **2f**
+- [x] ~~Фази 3–4: валідація коментаря й URL постів~~ → зроблено у **2f**
+- [x] ~~Опційно: `sid` в access-JWT, `apiGet` без `Content-Type`, адмін-логін без сесії для USER~~ → зроблено у **2f**
+
+#### 2f — Hardening після рев'ю ✅ (2026-09-26)
+
+| # | Рішення | Чому |
+|---|---|---|
+| P2-22 | `CORS_ORIGINS` (через кому) обов'язковий; кожне значення — рівно origin (`new URL(x).origin === x`: без шляху, `/`, `*`); на проді лише https; збіг — точний, через `Set` | Захардкоджений localhost не працює на проді; `*` з `credentials` заборонений; помилка конфігу видна на старті, а не як «CORS error» у браузері |
+| P2-23 | Абсолютний ліміт сесії **30 днів** від логіну: `AuthSession.familyStartedAt`, `expiresAt = min(ротація + 7 д, familyStartedAt + 30 д)`, refresh додатково перевіряє сам дедлайн. Не через `iat`: refresh-токен opaque (не JWT, `iat` немає), а старт сім'ї в БД клієнт не підробить. Access обмежений тим самим через `sid` (P2-26) | Вкрадена сесія не живе вічно, навіть якщо зловмисник рефрешить щодня |
+| P2-24 | Пароль ≥ **8** лише для **нового** пароля (реєстрація); логін / `DELETE /users/me` — без мінімуму | Акаунти, створені з 6–7 символами, мають і далі входити |
+| P2-25 | `packages/validation`: `.` — числа (без залежностей, їх імпортує API в class-validator DTO), `./forms` — zod-схеми для web / admin (zod — optional peer). Збирається `tsc` у CJS (`dist`); turbo `dev` / `build` збирає його першим, `pnpm install` — через `prepare`. API лишається на class-validator (правило 5), спільні — самі межі | Правила не розходяться; zod не тягнеться в API |
+| P2-26 | Access-JWT `{ sub, role, sid }`, `sid` = `AuthSession.familyId`. Назва — `sid` (OIDC), не `jti`: `jti` — id одного токена, а тут усі access-токени сесії (після кожної ротації) мають спільне значення. `JwtStrategy` одним запитом: жива сесія сім'ї (`revokedAt IS NULL`, `expiresAt > now`) + статус і роль власника (індекс `[familyId, revokedAt]`). Токен без `sid` → 401 → refresh | Logout / logout-all / reuse / блокування / видалення гасять access **одразу**; сховище — наша `AuthSession` (без нової таблиці, Redis — бэклог) |
+| P2-27 | `TRUST_PROXY` на проді **обов'язковий** (`1` / адреси проксі, або `0` / `false` — проксі немає); у dev порожньо | Без проксі довіра до `X-Forwarded-For` дає підробити IP; на проді «забули» = усі ліміти на IP спільні для всіх |
+| P2-28 | Ліміти: на IP — лише анонімні `login`, `register` і `refresh` (до перевірки refresh-cookie особа невідома; без cookie — не рахується, 2e); залогінені — за `userId` (`DELETE /users/me` — `account`, лайки / коментарі — `RateLimitEvent.userId`) | Перевірено аудитом — змін у коді не знадобилось |
+| P2-29 | `POST /auth/login/admin`: роль перевіряється **після** пароля і **до** `endSession` / `startSession` → не-ADMIN: 403 `ADMIN_ONLY`, без cookies і без нової сесії, сесія на сайті ціла. Лічильник throttler-а спільний з `login` (`generateKey` без імені handler-а) | Не видавати токени, щоб потім розлогінювати; два роути не подвоюють ліміт перебору |
+
+- [x] CORS (P2-22) — `app.setup.ts` `parseCorsOrigins`; `CORS_ORIGINS` у `apps/api/.env`
+- [x] Абсолютний ліміт (P2-23): міграція `0004_auth_session_absolute_lifetime` (колонка з backfill `MIN(createdAt)` сім'ї, живі сесії обрізано до +30 д, індекс `[familyId, revokedAt]`), застосовано на dev, `migrate diff` БД → схема порожній
+- [x] Пароль (P2-24, P2-25): `packages/validation`; DTO (`register`, `login`, `delete-own-account`, коментар) на спільних межах; web `LoginForm` / `RegisterForm` / `CommentSection` / `CommentThreadNode`, admin `AdminLoginForm` / `CreatePostForm` — на спільних схемах
+- [x] `TRUST_PROXY` (P2-27, P2-28)
+- [x] `sid` (P2-26): `auth-session.service.ts`, `jwt.strategy.ts`, `AuthSessionRepository.findLiveSessionOwner`
+- [x] `apiGet` без `Content-Type` (web + admin) — GET більше не робить CORS preflight
+- [x] Адмін-логін (P2-29): `auth.controller.ts`, `AuthService.login(…, { requiredRole })`, admin `useAdminLogin` → `/auth/login/admin`, `ADMIN_ONLY` у формі; `/auth/login/admin` у `ENDPOINTS_WITHOUT_REFRESH` / `SESSION_START_ENDPOINTS` обох `http.ts`
+- [x] Валідація (Фази 3–4 наперед): `CreateCommentDto.content` — `TrimString()` + 2…2000; `coverImage` / `videoUrl` — `@IsMediaUrl()` (лише https, ≤ 2048), `sourceUrl` — `@IsSourceUrl()` (http/https — без `javascript:`). `common/validation/`: `TrimString()` замість 5 копій `@Transform(trim)`
+- [x] SSRF: API ці URL **не фетчить** (лише `<img src>` на web, `videoUrl` ніде не рендериться) — захист не потрібен зараз; вимога записана в `url-field.decorators.ts`: при серверному fetch (OG-превʼю, ресайз, `next/image`) — блок приватних / локальних IP після резолву + без редиректів
+- [x] Перевірка — тестовий Nest (`PrismaModule` + `RequestThrottlingModule` + `AuthModule`, `configureHttpApp`) на dev-БД, **48/48**: `CORS_ORIGINS` — відсутній / `/` у кінці / шлях / `*` / ftp → старт падає, прод + http → падає, валідний список з пробілами — ок; прод без `TRUST_PROXY` → падає, `0` / `false` — ок, `true` — падає; preflight з localhost:3000 → ACAO + credentials, з чужого origin і `localhost:30000` → без ACAO; DTO: коментар `"   "` / 2001 → невалідний, `"  ok  "` → `ok`, 2000 — ок; cover http / `javascript:` / `data:` / без протоколу → невалідні, https — ок, source http — ок; пароль 7 → 400, 8 → 201; USER на `/auth/login/admin` → 403 `ADMIN_ONLY`, 0 `Set-Cookie`, сесій не додалось, сесія на сайті жива; неправильний пароль там → 401 (роль не розкрито); ADMIN → 200 + cookies; після ротації старий і новий access → 200; logout → обидва 401 одразу; logout-all → access іншого пристрою 401 одразу; токен з правильним підписом без `sid` → 401; логін: `expiresAt` ≈ +7 д; день 29 → refresh 200, наступник і `Expires` cookie ≈ +1 д; день 31 при `expiresAt` у майбутньому → 401; прострочена сесія → її access 401; 6 × `login` + 5 × `login/admin` на одну адресу → 11-та 429. Тестових юзерів прибрано
+- [x] `pnpm build` web + admin ✅; `tsc` API: 45 → **45** (auth, users, security, common, DTO — 0); `eslint` API і web по змінених файлах чистий
+- ⚠️ Після деплою 2f усі видані access-токени (без `sid`) → 401 → фронт один раз робить refresh — користувачі не розлогінюються
+- ⚠️ `JwtStrategy` тепер читає `AuthSession` (замість `User`) — так само 1 запит на захищений запит; кеш / Redis — бэклог
 
 ### Фаза 3 — Content
 - [ ] `PostRepository`: фільтр і сортування за `status`/`publishedAt`; `select` з `translations` + fallback на default-мову, `resolvedLanguage` у відповіді

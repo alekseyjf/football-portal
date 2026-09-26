@@ -69,12 +69,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
 /** Власні помилки цих роутів — відповідь для форми, а не прострочений access. */
 const ENDPOINTS_WITHOUT_REFRESH = new Set([
   '/auth/login',
+  '/auth/login/admin',
   '/auth/register',
   '/auth/refresh',
   '/auth/logout',
 ]);
 /** Успішна відповідь ставить cookies нової сесії. */
-const SESSION_START_ENDPOINTS = new Set(['/auth/login']);
+const SESSION_START_ENDPOINTS = new Set(['/auth/login', '/auth/login/admin']);
 
 type RefreshOutcome =
   | { kind: 'refreshed' }
@@ -193,11 +194,9 @@ async function request<T>(endpoint: string, init: RequestInit): Promise<T> {
 
 // ─── Публічні методи ───
 
+/** Без `Content-Type`: тіла немає, а заголовок змусив би браузер слати CORS preflight. */
 export async function apiGet<T>(endpoint: string): Promise<T> {
-  return request<T>(endpoint, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return request<T>(endpoint, { method: 'GET' });
 }
 
 export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {

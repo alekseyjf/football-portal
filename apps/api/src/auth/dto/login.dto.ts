@@ -1,17 +1,19 @@
-import { Transform } from 'class-transformer';
+import {
+  EMAIL_MAX_LENGTH,
+  PASSWORD_INPUT_MAX_LENGTH,
+} from '@football-portal/validation';
 import { IsEmail, IsString, MaxLength } from 'class-validator';
+import { TrimString } from '../../common/validation/trim-string.transform';
 
 export class LoginDto {
-  /** Пробіли по краях прибираємо до @IsEmail; нормалізація регістру — у сервісі */
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  /** Нормалізація регістру — у сервісі */
+  @TrimString()
   @IsEmail()
-  @MaxLength(254)
+  @MaxLength(EMAIL_MAX_LENGTH)
   email: string;
 
-  /** Не 72, як у RegisterDto: bcrypt сам обрізає до 72 байт, а тут лише захист від величезних тіл */
+  /** Без мінімуму: акаунти до 2f мають паролі від 6 символів. Максимум — захист від величезних тіл */
   @IsString()
-  @MaxLength(256)
+  @MaxLength(PASSWORD_INPUT_MAX_LENGTH)
   password: string;
 }

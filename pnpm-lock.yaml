@@ -17,6 +17,9 @@ importers:
       '@football-portal/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@football-portal/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.1(react@19.2.4))
@@ -72,6 +75,9 @@ importers:
       '@football-portal/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@football-portal/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
       '@nestjs/common':
         specifier: ^11.0.1
         version: 11.1.17(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -229,6 +235,9 @@ importers:
       '@football-portal/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@football-portal/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.1(react@19.2.4))
@@ -288,6 +297,15 @@ importers:
   packages/config: {}
 
   packages/types: {}
+
+  packages/validation:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
 packages:
 

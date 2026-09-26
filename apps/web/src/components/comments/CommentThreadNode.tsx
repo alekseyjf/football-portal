@@ -3,17 +3,15 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import {
+  commentFormSchema,
+  type CommentFormValues,
+} from '@football-portal/validation/forms';
 import { useTranslations } from 'next-intl';
 import type { Comment } from '@/lib/api/types';
 import { useCreateComment, useDeleteComment } from '@/hooks/useComments';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
 import { LikeBar } from '@/components/features/LikeBar';
-
-const replySchema = z.object({
-  content: z.string().min(2, 'Comment must be at least 2 characters'),
-});
-type ReplyFormData = z.infer<typeof replySchema>;
 
 function ReplyForm({
   postId,
@@ -29,8 +27,8 @@ function ReplyForm({
   const t = useTranslations('comments');
   const { mutate: createComment, isPending } = useCreateComment(postId);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ReplyFormData>({
-    resolver: zodResolver(replySchema),
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<CommentFormValues>({
+    resolver: zodResolver(commentFormSchema),
   });
 
   const mapCommentApiError = (error: unknown): string | null => {
@@ -41,7 +39,7 @@ function ReplyForm({
     return null;
   };
 
-  const onSubmit = (data: ReplyFormData) => {
+  const onSubmit = (data: CommentFormValues) => {
     setSubmitError(null);
     createComment(
       { content: data.content, postId, parentId },

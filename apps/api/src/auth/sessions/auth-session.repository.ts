@@ -6,8 +6,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 const SESSION_FOR_REFRESH_SELECT = {
   id: true,
   familyId: true,
+  familyStartedAt: true,
   expiresAt: true,
   revokedAt: true,
+  user: { select: { id: true, role: true, status: true } },
+} satisfies Prisma.AuthSessionSelect;
+
+/** Для `JwtStrategy`: власник живої сесії — статус і роль беремо з БД, не з токена. */
+const SESSION_OWNER_SELECT = {
   user: { select: { id: true, role: true, status: true } },
 } satisfies Prisma.AuthSessionSelect;
 
@@ -19,6 +25,9 @@ const CREATED_SESSION_SELECT = {
 export type SessionForRefreshRow = Prisma.AuthSessionGetPayload<{
   select: typeof SESSION_FOR_REFRESH_SELECT;
 }>;
+export type SessionOwnerRow = Prisma.AuthSessionGetPayload<{
+  select: typeof SESSION_OWNER_SELECT;
+}>['user'];
 export type CreatedSessionRow = Prisma.AuthSessionGetPayload<{
   select: typeof CREATED_SESSION_SELECT;
 }>;
@@ -26,6 +35,7 @@ export type CreatedSessionRow = Prisma.AuthSessionGetPayload<{
 export interface CreateSessionInput {
   userId: string;
   familyId: string;
+  familyStartedAt: Date;
   tokenHash: string;
   expiresAt: Date;
   userAgent: string | null;
@@ -87,6 +97,23 @@ export class AuthSessionRepository {
       where: { familyId, revokedAt: null, expiresAt: { gt: now } },
       select: { id: true },
     });
+  }
+
+  /**
+   * `sid` access-токена (= `familyId`): сім'я жива, поки в ній є невідкликана непрострочена сесія.
+   * Logout / logout-all / reuse / блокування / видалення гасять її — і access-токен разом з нею (2f).
+   * Ротація атомарна (відкликання + наступник в одній транзакції), тож між ними сім'я не «зникає».
+   */
+  async findLiveSessionOwner(
+    familyId: string,
+    userId: string,
+    now: Date,
+  ): Promise<SessionOwnerRow | null> {
+    const liveSession = await this.prisma.authSession.findFirst({
+      where: { familyId, userId, revokedAt: null, expiresAt: { gt: now } },
+      select: SESSION_OWNER_SELECT,
+    });
+    return liveSession?.user ?? null;
   }
 
   /** Logout одного пристрою. Повертає кількість відкликаних (0 — вже був відкликаний). */
