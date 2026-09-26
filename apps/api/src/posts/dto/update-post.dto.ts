@@ -1,54 +1,27 @@
-import {
-  IsString,
-  IsBoolean,
-  IsOptional,
-  IsArray,
-  ValidateNested,
-  IsIn,
-} from 'class-validator';
 import { Type } from 'class-transformer';
-import { IsMediaUrl } from '../../common/validation/url-field.decorators';
-import { PostTranslationDto } from './create-post.dto';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
+import {
+  POST_TRANSLATIONS_MAX,
+  PostFieldsDto,
+  PostTranslationDto,
+} from './post-fields.dto';
 
-export class UpdatePostTranslationDto {
-  @IsString()
-  @IsIn(['en', 'ua'])
-  language: string;
-
-  @IsString()
+/**
+ * `PUT /posts/:id` (ADMIN). Переклади — upsert за мовою (кожен повністю: title, excerpt,
+ * content); переклади, яких немає в масиві, лишаються. Видалити переклад не можна (P3-5).
+ */
+export class UpdatePostDto extends PostFieldsDto {
   @IsOptional()
-  title?: string;
-
-  @IsString()
-  @IsOptional()
-  excerpt?: string;
-
-  @IsString()
-  @IsOptional()
-  content?: string;
-}
-
-export class UpdatePostDto {
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(POST_TRANSLATIONS_MAX)
   @ValidateNested({ each: true })
   @Type(() => PostTranslationDto)
-  @IsOptional()
   translations?: PostTranslationDto[];
-
-  @IsMediaUrl()
-  @IsOptional()
-  coverImage?: string;
-
-  @IsMediaUrl()
-  @IsOptional()
-  videoUrl?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  published?: boolean;
-
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  tagIds?: string[];
 }

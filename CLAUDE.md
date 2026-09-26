@@ -41,14 +41,18 @@ All routes prefixed with `/api/v1/`
 - Strategy: `strategies/jwt.strategy.ts` — reads token from cookie `access_token`
 
 ### Posts — `src/posts/`
-- `GET /posts?page=1&limit=10&lang=en` — public, paginated
-- `GET /posts/admin/all?lang=en` — ADMIN only
-- `GET /posts/:slug?lang=en` — public, post + translations + nested comments/replies
-- `POST /posts` — **ADMIN only**, body: `{ translations: [{language, title, excerpt, content}], published?, coverImage?, tagIds? }` — **створення лише з адмінки**
-- `PUT /posts/:id` — author or ADMIN
-- `DELETE /posts/:id` — ADMIN only, soft delete (sets deletedAt)
-- Files: `post.controller.ts`, `post.service.ts`, `post.repository.ts`, `post.module.ts`
-- DTOs: `create-post.dto.ts` (with `PostTranslationDto`), `update-post.dto.ts`
+- **Живий пост** (`post-visibility.ts`, `livePostWhere`): `deletedAt IS NULL`, `status IN (PUBLISHED, SCHEDULED)`, `publishedAt <= now` — SCHEDULED виходить сам, без cron. Чернетки за slug → 404, лайк чернетки — 404
+- `GET /posts?page=1&limit=10&lang=en` — public, живі, `publishedAt desc`; `limit` ≤ 50. Переклад розгорнуто в пост (`title`, `excerpt`) з fallback на default-мову + `resolvedLanguage`; невідомий `lang` → default
+- `GET /posts/admin/all` — ADMIN, усі крім видалених: `status`, `publishedAt`, `isLive`, `translations: [{ languageCode, title }]`
+- `GET /posts/:slug?lang=en` — public, живий пост + `content`, `availableLanguages`, `tags`, `competitions`, `clubs` (коментарі — окремо, `GET /comments/post/:postId`)
+- `POST /posts` — **ADMIN only**, body: `{ translations: [{ languageCode, title, excerpt, content }], status?, publishedAt?, coverImageUrl?, videoUrl?, sourceUrl?, tagIds?, clubIds?, competitionIds? }`; переклад default-мови (en) обов'язковий; без `status` — DRAFT. Правила статусу / дати — `post-publication.ts` (`resolvePostPublication`)
+- `PUT /posts/:id` — **ADMIN only**; переклади — upsert за мовою, масив зв'язків замінює повністю
+- `DELETE /posts/:id` — ADMIN only, soft delete (sets deletedAt) → `{ id }`
+- Files: `post.controller.ts`, `post.service.ts`, `post.repository.ts`, `post.module.ts`, `post-response.ts` (форма відповідей), `post-publication.ts`, `post-slug.ts`, `post-visibility.ts`
+- DTOs: `post-fields.dto.ts` (спільні поля + `PostTranslationDto`), `create-post.dto.ts`, `update-post.dto.ts`, `list-posts-query.dto.ts`
+
+### Languages — `src/languages/`
+- `LanguageService` — мови з таблиці `Language` (кеш 60 с): `chooseContentLanguage(lang)` → `{ requestedCode, defaultCode }`, `getContentLanguages()` → `{ defaultCode, activeCodes }`
 
 ### Comments — `src/comments/`
 - `GET /comments/post/:postId` — public
@@ -76,7 +80,7 @@ All routes prefixed with `/api/v1/`
 - `app/news/[slug]/CommentSection.tsx` — `useComments` / `useCreateComment` / `useDeleteComment`
 - `hooks/usePosts.ts`, `usePostDetail.ts`, `useComments.ts`, `hooks/useAuth.ts` — `useAuthQuery` (`GET /auth/me`, ключ `['auth','me']`, 401 → `null`) + мутації логін/реєстрація/logout (пишуть у кеш `me`); `useAuthorDisplayName` — «Видалений користувач» за `author.isDeleted`
 - `lib/api/http.ts` — `apiGet` / `apiPost` / `apiPut` / `apiDelete(url, body?)` (credentials, JSON); **єдиний HTTP-шар**. Помилки — `ApiError { status, code, retryAfterSeconds }`. На 401 (лише в браузері; не для `/auth/login|register|refresh|logout`) — один single-flight `POST /auth/refresh` і повтор запиту; 409 від refresh = успіх (інша вкладка); лише 401/403 від refresh = вихід (`onSessionExpired`); 429 / мережа — не розлогінюють
-- `lib/api/types.ts` — `Post`, `PostDetail`, `Comment`, `getTranslation`, `DEFAULT_CONTENT_LANG`
+- `lib/api/types.ts` — `Post`, `PostDetail`, `Comment`, `DEFAULT_CONTENT_LANG` (fallback перекладу робить API; `resolvedLanguage` ≠ мові сторінки → позначка «Переклад недоступний»)
 - `lib/query/queryClient.ts`, `providers/QueryProvider.tsx`
 - `providers/AuthSessionSync.tsx` — дзеркалить `useAuthQuery` у store, реагує на `onSessionExpired`
 - `store/auth.store.ts` — Zustand, `user: User | null`, `isLoading` (read-model; писати лише через `AuthSessionSync`)
@@ -88,7 +92,7 @@ All routes prefixed with `/api/v1/`
 - `lib/publicWebUrl.ts`, `hooks/useAdminLogout.ts`, `hooks/useAdminSessionExpiry.ts` (refresh відхилено → `/login`)
 - `app/login/AdminLoginForm.tsx` — `useAdminLogin` (mutation, `POST /auth/login/admin`)
 - `app/dashboard/posts/page.tsx` — клієнтська сторінка, `useAdminPosts`; посилання «View on site» через `NEXT_PUBLIC_PUBLIC_WEB_URL` (fallback `http://localhost:3000`)
-- `app/dashboard/posts/create/CreatePostForm.tsx` — `useCreatePost`, тіло `CreatePostDto` (EN обов'язково, UA опційно)
+- `app/dashboard/posts/create/CreatePostForm.tsx` — `useCreatePost`, тіло `CreatePostDto` (EN обов'язково, UA опційно; статус Draft / Publish now / Schedule + дата)
 - `hooks/useAdminPosts.ts`, `useCreatePost.ts`, `useAdminLogin.ts`
 - `lib/api/http.ts` (та сама refresh-логіка, що й у web — міняти разом), `lib/api/types.ts` — `AdminPostRow`, `CreatePostPayload`, `adminPostTitle`, `adminAuthorName`
 - `lib/query/queryClient.ts`, `providers/QueryProvider.tsx`

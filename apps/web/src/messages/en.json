@@ -26,12 +26,14 @@
     "latestNews": "Latest News",
     "loading": "Loading news…",
     "error": "Could not load posts. Please try again later.",
-    "empty": "No posts yet. Check back soon!"
+    "empty": "No posts yet. Check back soon!",
+    "translationUnavailable": "Translation not available — shown in {language}"
   },
   "news": {
     "loading": "Loading article…",
     "loadError": "Failed to load post",
-    "by": "By"
+    "by": "By",
+    "translationUnavailable": "Translation not available — showing the original ({language})."
   },
   "likes": {
     "ariaGroup": "Reactions",

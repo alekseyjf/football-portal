@@ -2,13 +2,10 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getTranslations } from 'next-intl/server';
-import { apiGet } from '@/lib/api/http';
+import { apiGet, isApiError } from '@/lib/api/http';
 import { localeToApiContentLang } from '@/lib/i18n/content-lang';
 import { makeQueryClient } from '@/lib/query/queryClient';
-import {
-  getTranslation,
-  type PostDetail,
-} from '@/lib/api/types';
+import type { PostDetail } from '@/lib/api/types';
 import { postDetailQueryOptions } from '@/hooks/usePostDetail';
 import { isAppLocale } from '@/i18n/routing';
 import { NewsPostView } from './NewsPostView';
@@ -26,10 +23,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const post = await apiGet<PostDetail>(
       `/posts/${encodeURIComponent(slug)}?lang=${encodeURIComponent(contentLang)}`,
     );
-    const translation = getTranslation(post, contentLang);
     return {
-      title: translation.title,
-      description: translation.excerpt,
+      title: post.title,
+      description: post.excerpt,
     };
   } catch {
     return { title: tNews('loadError') };
@@ -44,12 +40,13 @@ export default async function NewsPostPage({ params }: Props) {
   const contentLang = localeToApiContentLang(locale);
   const queryClient = makeQueryClient();
 
+  // `fetchQuery`, а не `prefetchQuery`: той ковтає помилки, і відсутній пост / чернетка
+  // віддавали HTTP 200 із «Завантаження…». 404 від API → сторінка 404; інші збої —
+  // рендеримо без кешу, клієнт зробить refetch
   try {
-    await queryClient.prefetchQuery(
-      postDetailQueryOptions(slug, contentLang),
-    );
-  } catch {
-    notFound();
+    await queryClient.fetchQuery(postDetailQueryOptions(slug, contentLang));
+  } catch (error) {
+    if (isApiError(error) && error.status === 404) notFound();
   }
 
   return (

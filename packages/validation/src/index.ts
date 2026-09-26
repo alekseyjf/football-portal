@@ -31,3 +31,17 @@ export const MEDIA_URL_PROTOCOLS = ['https'];
 /** Посилання на джерело новини (`sourceUrl`). */
 export const SOURCE_URL_PROTOCOLS = ['http', 'https'];
 export const URL_MAX_LENGTH = 2048;
+
+/** Переклад поста — після trim. */
+export const POST_TITLE_MIN_LENGTH = 5;
+export const POST_TITLE_MAX_LENGTH = 200;
+export const POST_EXCERPT_MIN_LENGTH = 10;
+export const POST_EXCERPT_MAX_LENGTH = 500;
+export const POST_CONTENT_MIN_LENGTH = 20;
+export const POST_CONTENT_MAX_LENGTH = 100_000;
+
+/** Скільки тегів / клубів / турнірів можна прив'язати до одного поста. */
+export const POST_RELATION_IDS_MAX = 20;
+
+/** Сторінка публічної стрічки (`GET /posts?limit=`). */
+export const POSTS_PAGE_LIMIT_MAX = 50;

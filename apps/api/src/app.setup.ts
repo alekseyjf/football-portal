@@ -2,7 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { API_GLOBAL_PREFIX } from './app.constants';
+import { API_GLOBAL_PREFIX, JSON_BODY_LIMIT } from './app.constants';
 import {
   ACCOUNT_THROTTLER,
   IP_THROTTLER,
@@ -38,6 +38,7 @@ export function configureHttpApp(app: NestExpressApplication): void {
   });
 
   app.use(cookieParser());
+  app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
 
   // Глобальна валідація — всі DTO автоматично валідуються
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
