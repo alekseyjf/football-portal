@@ -2,6 +2,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Header,
   Post,
   Body,
   Res,
@@ -10,7 +11,13 @@ import {
   HttpCode,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Response, Request } from 'express';
+import {
+  LoginThrottle,
+  RefreshThrottle,
+  RegisterThrottle,
+} from '../security/throttling/request-throttling';
 import { AuthService } from './auth.service';
 import {
   clearAuthCookies,
@@ -32,6 +39,10 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @UseGuards(ThrottlerGuard)
+  @RegisterThrottle()
+  // Відповідь з персональними даними / токенами — не кешувати (браузер, проксі)
+  @Header('Cache-Control', 'no-store')
   async register(@Body() dto: RegisterDto) {
     const user = await this.authService.register(dto);
     return { message: 'Registered successfully', user };
@@ -39,6 +50,10 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
+  @LoginThrottle()
+  // Відповідь з персональними даними / токенами — не кешувати (браузер, проксі)
+  @Header('Cache-Control', 'no-store')
   async login(
     @Body() dto: LoginDto,
     @Req() req: Request,
@@ -59,6 +74,10 @@ export class AuthController {
    */
   @Post('refresh')
   @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
+  @RefreshThrottle()
+  // Відповідь з персональними даними / токенами — не кешувати (браузер, проксі)
+  @Header('Cache-Control', 'no-store')
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -106,6 +125,8 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  // Відповідь з персональними даними / токенами — не кешувати (браузер, проксі)
+  @Header('Cache-Control', 'no-store')
   async me(@Req() req: Request) {
     const user = req.user as AuthenticatedUser;
     return { user: await this.authService.getCurrentUser(user.id) };

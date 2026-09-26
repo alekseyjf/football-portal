@@ -42,6 +42,14 @@ enum RateLimitAction {
   COMMENT
 }
 
+/// Чому пошту видаленого акаунта заблоковано для повторної реєстрації (2d)
+enum EmailBlockReason {
+  /// Акаунт видалив admin — безстроково
+  ACCOUNT_DELETED_BY_ADMIN
+  /// Користувач видалив акаунт сам — тимчасово (SELF_DELETED_EMAIL_BLOCK_MS)
+  ACCOUNT_SELF_DELETED
+}
+
 enum PostStatus {
   DRAFT
   SCHEDULED
@@ -215,6 +223,21 @@ model RateLimitEvent {
 
   @@index([userId, action, createdAt])
   @@index([createdAt])
+}
+
+/// Пошти видалених акаунтів, з яких не можна зареєструватися знову (2d).
+/// Лише HMAC-SHA256 канонічної адреси (`EMAIL_HASH_SECRET`): сирий email після видалення не зберігаємо.
+/// Без FK на User — хеш не має вести назад до анонімізованого акаунта. Прострочені блоки чистить cron.
+model BlockedEmail {
+  id           String           @id @default(cuid())
+  emailHash    String           @unique
+  reason       EmailBlockReason
+  /// null = безстроково
+  blockedUntil DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([blockedUntil])
 }
 
 // ═════════════════════════════════════════

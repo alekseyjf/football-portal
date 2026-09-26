@@ -33,8 +33,8 @@ export interface CreateSessionInput {
 }
 
 /**
- * Лише Prisma-запити. Методи, які знадобляться в чужих транзакціях
- * (блокування акаунта — 2c, видалення — 2d), приймають `db` (P2-8).
+ * Лише Prisma-запити. Методи для чужих транзакцій
+ * (блокування акаунта — 2c, видалення — 2d) приймають `db` (P2-8).
  */
 @Injectable()
 export class AuthSessionRepository {
@@ -107,7 +107,7 @@ export class AuthSessionRepository {
     return revoked.count;
   }
 
-  /** Logout-all; також блокування (2c) і видалення акаунта (2d) — у їхній транзакції. */
+  /** Logout-all; також блокування акаунта (2c) — у його транзакції. */
   async revokeAllForUser(
     userId: string,
     revokedAt: Date,
@@ -118,6 +118,18 @@ export class AuthSessionRepository {
       data: { revokedAt },
     });
     return revoked.count;
+  }
+
+  /**
+   * Видалення акаунта (2d): не відкликаємо, а видаляємо — у сесіях `ipAddress`/`userAgent`
+   * (персональні дані), а для DELETED-власника вони все одно дають лише 401.
+   */
+  async deleteAllForUser(
+    userId: string,
+    db: Prisma.TransactionClient,
+  ): Promise<number> {
+    const deleted = await db.authSession.deleteMany({ where: { userId } });
+    return deleted.count;
   }
 
   /** Для cron (2c): прибрати сесії, прострочені раніше за `expiredBefore`. */

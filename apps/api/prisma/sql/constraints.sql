@@ -34,3 +34,16 @@ CREATE UNIQUE INDEX "Season_single_current_idx"
 -- Лок: не більше одного RUNNING синку на (provider, scope, target)
 CREATE UNIQUE INDEX "SyncRun_single_running_idx"
   ON "SyncRun" ("provider", "scope", "targetRef") WHERE "status" = 'RUNNING';
+
+-- User: адреси на TLD .invalid — лише в анонімізованих акаунтів (D19, P2-17), і лише
+-- у форматі deleted-<id>@removed.invalid. Інакше можна заздалегідь зайняти адресу
+-- анонімізації чужого акаунта й зламати йому видалення на @unique. Заодно гарантує:
+-- DELETED => email анонімізовано. Формат — apps/api/src/users/deleted-account.ts
+ALTER TABLE "User"
+  ADD CONSTRAINT "User_reserved_email_check"
+  CHECK (
+    CASE WHEN "status" = 'DELETED'
+      THEN "email" = 'deleted-' || "id" || '@removed.invalid'
+      ELSE lower("email") NOT LIKE '%.invalid'
+    END
+  );

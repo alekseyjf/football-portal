@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -7,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, Role, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { EmailBlocklistService } from '../security/email-blocklist/email-blocklist.service';
+import { isReservedEmail } from '../users/deleted-account';
 import { toUserAccount } from '../users/user-account';
 import { UserRepository } from '../users/user.repository';
 import { LoginDto } from './dto/login.dto';
@@ -30,10 +34,19 @@ export class AuthService {
   constructor(
     private userRepository: UserRepository,
     private sessionService: AuthSessionService,
+    private emailBlocklist: EmailBlocklistService,
   ) {}
 
   async register(dto: RegisterDto) {
     const email = normalizeEmail(dto.email);
+    // Простір адрес анонімізованих акаунтів (див. deleted-account.ts)
+    if (isReservedEmail(email)) {
+      throw new BadRequestException('Email domain is not allowed');
+    }
+    // Пошта видаленого акаунта (admin — назавжди, self — 30 днів). Окремий код, а не 409 — рішення 2d
+    if (await this.emailBlocklist.isBlocked(email, new Date())) {
+      throw new ForbiddenException('EMAIL_BLOCKED');
+    }
     const passwordHash = await bcrypt.hash(dto.password, PASSWORD_HASH_ROUNDS);
 
     try {
@@ -67,9 +80,10 @@ export class AuthService {
     const credentials = await this.userRepository.findCredentialsByEmail(email);
 
     // Порівнюємо пароль завжди, щоб час відповіді не видавав, чи існує email.
+    // `||`, а не `??`: у видаленого акаунта хеш порожній, і compare з ним миттєвий.
     const passwordMatches = await bcrypt.compare(
       dto.password,
-      credentials?.passwordHash ?? (await this.getDummyPasswordHash()),
+      credentials?.passwordHash || (await this.getDummyPasswordHash()),
     );
     if (
       !credentials ||

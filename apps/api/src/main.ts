@@ -1,28 +1,14 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser';
-import { API_GLOBAL_PREFIX } from './app.constants';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { configureHttpApp } from './app.setup';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  configureHttpApp(app);
 
-  app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
-    credentials: true, // Обов'язково для cookies
-  });
-
-  app.use(cookieParser());
-
-  // Глобальна валідація — всі DTO автоматично валідуються
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
-  );
-
-  app.setGlobalPrefix(API_GLOBAL_PREFIX);
-  
   await app.listen(process.env.PORT ?? 4000);
   console.log('🚀 API running on http://localhost:4000/api/v1');
 }
-bootstrap();
+void bootstrap();
