@@ -7,12 +7,14 @@ import { getTranslation } from '@/lib/api/types';
 import { localeToBcp47 } from '@/lib/i18n/content-lang';
 import { postsQueryOptions } from '@/hooks/usePosts';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
+import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
 
 export function HomeFeed() {
   const contentLang = useApiContentLang();
   const locale = useLocale();
   const dateLocale = localeToBcp47(locale);
   const t = useTranslations('feed');
+  const authorDisplayName = useAuthorDisplayName();
 
   const { data: postsData, isLoading, isError } = useQuery(
     postsQueryOptions(1, 6, contentLang),
@@ -66,7 +68,7 @@ export function HomeFeed() {
                     {translation.excerpt}
                   </p>
                   <p className="text-xs text-gray-500 mt-3">
-                    {post.author.name}
+                    {authorDisplayName(post.author)}
                   </p>
                 </div>
               </Link>

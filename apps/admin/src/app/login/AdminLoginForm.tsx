@@ -3,17 +3,26 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAdminLogin } from '@/hooks/useAdminLogin';
 import { useAuthStore } from '@/store/auth.store';
+import {
+  loginFormSchema,
+  type LoginFormValues,
+} from '@football-portal/validation/forms';
+import { isApiError } from '@/lib/api/http';
 
-const schema = z.object({
-  email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Min 6 characters'),
-});
-
-type FormData = z.infer<typeof schema>;
+function loginErrorMessage(error: unknown): string {
+  if (!isApiError(error)) return 'Something went wrong';
+  if (error.code === 'ACCOUNT_LOCKED') return 'This account is locked.';
+  // API перевіряє роль до створення сесії — токенів не видано
+  if (error.code === 'ADMIN_ONLY') return 'Access denied. Admin only.';
+  if (error.code === 'TOO_MANY_REQUESTS') {
+    return 'Too many attempts. Please try again later.';
+  }
+  if (error.status === 401) return 'Invalid email or password.';
+  return error.message;
+}
 
 export function AdminLoginForm() {
   const router = useRouter();
@@ -25,23 +34,20 @@ export function AdminLoginForm() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginFormSchema),
   });
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: LoginFormValues) => {
     setServerError(null);
     try {
+      // Не-ADMIN отримує 403 `ADMIN_ONLY` від API ще до створення сесії
       const res = await login(data);
-      if (res.user.role !== 'ADMIN') {
-        setServerError('Access denied. Admin only.');
-        return;
-      }
       setUser(res.user);
       router.push('/dashboard');
       router.refresh();
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Something went wrong');
+      setServerError(loginErrorMessage(err));
     }
   };
 

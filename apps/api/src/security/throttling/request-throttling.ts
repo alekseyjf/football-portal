@@ -1,5 +1,11 @@
 import { applyDecorators } from '@nestjs/common';
-import { minutes, SkipThrottle, Throttle } from '@nestjs/throttler';
+import {
+  minutes,
+  SkipThrottle,
+  Throttle,
+  type ThrottlerGenerateKeyFunction,
+} from '@nestjs/throttler';
+import { createHash } from 'node:crypto';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
 /**
@@ -32,11 +38,32 @@ export function trackAccount(request: Record<string, any>): string {
   return `ip:${String(request.ip)}`;
 }
 
+/**
+ * Ключ лічильника логіну — спільний для всіх роутів логіну (`login`, `login/admin`).
+ * Типовий ключ throttler-а містить ім'я handler-а: два роути дали б подвійний ліміт перебору.
+ */
+const sharedLoginThrottleKey: ThrottlerGenerateKeyFunction = (
+  _context,
+  tracker,
+  throttlerName,
+) =>
+  createHash('sha256')
+    .update(`auth-login-${throttlerName}-${tracker}`)
+    .digest('hex');
+
 /** 10 спроб за хвилину з IP; 10 за 15 хв на одну адресу — ~1000 паролів на добу максимум. */
 export const LoginThrottle = () =>
   Throttle({
-    [IP_THROTTLER]: { limit: 10, ttl: minutes(1) },
-    [ACCOUNT_THROTTLER]: { limit: 10, ttl: minutes(15) },
+    [IP_THROTTLER]: {
+      limit: 10,
+      ttl: minutes(1),
+      generateKey: sharedLoginThrottleKey,
+    },
+    [ACCOUNT_THROTTLER]: {
+      limit: 10,
+      ttl: minutes(15),
+      generateKey: sharedLoginThrottleKey,
+    },
   });
 
 /** Масова реєстрація ботів. NAT (офіс, університет) — тому не жорсткіше. */
@@ -49,6 +76,7 @@ export const RegisterThrottle = () =>
 /**
  * Refresh-токен — 256 біт, перебір неможливий; ліміт — проти флуду.
  * Щедрий: кожна вкладка рефрешить раз на 15 хв, плюс гонки вкладок (P2-5).
+ * Рахуються лише запити з refresh-cookie — `RefreshThrottlerGuard`.
  */
 export const RefreshThrottle = () =>
   applyDecorators(

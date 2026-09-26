@@ -20,11 +20,24 @@ import { AuthSessionService } from './sessions/auth-session.service';
 
 const PASSWORD_HASH_ROUNDS = 10;
 
-/** Payload access-токена (P2-1): лише id і роль. */
+/** Payload access-токена (P2-1): id, роль і сесія. */
 export interface AccessTokenPayload {
   sub: string;
   role: Role;
+  /**
+   * Session id = `AuthSession.familyId` (2f). Саме `sid` (OIDC), а не `jti`: `jti` — id окремого
+   * токена, а тут усі access-токени однієї сесії (після кожної ротації) мають спільне значення.
+   */
+  sid: string;
 }
+
+/** Обмеження логіну (адмінка — лише ADMIN). */
+export interface LoginRequirements {
+  requiredRole?: Role;
+}
+
+/** Логін в адмінку не-адміном: сесія не створюється (2f). */
+const ADMIN_ONLY = 'ADMIN_ONLY';
 
 @Injectable()
 export class AuthService {
@@ -75,6 +88,7 @@ export class AuthService {
     dto: LoginDto,
     client: SessionClientContext,
     previousRefreshToken: string | undefined,
+    requirements: LoginRequirements = {},
   ) {
     const email = normalizeEmail(dto.email);
     const credentials = await this.userRepository.findCredentialsByEmail(email);
@@ -96,6 +110,15 @@ export class AuthService {
     // Статус блокування розкриваємо лише тому, хто знає пароль.
     if (credentials.status === UserStatus.LOCKED) {
       throw new HttpException('ACCOUNT_LOCKED', HttpStatus.FORBIDDEN);
+    }
+
+    // Після пароля (роль не розкриваємо без нього) і ДО `endSession` / `startSession`:
+    // не-адмін не отримує токенів і не втрачає сесію, з якою вже зайшов на сайт.
+    if (
+      requirements.requiredRole &&
+      credentials.role !== requirements.requiredRole
+    ) {
+      throw new ForbiddenException(ADMIN_ONLY);
     }
 
     const account = await this.userRepository.findAccountById(credentials.id);

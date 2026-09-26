@@ -1,24 +1,31 @@
-import { Transform } from 'class-transformer';
+import {
+  DISPLAY_NAME_MAX_LENGTH,
+  DISPLAY_NAME_MIN_LENGTH,
+  EMAIL_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from '@football-portal/validation';
 import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { TrimString } from '../../common/validation/trim-string.transform';
 
+/** Межі — з `@football-portal/validation` (ті самі, що у формі реєстрації на web). */
 export class RegisterDto {
-  /** Пробіли по краях прибираємо до @IsEmail; нормалізація регістру — у сервісі */
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  /** Нормалізація регістру — у сервісі */
+  @TrimString()
   @IsEmail()
-  @MaxLength(254)
+  @MaxLength(EMAIL_MAX_LENGTH)
   email: string;
 
   /** Стає `UserProfile.displayName` */
+  @TrimString()
   @IsString()
-  @MinLength(2)
-  @MaxLength(50)
+  @MinLength(DISPLAY_NAME_MIN_LENGTH)
+  @MaxLength(DISPLAY_NAME_MAX_LENGTH)
   name: string;
 
-  /** 72 байти — межа bcrypt: довший пароль обрізається мовчки */
+  /** Максимум — межа bcrypt (72 байти): довший пароль обрізається мовчки */
   @IsString()
-  @MinLength(6)
-  @MaxLength(72)
+  @MinLength(PASSWORD_MIN_LENGTH)
+  @MaxLength(PASSWORD_MAX_LENGTH)
   password: string;
 }

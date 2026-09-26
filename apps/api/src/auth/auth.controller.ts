@@ -12,6 +12,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { Role } from '@prisma/client';
 import type { Response, Request } from 'express';
 import {
   LoginThrottle,
@@ -27,6 +28,7 @@ import {
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RefreshThrottlerGuard } from './guards/refresh-throttler.guard';
 import { readSessionClientContext } from './session-client-context';
 import { AuthSessionService } from './sessions/auth-session.service';
 import type { AuthenticatedUser } from './strategies/jwt.strategy';
@@ -69,12 +71,36 @@ export class AuthController {
   }
 
   /**
+   * Логін адмінки: не-ADMIN → 403 `ADMIN_ONLY` після перевірки пароля, без токенів і cookies
+   * (сесія, з якою користувач уже зайшов на сайт, теж лишається). Ліміт спроб — спільний з `login`.
+   */
+  @Post('login/admin')
+  @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
+  @LoginThrottle()
+  @Header('Cache-Control', 'no-store')
+  async adminLogin(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, tokens } = await this.authService.login(
+      dto,
+      readSessionClientContext(req),
+      readRefreshToken(req),
+      { requiredRole: Role.ADMIN },
+    );
+    setAuthCookies(res, tokens);
+    return { message: 'Logged in successfully', user };
+  }
+
+  /**
    * 409 `REFRESH_SUPERSEDED` — cookies не чіпаємо: інша вкладка вже поставила нові,
    * клієнт просто повторює свій запит (P2-5).
    */
   @Post('refresh')
   @HttpCode(200)
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(RefreshThrottlerGuard)
   @RefreshThrottle()
   // Відповідь з персональними даними / токенами — не кешувати (браузер, проксі)
   @Header('Cache-Control', 'no-store')
@@ -82,18 +108,22 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const refreshToken = readRefreshToken(req);
     try {
       const tokens = await this.sessionService.rotateSession(
-        readRefreshToken(req),
+        refreshToken,
         readSessionClientContext(req),
       );
       setAuthCookies(res, tokens);
       return { message: 'Session refreshed' };
     } catch (error) {
       // Сесії більше немає — прибираємо мертві cookies, щоб браузер їх не слав.
+      // Без refresh-cookie (гість) прибирати нічого, а `Set-Cookie` цієї відповіді,
+      // що запізнилась, стер би cookies логіну, який браузер встиг зробити паралельно
       if (
-        error instanceof UnauthorizedException ||
-        error instanceof ForbiddenException
+        refreshToken &&
+        (error instanceof UnauthorizedException ||
+          error instanceof ForbiddenException)
       ) {
         clearAuthCookies(res);
       }

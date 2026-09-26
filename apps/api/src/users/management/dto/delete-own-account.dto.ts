@@ -1,10 +1,11 @@
+import { PASSWORD_INPUT_MAX_LENGTH } from '@football-portal/validation';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 /** `DELETE /users/me` — підтвердження паролем (P2-15). */
 export class DeleteOwnAccountDto {
-  /** Як у LoginDto: bcrypt сам обрізає до 72 байт, 256 — лише захист від величезних тіл */
+  /** Як у LoginDto: введений пароль, без політики довжини нового */
   @IsString()
   @IsNotEmpty()
-  @MaxLength(256)
+  @MaxLength(PASSWORD_INPUT_MAX_LENGTH)
   password: string;
 }

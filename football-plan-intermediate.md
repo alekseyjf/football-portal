@@ -1,6 +1,6 @@
 # 🧱 Football Portal — Intermediate Plan: Schema v5
 
-> **Статус:** ◐ у процесі — Фази 0–1 ✅, Фаза 2: 2a–2d ✅, 2e у процесі
+> **Статус:** ◐ у процесі — Фази 0–2 ✅ (2a–2f), далі Фаза 3
 > **Виконується:** ДО продовження основного плана (`football-plan-new.md`, етапи 7+)
 > **Після завершення:** перенести ключові рішення в Частину 2 основного плана, цей файл — в архів.
 > **Створено:** 2026-09-24
@@ -97,7 +97,7 @@
 
 ```
 IDENTITY      User · UserProfile · AuthSession
-MODERATION    UserSanction · RateLimitEvent
+MODERATION    UserSanction · RateLimitEvent · BlockedEmail
 CONTENT       Language · Post · PostTranslation · Tag · TagTranslation · PostTag
               PostCompetition · PostClub
 ENGAGEMENT    CommentThread · Comment · PostLike · CommentLike · MatchLike · UserReactionActivity
@@ -154,6 +154,12 @@ enum SanctionReason {
 enum RateLimitAction {
   LIKE
   COMMENT
+}
+
+/// Додано у 2d (P2-19)
+enum EmailBlockReason {
+  ACCOUNT_DELETED_BY_ADMIN
+  ACCOUNT_SELF_DELETED
 }
 
 enum PostStatus {
@@ -278,19 +284,23 @@ model AuthSession {
   id         String    @id @default(cuid())
   userId     String
   /// Усі ротації від одного логіну мають один familyId (для reuse-detection)
-  familyId   String
-  tokenHash  String    @unique
-  userAgent  String?
-  ipAddress  String?
-  expiresAt  DateTime
-  lastUsedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
+  familyId        String
+  /// Старт сім'ї (логін) — абсолютний ліміт 30 д (2f)
+  familyStartedAt DateTime
+  tokenHash       String    @unique
+  userAgent       String?
+  ipAddress       String?
+  /// min(ротація + 7 д, familyStartedAt + 30 д)
+  expiresAt       DateTime
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([familyId])
+  /// sid у access-токені: JwtStrategy шукає живу сесію сім'ї на кожен запит (2f)
+  @@index([familyId, revokedAt])
   @@index([expiresAt])
 }
 
@@ -329,6 +339,19 @@ model RateLimitEvent {
 
   @@index([userId, action, createdAt])
   @@index([createdAt])
+}
+
+/// Пошта видаленого акаунта (2d, P2-19). Лише HMAC канонічної адреси, без FK на User.
+model BlockedEmail {
+  id           String           @id @default(cuid())
+  emailHash    String           @unique
+  reason       EmailBlockReason
+  /// null = безстроково
+  blockedUntil DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([blockedUntil])
 }
 
 // ═════════════════════════════════════════
@@ -833,6 +856,16 @@ CREATE UNIQUE INDEX "Season_single_current_idx"
 -- Лок: не більше одного RUNNING синку на (provider, scope, target)
 CREATE UNIQUE INDEX "SyncRun_single_running_idx"
   ON "SyncRun" ("provider", "scope", "targetRef") WHERE "status" = 'RUNNING';
+
+-- User: .invalid — лише анонімізовані акаунти, у форматі deleted-<id>@removed.invalid (2d, P2-17)
+ALTER TABLE "User"
+  ADD CONSTRAINT "User_reserved_email_check"
+  CHECK (
+    CASE WHEN "status" = 'DELETED'
+      THEN "email" = 'deleted-' || "id" || '@removed.invalid'
+      ELSE lower("email") NOT LIKE '%.invalid'
+    END
+  );
 ```
 
 > ⚠️ Prisma не знає про ці індекси/CHECK. `prisma migrate dev` їх не видалить, але при **наступному squash** їх треба перенести знову — тому тримаємо копію в `apps/api/prisma/sql/constraints.sql`.
@@ -932,6 +965,8 @@ Competition (PL, LEAGUE)                        Competition (CL, CUP)
 **`POST /auth/logout-all`:** відкликати всі сесії користувача.
 
 **`GET /auth/me`:** користувач + профіль (відновлення сесії після F5).
+
+**2f:** access-JWT несе `sid` = `familyId`; `JwtStrategy` на кожен запит перевіряє, що сім'я жива → logout / logout-all / блокування гасять access одразу. Сесія живе не довше 30 днів від логіну (`familyStartedAt`), ковзне вікно 7 д — лише всередині. Адмінка логіниться через `POST /auth/login/admin` (не-ADMIN → 403 до створення сесії).
 
 **Frontend (`lib/api/http.ts` web + admin):** на 401 один раз викликати `/auth/refresh` (single-flight: паралельні запити чекають один refresh), потім повторити запит.
 
@@ -1177,12 +1212,66 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
   - Перевірено й **без проблем**: `email` / `passwordHash` не потрапляють у жодну публічну відповідь (v4-селекти авторів — лише `id, name, avatar`; `PUBLIC_AUTHOR_SELECT` — без email; лайки віддають лише лічильники й власну реакцію); логи 2d — лише id; помилки Prisma → 500 без деталей; `DELETE` з JSON — preflight, CORS пускає лише localhost:3000/3001, cookies `sameSite=lax` (CSRF закритий)
 - Свідомо не робимо: LOCKED-юзер не може видалити себе сам (`JwtStrategy` → 401) — лише через адміна; `RateLimitEvent` не видаляємо (лише `userId` + дія, cron прибирає за 24 год). Для 2e: 403 `INVALID_PASSWORD` показати як помилку форми, а не розлогінювати
 
-#### 2e — Frontend
-- [ ] `packages/types`: `PublicAuthor`, `User` (`avatarUrl`), `Post.author`/`Comment.author` → `PublicAuthor`
-- [ ] web + admin `http.ts`: `ApiError { status }`; refresh-on-401 single-flight (лише в браузері; не для `/auth/login|register|refresh`; `409` від refresh = успіх, P2-5)
-- [ ] web: `useAuthQuery` (`GET /auth/me`, 401 → `null`) + синхронізація з `useAuthStore`; login/logout оновлюють кеш
-- [ ] Рендер «Видалений користувач» за `author.isDeleted` (4 місця з 2.0) — наживо перевіряється після Фаз 3–4, коли posts/comments віддають `PublicAuthor`
-- [ ] Перевірка: F5 зберігає сесію; після 15 хв запит проходить через refresh
+#### 2e — Frontend ✅ (2026-09-26)
+- [x] `packages/types`: `PublicAuthor { id, name, avatarUrl, isDeleted }`, `UserRole`, `User` (`avatarUrl: string | null` замість `avatar?`), `Post.author` / `Comment.author` → `PublicAuthor`. Admin: `AdminPostRow.author` → `PublicAuthor`, `AdminUser = User`
+- [x] web + admin `lib/api/http.ts` (одна логіка в обох — міняти разом; admin без `NextFetchInit`):
+  - `ApiError { status, code, retryAfterSeconds }`, `code` = `message` з тіла Nest (масив ValidationPipe → `join('; ')`), тож старі перевірки `err.message === 'ACCOUNT_LOCKED'` працюють; `retryAfterSeconds` — максимум з `Retry-After-ip|account`; `isApiError`
+  - Refresh-on-401 лише в браузері (`typeof window`), не для `/auth/login|register|refresh|logout`; single-flight; **один** повтор запиту (повторний 401 — викликачу)
+  - Результат refresh: 200 / **409** (P2-5) → повтор; **лише 401 / 403** → `onSessionExpired(listener)` + помилка (403 несе `ACCOUNT_LOCKED` → її й кидаємо, інакше — оригінальний 401); 429 / мережа / 5xx → не розлогінюємо, кидаємо помилку refresh; після 429 refresh не викликається до `Retry-After` (дефолт 60 с)
+  - `sessionGeneration` (росте з кожним успішним refresh **і логіном**): 401 на запит, відправлений до них, одразу повторюється без другого refresh; 401 / 403 від refresh, що завершився **після** логіну, — про стару сесію: без `session-expired`, запит повторюється з новими cookies
+  - `apiDelete(url, body?)` (P2-15); у `apiGet` виправлено: `...rest` після злитих `headers` перезаписував їх
+- [x] web: `useAuthQuery` / `authMeQueryOptions` (`['auth','me']`, 401 / 403 → `null`, решта помилок — `throw` з ретраєм за `Retry-After`, `staleTime` 5 хв); `providers/AuthSessionSync.tsx` (у `QueryProviders`) — єдиний запис у `useAuthStore` (`syncSession`), на `onSessionExpired` → `markSignedOut` (лише якщо `me` не був `null` — гість після F5 теж отримує 401 від refresh). Login → `writeCurrentUser(me, user)`; logout (`onSettled`, і при помилці) → `markSignedOut`: `me = null` + інвалідація `likes`. Перед записом у `me` — `cancelQueries(me)`: інакше відповідь `me`, відправленого до login / logout, перезаписує свіже значення (перевірено на `@tanstack/query-core` 5.96: без cancel — перезапис в обох випадках) (замість `queryClient.clear()`, який ламав активних observer-ів). `NavbarClient` — заглушка, поки `me` не відповів (без блимання «Sign in» у залогіненого)
+- [x] Форми: login — `ACCOUNT_LOCKED`, `TOO_MANY_REQUESTS`, 401 → «Invalid email or password», не-`ApiError` → загальна помилка; register — `EMAIL_BLOCKED`, `TOO_MANY_REQUESTS`, 409 → «already registered» (en + ua). Admin-логін — те саме англійською; admin `useAdminSessionExpiry` (в `AdminShellBar`): refresh відхилено → `qc.clear()` + `/login`
+- [x] «Видалений користувач» за `author.isDeleted` — `hooks/useAuthorDisplayName` (`users.deletedUser`) у `HomeFeed`, `NewsPostView`, `CommentThreadNode` (сіра аватарка «?», курсив; `name[0]` більше не падає на порожньому імені), admin `adminAuthorName`. Наживо — після Фаз 3–4 (поки API posts/comments на v4, `isDeleted` = `undefined` → показується ім'я)
+- [x] **API — `POST /auth/refresh` чистить cookies лише якщо запит мав refresh-cookie** (знайдено на рев'ю): запізніла відповідь 401 на refresh гостя (на сторінці логіну) інакше стирала cookies логіну, зробленого паралельно, — користувач розлогінений одразу після входу. Гостю чистити нічого
+- [x] **API (знайдено при перевірці):** анонімний відвідувач на кожному F5 робить `me 401 → refresh 401`, і ці refresh без cookie їли ліміт 30/хв на IP — за NAT анонімні відвідувачі давали б 429 залогіненим сусідам. `auth/guards/refresh-throttler.guard.ts` (`RefreshThrottlerGuard extends ThrottlerGuard`, `shouldSkip` без refresh-cookie) на `POST /auth/refresh`; запит без cookie — миттєвий 401 без БД
+- [x] Перевірка — мінімальний Nest (`PrismaModule` + `RequestThrottlingModule` + `AuthModule` + `UserManagementModule`, `configureHttpApp`) на dev-БД:
+  - harness імпортує **справжній** `http.ts` (Node 24 type stripping), `fetch` → cookie jar як у браузері (path, видалення, спільний jar для «вкладок»): **web 33/33, admin 33/33** — гість (401, 1 refresh, 35 refresh без cookie → жодного 429); login / помилки логіну без refresh, `user.avatarUrl`; зниклий access → 1 refresh + повтор; 6 паралельних → 1 refresh; недійсний JWT → refresh; дві вкладки одночасно × 5 → обидві 200, 409 траплявся, `session-expired` немає, 1 сім'я / 1 жива сесія; `DELETE /users/me` з тілом: 403 `INVALID_PASSWORD` без refresh, сесія жива; logout-all з іншого пристрою → 401, 1 подія, cookies прибрано; LOCKED → 403 `ACCOUNT_LOCKED` + подія; self-delete → cookies прибрано, реєстрація → 403 `EMAIL_BLOCKED`; refresh 429 → помилка 429 з `retryAfterSeconds`, без події, повторно refresh не викликається; **T12 гонка** (детерміновано: відповідь refresh гостя «затримана в мережі», поки йде логін) → cookies логіну цілі, `session-expired` немає, запит, відправлений до логіну, отримав користувача
+  - **Контрольні прогони:** `http.ts` без обробки 409 → T6 падає 5/5 (одна вкладка `REFRESH_SUPERSEDED`); API зі звичайним `ThrottlerGuard` → 31-й анонімний refresh → 429 (з фіксом — 35 × 401; з cookie ліміт діє: 31-й → 429); T12 до фіксу — 4 ❌ (cookies стерто, хибний вихід); лише з API-фіксом (без generation-перевірки) — cookies цілі, але хибний `session-expired` + 401 на запит
+  - **Браузер** (headless Chrome через CDP + `next dev`), **16/16**: гість → «Sign in»; логін формою → ім'я в Navbar, редірект; F5 → ім'я, лише `me 200`; видалено access-cookie (= минуло 15 хв), лишився `refresh_token@/api/v1/auth` → F5 → ім'я, ланцюжок `me 401 → refresh 200 → me 200`, +1 сесія в тій самій сім'ї; logout → «Sign in», cookies прибрано, після F5 — гість, сесія в БД відкликана; невірний пароль у формі → «Invalid email or password.» / «Неправильний email або пароль.» (`instanceof ApiError` працює в клієнтському бандлі)
+  - Тестових юзерів, сесії, `BlockedEmail` прибрано (у БД лише seed-адмін)
+- [x] Рев'ю після реалізації: відповідність пунктам 2e і приміткам 2d (429 від refresh не розлогінює, `EMAIL_BLOCKED` / `INVALID_PASSWORD` — помилки форми) ✅; знайдено й виправлено 3 гонки (вище). Поза 2e, лишено як є: `LikeBar.tsx` — старий ESLint error `react-hooks/set-state-in-effect`; admin-логін звичайного USER показує «Access denied», але сесія (cookies) лишається; `CommentSection` / `LikeBar` поки `isLoading` бачать гостя (CTA «увійдіть» на мить після F5)
+- [x] `pnpm build` web + admin ✅; `tsc` API: 45 → **45** (auth, users, security — 0); `eslint` по змінених файлах чистий (web — лише старі попередження `<img>`)
+- Свідомо не робимо: спільний пакет для `http.ts` web/admin (поки дві копії з приміткою «міняти разом»; кандидат у `packages/`, коли з'явиться третій клієнт або CSRF-заголовок); SSR-стан auth (RSC не бачить cookies браузера → Navbar відновлюється на клієнті із заглушкою); cross-tab лок refresh (Web Locks) — гонку вкладок закриває 409 від API
+- Відоме обмеження: при 409 повтор може піти раніше, ніж браузер застосує `Set-Cookie` відповіді іншої вкладки (обидві відповіді приходять майже одночасно; у прогонах не траплялось) — тоді запит отримає 401 як є (без `session-expired`; для `/auth/me` Navbar покаже гостя), а наступний запит / фокус вікна відновить стан
+
+#### Рев'ю Фаз 1–2 (2026-09-26)
+Звірено код з розділами 5, 5.1, 7, 7.5.1 і P2-1…P2-21: схема = розділ 5 + `BlockedEmail` (2d); `tsc` API — 45 (auth, users, security — 0). Критичних проблем (обхід auth, витік email/хешів, ескалація ролі, CSRF) не знайдено.
+- [x] `RegisterDto.name`: trim **до** `MinLength` — ім'я з пробілів проходило валідацію і ставало порожнім `displayName`
+- [x] `JWT_SECRET`: `readJwtSecret()` (`auth.constants.ts`) — < 32 символів → API не стартує (як `EMAIL_HASH_SECRET`); алгоритм закріплено: підпис і `JwtStrategy` — лише `HS256`
+- [x] Перевірка (мінімальний Nest, dev-БД) 9/9: короткий секрет → старт падає; ім'я `"   "` → 400, `"  Ab  "` → `Ab`; login / me / refresh → 200; токен HS512 тим самим секретом і `alg=none` → 401. Тестового юзера прибрано
+- [x] Документація: `BlockedEmail` у розділах 4, 5, 5.1; `CLAUDE.md` — `JWT_SECRET`, admin не викликає `/auth/me`
+- ⚠️ **До проду (не код-баг, а політика)** → бэклог Redis-етапу в `football-plan-new.md`: strikes анти-абузу рахуються за весь час, а ендпоінта розблокування немає → легітимний користувач, що двічі (з будь-яким інтервалом) лайкне 5 разів за 5 с, блокується назавжди. Варіанти: strikes лише за N днів, м'якший поріг для LIKE, `POST /users/:id/unlock` (ADMIN) — разом з адмінкою користувачів
+- [x] ~~До проду: CORS з env, абсолютний ліміт сесії, пароль ≥ 8~~ → зроблено у **2f**
+- [x] ~~Фази 3–4: валідація коментаря й URL постів~~ → зроблено у **2f**
+- [x] ~~Опційно: `sid` в access-JWT, `apiGet` без `Content-Type`, адмін-логін без сесії для USER~~ → зроблено у **2f**
+
+#### 2f — Hardening після рев'ю ✅ (2026-09-26)
+
+| # | Рішення | Чому |
+|---|---|---|
+| P2-22 | `CORS_ORIGINS` (через кому) обов'язковий; кожне значення — рівно origin (`new URL(x).origin === x`: без шляху, `/`, `*`); на проді лише https; збіг — точний, через `Set` | Захардкоджений localhost не працює на проді; `*` з `credentials` заборонений; помилка конфігу видна на старті, а не як «CORS error» у браузері |
+| P2-23 | Абсолютний ліміт сесії **30 днів** від логіну: `AuthSession.familyStartedAt`, `expiresAt = min(ротація + 7 д, familyStartedAt + 30 д)`, refresh додатково перевіряє сам дедлайн. Не через `iat`: refresh-токен opaque (не JWT, `iat` немає), а старт сім'ї в БД клієнт не підробить. Access обмежений тим самим через `sid` (P2-26) | Вкрадена сесія не живе вічно, навіть якщо зловмисник рефрешить щодня |
+| P2-24 | Пароль ≥ **8** лише для **нового** пароля (реєстрація); логін / `DELETE /users/me` — без мінімуму | Акаунти, створені з 6–7 символами, мають і далі входити |
+| P2-25 | `packages/validation`: `.` — числа (без залежностей, їх імпортує API в class-validator DTO), `./forms` — zod-схеми для web / admin (zod — optional peer). Збирається `tsc` у CJS (`dist`); turbo `dev` / `build` збирає його першим, `pnpm install` — через `prepare`. API лишається на class-validator (правило 5), спільні — самі межі | Правила не розходяться; zod не тягнеться в API |
+| P2-26 | Access-JWT `{ sub, role, sid }`, `sid` = `AuthSession.familyId`. Назва — `sid` (OIDC), не `jti`: `jti` — id одного токена, а тут усі access-токени сесії (після кожної ротації) мають спільне значення. `JwtStrategy` одним запитом: жива сесія сім'ї (`revokedAt IS NULL`, `expiresAt > now`) + статус і роль власника (індекс `[familyId, revokedAt]`). Токен без `sid` → 401 → refresh | Logout / logout-all / reuse / блокування / видалення гасять access **одразу**; сховище — наша `AuthSession` (без нової таблиці, Redis — бэклог) |
+| P2-27 | `TRUST_PROXY` на проді **обов'язковий** (`1` / адреси проксі, або `0` / `false` — проксі немає); у dev порожньо | Без проксі довіра до `X-Forwarded-For` дає підробити IP; на проді «забули» = усі ліміти на IP спільні для всіх |
+| P2-28 | Ліміти: на IP — лише анонімні `login`, `register` і `refresh` (до перевірки refresh-cookie особа невідома; без cookie — не рахується, 2e); залогінені — за `userId` (`DELETE /users/me` — `account`, лайки / коментарі — `RateLimitEvent.userId`) | Перевірено аудитом — змін у коді не знадобилось |
+| P2-29 | `POST /auth/login/admin`: роль перевіряється **після** пароля і **до** `endSession` / `startSession` → не-ADMIN: 403 `ADMIN_ONLY`, без cookies і без нової сесії, сесія на сайті ціла. Лічильник throttler-а спільний з `login` (`generateKey` без імені handler-а) | Не видавати токени, щоб потім розлогінювати; два роути не подвоюють ліміт перебору |
+
+- [x] CORS (P2-22) — `app.setup.ts` `parseCorsOrigins`; `CORS_ORIGINS` у `apps/api/.env`
+- [x] Абсолютний ліміт (P2-23): міграція `0004_auth_session_absolute_lifetime` (колонка з backfill `MIN(createdAt)` сім'ї, живі сесії обрізано до +30 д, індекс `[familyId, revokedAt]`), застосовано на dev, `migrate diff` БД → схема порожній
+- [x] Пароль (P2-24, P2-25): `packages/validation`; DTO (`register`, `login`, `delete-own-account`, коментар) на спільних межах; web `LoginForm` / `RegisterForm` / `CommentSection` / `CommentThreadNode`, admin `AdminLoginForm` / `CreatePostForm` — на спільних схемах
+- [x] `TRUST_PROXY` (P2-27, P2-28)
+- [x] `sid` (P2-26): `auth-session.service.ts`, `jwt.strategy.ts`, `AuthSessionRepository.findLiveSessionOwner`
+- [x] `apiGet` без `Content-Type` (web + admin) — GET більше не робить CORS preflight
+- [x] Адмін-логін (P2-29): `auth.controller.ts`, `AuthService.login(…, { requiredRole })`, admin `useAdminLogin` → `/auth/login/admin`, `ADMIN_ONLY` у формі; `/auth/login/admin` у `ENDPOINTS_WITHOUT_REFRESH` / `SESSION_START_ENDPOINTS` обох `http.ts`
+- [x] Валідація (Фази 3–4 наперед): `CreateCommentDto.content` — `TrimString()` + 2…2000; `coverImage` / `videoUrl` — `@IsMediaUrl()` (лише https, ≤ 2048), `sourceUrl` — `@IsSourceUrl()` (http/https — без `javascript:`). `common/validation/`: `TrimString()` замість 5 копій `@Transform(trim)`
+- [x] SSRF: API ці URL **не фетчить** (лише `<img src>` на web, `videoUrl` ніде не рендериться) — захист не потрібен зараз; вимога записана в `url-field.decorators.ts`: при серверному fetch (OG-превʼю, ресайз, `next/image`) — блок приватних / локальних IP після резолву + без редиректів
+- [x] Перевірка — тестовий Nest (`PrismaModule` + `RequestThrottlingModule` + `AuthModule`, `configureHttpApp`) на dev-БД, **48/48**: `CORS_ORIGINS` — відсутній / `/` у кінці / шлях / `*` / ftp → старт падає, прод + http → падає, валідний список з пробілами — ок; прод без `TRUST_PROXY` → падає, `0` / `false` — ок, `true` — падає; preflight з localhost:3000 → ACAO + credentials, з чужого origin і `localhost:30000` → без ACAO; DTO: коментар `"   "` / 2001 → невалідний, `"  ok  "` → `ok`, 2000 — ок; cover http / `javascript:` / `data:` / без протоколу → невалідні, https — ок, source http — ок; пароль 7 → 400, 8 → 201; USER на `/auth/login/admin` → 403 `ADMIN_ONLY`, 0 `Set-Cookie`, сесій не додалось, сесія на сайті жива; неправильний пароль там → 401 (роль не розкрито); ADMIN → 200 + cookies; після ротації старий і новий access → 200; logout → обидва 401 одразу; logout-all → access іншого пристрою 401 одразу; токен з правильним підписом без `sid` → 401; логін: `expiresAt` ≈ +7 д; день 29 → refresh 200, наступник і `Expires` cookie ≈ +1 д; день 31 при `expiresAt` у майбутньому → 401; прострочена сесія → її access 401; 6 × `login` + 5 × `login/admin` на одну адресу → 11-та 429. Тестових юзерів прибрано
+- [x] `pnpm build` web + admin ✅; `tsc` API: 45 → **45** (auth, users, security, common, DTO — 0); `eslint` API і web по змінених файлах чистий
+- ⚠️ Після деплою 2f усі видані access-токени (без `sid`) → 401 → фронт один раз робить refresh — користувачі не розлогінюються
+- ⚠️ `JwtStrategy` тепер читає `AuthSession` (замість `User`) — так само 1 запит на захищений запит; кеш / Redis — бэклог
 
 ### Фаза 3 — Content
 - [ ] `PostRepository`: фільтр і сортування за `status`/`publishedAt`; `select` з `translations` + fallback на default-мову, `resolvedLanguage` у відповіді

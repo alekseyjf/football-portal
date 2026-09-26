@@ -3,22 +3,14 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useRegisterMutation } from '@/hooks/useAuth';
-
-const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
-});
-
-type RegisterFormData = z.infer<typeof registerSchema>;
+import {
+  registerFormSchema,
+  type RegisterFormValues,
+} from '@football-portal/validation/forms';
+import { isApiError } from '@/lib/api/http';
 
 // Винесли стилі інпута щоб не дублювати
 const inputClass = (hasError: boolean) =>
@@ -39,11 +31,11 @@ export function RegisterForm() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerFormSchema),
   });
 
-  const onSubmit = async (data: RegisterFormData) => {
+  const onSubmit = async (data: RegisterFormValues) => {
     setServerError(null);
     try {
       await registerUser({
@@ -53,8 +45,16 @@ export function RegisterForm() {
       });
       router.push('/auth/login');
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Something went wrong');
+      setServerError(registerErrorMessage(err));
     }
+  };
+
+  const registerErrorMessage = (error: unknown): string => {
+    if (!isApiError(error)) return t('genericError');
+    if (error.code === 'EMAIL_BLOCKED') return t('emailBlocked');
+    if (error.code === 'TOO_MANY_REQUESTS') return t('tooManyAttempts');
+    if (error.status === 409) return t('emailInUse');
+    return error.message;
   };
 
   return (

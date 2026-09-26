@@ -6,6 +6,7 @@ import { getTranslation } from '@/lib/api/types';
 import { localeToBcp47 } from '@/lib/i18n/content-lang';
 import { postDetailQueryOptions } from '@/hooks/usePostDetail';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
+import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
 import { LikeBar } from '@/components/features/LikeBar';
 import { CommentSection } from './CommentSection';
 
@@ -14,6 +15,7 @@ export function NewsPostView({ slug }: { slug: string }) {
   const locale = useLocale();
   const dateLocale = localeToBcp47(locale);
   const t = useTranslations('news');
+  const authorDisplayName = useAuthorDisplayName();
 
   const { data: post, isLoading, isError, error } = useQuery(
     postDetailQueryOptions(slug, contentLang),
@@ -54,7 +56,7 @@ export function NewsPostView({ slug }: { slug: string }) {
           <h1 className="text-3xl font-bold mb-3">{translation.title}</h1>
           <div className="flex items-center gap-3 text-sm text-gray-400">
             <span>
-              {t('by')} {post.author.name}
+              {t('by')} {authorDisplayName(post.author)}
             </span>
             <span>·</span>
             <time>

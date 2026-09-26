@@ -993,6 +993,15 @@ await this.prisma.club.upsert({
 - [ ] Кеш популярних постів
 - [ ] Rate limiting через Redis
 
+### 🔐 Бэклог безпеки — робити разом з Redis (не зараз)
+> Додано після рев'ю Фаз 1–2 і 2f (`football-plan-intermediate.md`). Поточний стан: throttler у пам'яті процесу, strikes анти-абузу — `UserSanction` за весь час, `sid` перевіряється запитом до `AuthSession`.
+
+- [ ] **Anti-abuse на Redis:** sliding-window лічильник порушень (ZSET `abuse:<userId>:<action>`, score = timestamp, `ZREMRANGEBYSCORE` + `ZCARD`) замість strikes «за весь час»; `@nestjs/throttler` → Redis-сховище (ліміти спільні для всіх інстансів, переживають рестарт)
+- [ ] **`POST /users/:id/unlock` (ADMIN):** ідемпотентний (уже ACTIVE → 200 без змін), аудит — `UserSanction.revokedAt` + запис «хто / коли / чому»; кнопка в адмінці користувачів (Етап 11)
+- [ ] **Прогресивний бан** замість одразу permanent: 1 хв → 10 хв → 1 год → 1 день → permanent (рівень — з кількості порушень у sliding window); permanent — лише після ручного рішення або вичерпання рівнів
+- [ ] **Email confirmation + anti-enumeration:** однакова відповідь `register` незалежно від зайнятості / блоку адреси — див. **Етап 13.5**
+- [ ] **Session store для `sid` у Redis:** множина активних сесій користувача (instant revoke без запиту до БД на кожен запит; список «мої пристрої»); `AuthSession` у БД лишається джерелом правди для refresh / reuse-detection
+
 ### Тести
 - [ ] Jest unit тести для сервісів
 - [ ] Integration тести для API endpoints

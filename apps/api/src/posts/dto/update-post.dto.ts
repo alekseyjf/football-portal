@@ -1,5 +1,13 @@
-import { IsString, IsBoolean, IsOptional, IsArray, ValidateNested, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsIn,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsMediaUrl } from '../../common/validation/url-field.decorators';
 import { PostTranslationDto } from './create-post.dto';
 
 export class UpdatePostTranslationDto {
@@ -27,11 +35,11 @@ export class UpdatePostDto {
   @IsOptional()
   translations?: PostTranslationDto[];
 
-  @IsString()
+  @IsMediaUrl()
   @IsOptional()
   coverImage?: string;
 
-  @IsString()
+  @IsMediaUrl()
   @IsOptional()
   videoUrl?: string;
 

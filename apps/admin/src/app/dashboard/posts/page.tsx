@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAdminPosts } from '@/hooks/useAdminPosts';
-import { adminPostTitle } from '@/lib/api/types';
+import { adminAuthorName, adminPostTitle } from '@/lib/api/types';
 import { getPublicWebUrl } from '@/lib/publicWebUrl';
 
 const PUBLIC_WEB_URL = getPublicWebUrl();
@@ -56,7 +56,7 @@ export default function PostsPage() {
                 <h3 className="font-medium truncate">{adminPostTitle(post)}</h3>
                 <p className="text-sm text-gray-400 mt-0.5">
                   {new Date(post.createdAt).toLocaleDateString('en-GB')} ·{' '}
-                  {post.author.name}
+                  {adminAuthorName(post.author)}
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
