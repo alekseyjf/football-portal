@@ -2,10 +2,36 @@
 
 import Link from 'next/link';
 import { useAdminPosts } from '@/hooks/useAdminPosts';
-import { adminAuthorName, adminPostTitle } from '@/lib/api/types';
+import {
+  adminAuthorName,
+  adminPostStatusLabel,
+  adminPostTitle,
+  type AdminPostRow,
+} from '@/lib/api/types';
 import { getPublicWebUrl } from '@/lib/publicWebUrl';
 
 const PUBLIC_WEB_URL = getPublicWebUrl();
+
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  Published: 'bg-green-600/20 text-green-400',
+  Scheduled: 'bg-amber-500/20 text-amber-300',
+  Draft: 'bg-gray-700 text-gray-400',
+  Archived: 'bg-gray-800 text-gray-500',
+};
+
+/** Дата публікації (для запланованих — коли вийде), для чернеток — створення. */
+function adminPostDateLine(post: AdminPostRow): string {
+  const formatDateTime = (isoDate: string) =>
+    new Date(isoDate).toLocaleString('en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  if (post.publishedAt && post.status === 'SCHEDULED' && !post.isLive) {
+    return `Goes live ${formatDateTime(post.publishedAt)}`;
+  }
+  if (post.publishedAt) return `Published ${formatDateTime(post.publishedAt)}`;
+  return `Created ${formatDateTime(post.createdAt)}`;
+}
 
 export default function PostsPage() {
   const { data: posts, isLoading, isError } = useAdminPosts();
@@ -47,39 +73,45 @@ export default function PostsPage() {
 
       {!isLoading && !isError && posts && posts.length > 0 && (
         <div className="space-y-3">
-          {posts.map((post) => (
-            <div
-              key={post.id}
-              className="bg-gray-900 rounded-xl px-5 py-4 flex items-center justify-between gap-4"
-            >
-              <div className="min-w-0">
-                <h3 className="font-medium truncate">{adminPostTitle(post)}</h3>
-                <p className="text-sm text-gray-400 mt-0.5">
-                  {new Date(post.createdAt).toLocaleDateString('en-GB')} ·{' '}
-                  {adminAuthorName(post.author)}
-                </p>
+          {posts.map((post) => {
+            const statusLabel = adminPostStatusLabel(post);
+            return (
+              <div
+                key={post.id}
+                className="bg-gray-900 rounded-xl px-5 py-4 flex items-center justify-between gap-4"
+              >
+                <div className="min-w-0">
+                  <h3 className="font-medium truncate">{adminPostTitle(post)}</h3>
+                  <p className="text-sm text-gray-400 mt-0.5">
+                    {adminPostDateLine(post)} · {adminAuthorName(post.author)} ·{' '}
+                    <span className="uppercase">
+                      {post.translations
+                        .map((translation) => translation.languageCode)
+                        .join(' / ')}
+                    </span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${STATUS_BADGE_CLASS[statusLabel]}`}
+                  >
+                    {statusLabel}
+                  </span>
+                  {/* Лише для живих: чернетка / запланований на сайті — 404 */}
+                  {post.isLive && (
+                    <a
+                      href={`${PUBLIC_WEB_URL}/news/${encodeURIComponent(post.slug)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-green-400 hover:text-green-300 transition-colors"
+                    >
+                      View on site
+                    </a>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    post.published
-                      ? 'bg-green-600/20 text-green-400'
-                      : 'bg-gray-700 text-gray-400'
-                  }`}
-                >
-                  {post.published ? 'Published' : 'Draft'}
-                </span>
-                <a
-                  href={`${PUBLIC_WEB_URL}/news/${encodeURIComponent(post.slug)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-green-400 hover:text-green-300 transition-colors"
-                >
-                  View on site
-                </a>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </main>

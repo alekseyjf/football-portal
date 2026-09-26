@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { LikeType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { LikeTargetTypeDto } from './dto/toggle-like.dto';
+import { livePostWhere } from '../posts/post-visibility';
 
 export type ToggleOutcome = {
   previous: LikeType | null;
@@ -84,9 +85,10 @@ export class LikeRepository {
     return this.findUserMatchReaction(userId, targetId);
   }
 
+  /** Лише живий пост (P3-1): чернетку / запланований наперед не лайкнути за id. */
   async assertPostExists(postId: string): Promise<boolean> {
     const post = await this.prisma.post.findFirst({
-      where: { id: postId, deletedAt: null },
+      where: { id: postId, ...livePostWhere(new Date()) },
       select: { id: true },
     });
     return Boolean(post);

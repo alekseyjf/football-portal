@@ -29,38 +29,34 @@ export interface User {
 
 // ─── Posts + i18n ───
 
-export interface PostTranslation {
-  language: string;
-  title: string;
-  excerpt: string;
-  content?: string;
-}
-
-export interface Post {
-  id: string;
-  slug: string;
-  coverImage?: string;
-  videoUrl?: string;
-  published: boolean;
-  createdAt: string;
-  author: PublicAuthor;
-  translations: PostTranslation[];
-  tags?: { tag: { id: string; name: string; slug: string } }[];
-}
-
-/** Мова контенту для query `lang` у GET /posts, /posts/:slug. */
+/** Мова контенту для query `lang` у GET /posts, /posts/:slug (`Language.code`). */
 export type ApiContentLanguage = 'en' | 'ua';
 
 export const DEFAULT_CONTENT_LANG: ApiContentLanguage = 'en';
 
-export function getTranslation(
-  post: Post,
-  lang: ApiContentLanguage = DEFAULT_CONTENT_LANG,
-): PostTranslation {
-  return (
-    post.translations.find((row) => row.language === lang) ??
-    post.translations[0] ?? { language: lang, title: '', excerpt: '' }
-  );
+export type PostStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'ARCHIVED';
+
+/** Тег з назвою запитаною мовою (fallback — default-мова, далі slug). */
+export interface PostTag {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+/**
+ * Пост у стрічці (GET /posts). Переклад уже вибрано API: запитана мова, а якщо перекладу
+ * немає — default (en). `resolvedLanguage` ≠ запитаній → показати «переклад недоступний».
+ */
+export interface Post {
+  id: string;
+  slug: string;
+  publishedAt: string;
+  coverImageUrl: string | null;
+  resolvedLanguage: string;
+  title: string;
+  excerpt: string;
+  author: PublicAuthor;
+  tags: PostTag[];
 }
 
 /** Рекурсивне дерево відповідей (як на YouTube). */
@@ -82,9 +78,26 @@ export interface PaginatedPosts {
   totalPages: number;
 }
 
-/** GET /posts/:slug — пост з деревом коментарів. */
+/** GET /posts/:slug. Коментарі — окремо: GET /comments/post/:postId. */
 export interface PostDetail extends Post {
-  comments: Comment[];
+  content: string;
+  videoUrl: string | null;
+  sourceUrl: string | null;
+  /** Мови, якими є переклад (для `hreflang`) */
+  availableLanguages: string[];
+  competitions: {
+    id: string;
+    slug: string;
+    name: string;
+    emblemUrl: string | null;
+  }[];
+  clubs: {
+    id: string;
+    slug: string;
+    name: string;
+    shortName: string | null;
+    crestUrl: string | null;
+  }[];
 }
 
 // ─── Likes ───

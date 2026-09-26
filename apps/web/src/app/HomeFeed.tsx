@@ -3,8 +3,11 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { getTranslation } from '@/lib/api/types';
-import { localeToBcp47 } from '@/lib/i18n/content-lang';
+import {
+  contentLangToBcp47,
+  contentLanguageName,
+  localeToBcp47,
+} from '@/lib/i18n/content-lang';
 import { postsQueryOptions } from '@/hooks/usePosts';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
@@ -43,30 +46,48 @@ export function HomeFeed() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {posts.map((post) => {
-            const translation = getTranslation(post, contentLang);
+            const fallbackNotice =
+              post.resolvedLanguage !== contentLang
+                ? t('translationUnavailable', {
+                    language: contentLanguageName(post.resolvedLanguage, locale),
+                  })
+                : null;
             return (
               <Link
                 key={post.id}
                 href={`/news/${post.slug}`}
                 className="block bg-gray-900 rounded-xl overflow-hidden hover:bg-gray-800 transition-colors"
               >
-                {post.coverImage && (
+                {post.coverImageUrl && (
                   <img
-                    src={post.coverImage}
-                    alt={translation.title}
+                    src={post.coverImageUrl}
+                    alt={post.title}
                     className="w-full h-48 object-cover"
                   />
                 )}
                 <div className="p-5">
-                  <p className="text-xs text-green-400 mb-2">
-                    {new Date(post.createdAt).toLocaleDateString(dateLocale)}
-                  </p>
-                  <h3 className="font-bold text-lg mb-2 line-clamp-2">
-                    {translation.title}
-                  </h3>
-                  <p className="text-gray-400 text-sm line-clamp-3">
-                    {translation.excerpt}
-                  </p>
+                  <div className="flex items-center gap-2 text-xs mb-2">
+                    <time dateTime={post.publishedAt} className="text-green-400">
+                      {new Date(post.publishedAt).toLocaleDateString(dateLocale)}
+                    </time>
+                    {fallbackNotice && (
+                      <span
+                        className="uppercase tracking-wide px-1.5 py-0.5 rounded border border-gray-700 text-gray-400"
+                        title={fallbackNotice}
+                      >
+                        <span aria-hidden="true">{post.resolvedLanguage}</span>
+                        <span className="sr-only">{fallbackNotice}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div lang={contentLangToBcp47(post.resolvedLanguage)}>
+                    <h3 className="font-bold text-lg mb-2 line-clamp-2">
+                      {post.title}
+                    </h3>
+                    <p className="text-gray-400 text-sm line-clamp-3">
+                      {post.excerpt}
+                    </p>
+                  </div>
                   <p className="text-xs text-gray-500 mt-3">
                     {authorDisplayName(post.author)}
                   </p>

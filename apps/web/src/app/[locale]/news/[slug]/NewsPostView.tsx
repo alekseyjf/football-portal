@@ -2,8 +2,11 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { getTranslation } from '@/lib/api/types';
-import { localeToBcp47 } from '@/lib/i18n/content-lang';
+import {
+  contentLangToBcp47,
+  contentLanguageName,
+  localeToBcp47,
+} from '@/lib/i18n/content-lang';
 import { postDetailQueryOptions } from '@/hooks/usePostDetail';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
@@ -17,7 +20,7 @@ export function NewsPostView({ slug }: { slug: string }) {
   const t = useTranslations('news');
   const authorDisplayName = useAuthorDisplayName();
 
-  const { data: post, isLoading, isError, error } = useQuery(
+  const { data: post, isLoading, isError } = useQuery(
     postDetailQueryOptions(slug, contentLang),
   );
 
@@ -32,35 +35,44 @@ export function NewsPostView({ slug }: { slug: string }) {
   if (isError || !post) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <p className="text-red-400">
-          {error instanceof Error ? error.message : t('loadError')}
-        </p>
+        <p className="text-red-400">{t('loadError')}</p>
       </main>
     );
   }
 
-  const translation = getTranslation(post, contentLang);
+  const isFallback = post.resolvedLanguage !== contentLang;
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-8">
-      <article>
-        {post.coverImage && (
+      {isFallback && (
+        <p
+          role="note"
+          className="mb-6 rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 text-sm text-gray-300"
+        >
+          {t('translationUnavailable', {
+            language: contentLanguageName(post.resolvedLanguage, locale),
+          })}
+        </p>
+      )}
+
+      <article lang={contentLangToBcp47(post.resolvedLanguage)}>
+        {post.coverImageUrl && (
           <img
-            src={post.coverImage}
-            alt={translation.title}
+            src={post.coverImageUrl}
+            alt={post.title}
             className="w-full h-64 object-cover rounded-2xl mb-6"
           />
         )}
 
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-3">{translation.title}</h1>
+          <h1 className="text-3xl font-bold mb-3">{post.title}</h1>
           <div className="flex items-center gap-3 text-sm text-gray-400">
             <span>
               {t('by')} {authorDisplayName(post.author)}
             </span>
             <span>·</span>
-            <time>
-              {new Date(post.createdAt).toLocaleDateString(dateLocale, {
+            <time dateTime={post.publishedAt}>
+              {new Date(post.publishedAt).toLocaleDateString(dateLocale, {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
@@ -70,12 +82,12 @@ export function NewsPostView({ slug }: { slug: string }) {
         </div>
 
         <p className="text-gray-300 text-lg leading-relaxed mb-6 border-l-4 border-green-500 pl-4 italic">
-          {translation.excerpt}
+          {post.excerpt}
         </p>
 
         <div className="prose prose-invert max-w-none">
           <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
-            {translation.content ?? ''}
+            {post.content}
           </p>
         </div>
 

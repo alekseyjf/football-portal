@@ -1,193 +1,325 @@
 import { Injectable } from '@nestjs/common';
+import type { PostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
+import { PUBLIC_AUTHOR_SELECT } from '../users/public-author';
+import { livePostWhere } from './post-visibility';
+
+/**
+ * Переклади лише потрібних мов (запитана + default, розділ 8): з N мовами
+ * не тягнемо весь контент усіх перекладів.
+ */
+function translationsIn(languageCodes: string[]) {
+  return { languageCode: { in: languageCodes } };
+}
+
+function postSummarySelect(languageCodes: string[]) {
+  return {
+    id: true,
+    slug: true,
+    publishedAt: true,
+    coverImageUrl: true,
+    author: { select: PUBLIC_AUTHOR_SELECT },
+    translations: {
+      where: translationsIn(languageCodes),
+      select: { languageCode: true, title: true, excerpt: true },
+    },
+    tags: {
+      select: {
+        tag: {
+          select: {
+            id: true,
+            slug: true,
+            translations: {
+              where: translationsIn(languageCodes),
+              select: { languageCode: true, name: true },
+            },
+          },
+        },
+      },
+      orderBy: { tag: { slug: 'asc' } },
+    },
+  } satisfies Prisma.PostSelect;
+}
+
+function postDetailSelect(languageCodes: string[]) {
+  return {
+    ...postSummarySelect(languageCodes),
+    videoUrl: true,
+    sourceUrl: true,
+    translations: {
+      where: translationsIn(languageCodes),
+      select: {
+        languageCode: true,
+        title: true,
+        excerpt: true,
+        content: true,
+      },
+    },
+    competitions: {
+      select: {
+        competition: {
+          select: { id: true, slug: true, name: true, emblemUrl: true },
+        },
+      },
+      orderBy: { competition: { sortOrder: 'asc' } },
+    },
+    clubs: {
+      select: {
+        club: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            shortName: true,
+            crestUrl: true,
+          },
+        },
+      },
+      orderBy: { club: { name: 'asc' } },
+    },
+  } satisfies Prisma.PostSelect;
+}
+
+const ADMIN_POST_SELECT = {
+  id: true,
+  slug: true,
+  status: true,
+  publishedAt: true,
+  coverImageUrl: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  author: { select: PUBLIC_AUTHOR_SELECT },
+  // В адмінці — усі мови: видно, яких перекладів бракує
+  translations: {
+    select: { languageCode: true, title: true },
+    orderBy: { language: { sortOrder: 'asc' } },
+  },
+} satisfies Prisma.PostSelect;
+
+const POST_PUBLICATION_SELECT = {
+  status: true,
+  publishedAt: true,
+} satisfies Prisma.PostSelect;
+
+export type PostSummaryRow = Prisma.PostGetPayload<{
+  select: ReturnType<typeof postSummarySelect>;
+}>;
+export type PostDetailRow = Prisma.PostGetPayload<{
+  select: ReturnType<typeof postDetailSelect>;
+}>;
+export type AdminPostRow = Prisma.PostGetPayload<{
+  select: typeof ADMIN_POST_SELECT;
+}>;
+export type PostPublicationRow = Prisma.PostGetPayload<{
+  select: typeof POST_PUBLICATION_SELECT;
+}>;
+
+/** Що бачить публіка: живий пост (P3-1) з перекладом default-мови (P3-5). */
+export interface PublicPostScope {
+  now: Date;
+  defaultLanguageCode: string;
+}
+
+export interface PostTranslationInput {
+  languageCode: string;
+  title: string;
+  excerpt: string;
+  content: string;
+}
+
+export interface PostRelationIds {
+  tagIds?: string[];
+  clubIds?: string[];
+  competitionIds?: string[];
+}
+
+export interface CreatePostData extends PostRelationIds {
+  slug: string;
+  status: PostStatus;
+  publishedAt: Date | null;
+  coverImageUrl?: string | null;
+  videoUrl?: string | null;
+  sourceUrl?: string | null;
+  authorId: string;
+  translations: PostTranslationInput[];
+}
+
+export interface UpdatePostData extends PostRelationIds {
+  /** Відсутні — публікація не змінюється (не перезаписуємо чужу зміну) */
+  status?: PostStatus;
+  publishedAt?: Date | null;
+  coverImageUrl?: string | null;
+  videoUrl?: string | null;
+  sourceUrl?: string | null;
+  /** Upsert за мовою; переклади, яких немає в масиві, не чіпаємо */
+  translations?: PostTranslationInput[];
+}
+
+function publicPostWhere(scope: PublicPostScope): Prisma.PostWhereInput {
+  return {
+    ...livePostWhere(scope.now),
+    translations: { some: { languageCode: scope.defaultLanguageCode } },
+  };
+}
+
+function createRelation<Link>(
+  ids: string[] | undefined,
+  toLink: (id: string) => Link,
+) {
+  return ids?.length ? { create: ids.map(toLink) } : undefined;
+}
+
+/** Переданий масив замінює зв'язки повністю, відсутній — не чіпає (P3-8). */
+function replaceRelation<Link>(
+  ids: string[] | undefined,
+  toLink: (id: string) => Link,
+) {
+  return ids ? { deleteMany: {}, create: ids.map(toLink) } : undefined;
+}
 
 @Injectable()
 export class PostRepository {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  // Базовий select — мета-дані поста + переклад по мові
-  private postSelect(lang: string) {
-    return {
-      id: true,
-      slug: true,
-      coverImage: true,
-      videoUrl: true,
-      published: true,
-      createdAt: true,
-      author: {
-        select: { id: true, name: true, avatar: true },
-      },
-      translations: {
-        where: { language: lang },
-        select: { title: true, excerpt: true, language: true },
-      },
-      tags: {
-        select: {
-          tag: { select: { id: true, name: true, slug: true } },
-        },
-      },
-    };
-  }
-
-  async findAll(page: number, limit: number, lang: string) {
-    const skip = (page - 1) * limit;
-
+  async findPublicPage(
+    scope: PublicPostScope,
+    languageCodes: string[],
+    pagination: { skip: number; take: number },
+  ): Promise<{ posts: PostSummaryRow[]; total: number }> {
+    const where = publicPostWhere(scope);
     const [posts, total] = await Promise.all([
       this.prisma.post.findMany({
-        where: { published: true, deletedAt: null },
-        select: this.postSelect(lang),
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+        where,
+        select: postSummarySelect(languageCodes),
+        // id — стабільний порядок пагінації при однаковій даті
+        orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.take,
       }),
-      this.prisma.post.count({
-        where: { published: true, deletedAt: null },
-      }),
+      this.prisma.post.count({ where }),
     ]);
-
     return { posts, total };
   }
 
-  async findBySlug(slug: string, lang: string) {
+  findPublicBySlug(
+    slug: string,
+    scope: PublicPostScope,
+    languageCodes: string[],
+  ): Promise<PostDetailRow | null> {
     return this.prisma.post.findFirst({
-      where: { slug, deletedAt: null },
-      select: {
-        ...this.postSelect(lang),
-        // На сторінці поста тягнемо повний контент
-        translations: {
-          where: { language: lang },
-          select: { title: true, excerpt: true, content: true, language: true },
-        },
-        // Коментарі першого рівня (без replies)
-        comments: {
-          where: { deletedAt: null, parentId: null },
-          select: {
-            id: true,
-            content: true,
-            pinnedAt: true,
-            createdAt: true,
-            author: { select: { id: true, name: true, avatar: true } },
-            // Replies до кожного коментаря
-            replies: {
-              where: { deletedAt: null },
-              select: {
-                id: true,
-                content: true,
-                createdAt: true,
-                author: { select: { id: true, name: true, avatar: true } },
-              },
-              orderBy: { createdAt: 'asc' },
-            },
-          },
-          // Спочатку закріплені, потім нові
-          orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
-        },
-      },
+      where: { slug, ...publicPostWhere(scope) },
+      select: postDetailSelect(languageCodes),
     });
   }
 
-  async findAllForAdmin(lang: string) {
+  /** Мови, якими є переклад поста (для `hreflang`) — без самого контенту. */
+  async findPublicTranslationLanguages(
+    slug: string,
+    scope: PublicPostScope,
+  ): Promise<string[]> {
+    const translations = await this.prisma.postTranslation.findMany({
+      where: { post: { slug, ...publicPostWhere(scope) } },
+      select: { languageCode: true },
+      orderBy: { language: { sortOrder: 'asc' } },
+    });
+    return translations.map((translation) => translation.languageCode);
+  }
+
+  findAllForAdmin(): Promise<AdminPostRow[]> {
     return this.prisma.post.findMany({
       where: { deletedAt: null },
-      select: {
-        ...this.postSelect(lang),
-        // В адмінці показуємо всі переклади
-        translations: {
-          select: { language: true, title: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+      select: ADMIN_POST_SELECT,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
   }
 
-  async findById(id: string) {
-    return this.prisma.post.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        slug: true,
-        published: true,
-        deletedAt: true,
-        author: { select: { id: true } },
-      },
+  findPublicationState(id: string): Promise<PostPublicationRow | null> {
+    return this.prisma.post.findFirst({
+      where: { id, deletedAt: null },
+      select: POST_PUBLICATION_SELECT,
     });
   }
 
-  async create(dto: CreatePostDto, authorId: string) {
-    // Slug беремо з англійського перекладу, або першого доступного
-    const enTranslation = dto.translations.find(t => t.language === 'en')
-      ?? dto.translations[0];
-    const slug = this.generateSlug(enTranslation.title);
-
+  create(data: CreatePostData): Promise<AdminPostRow> {
     return this.prisma.post.create({
       data: {
-        slug,
-        coverImage: dto.coverImage,
-        videoUrl: dto.videoUrl,
-        published: dto.published ?? false,
-        sourceUrl: dto.sourceUrl,
-        authorId,
-        // Створюємо переклади через nested write
-        translations: {
-          create: dto.translations,
-        },
-        // Прив'язуємо теги якщо є
-        tags: dto.tagIds?.length
-          ? { create: dto.tagIds.map(tagId => ({ tagId })) }
-          : undefined,
+        slug: data.slug,
+        status: data.status,
+        publishedAt: data.publishedAt,
+        coverImageUrl: data.coverImageUrl,
+        videoUrl: data.videoUrl,
+        sourceUrl: data.sourceUrl,
+        authorId: data.authorId,
+        translations: { create: data.translations },
+        tags: createRelation(data.tagIds, (tagId) => ({ tagId })),
+        clubs: createRelation(data.clubIds, (clubId) => ({ clubId })),
+        competitions: createRelation(data.competitionIds, (competitionId) => ({
+          competitionId,
+        })),
       },
-      select: this.postSelect('en'),
+      select: ADMIN_POST_SELECT,
     });
   }
 
-  async update(id: string, dto: UpdatePostDto) {
+  /**
+   * Одна nested-операція = одна транзакція Prisma: поля, переклади й зв'язки
+   * змінюються разом. Видалений пост → `P2025` (сервіс віддає 404).
+   */
+  update(id: string, data: UpdatePostData): Promise<AdminPostRow> {
     return this.prisma.post.update({
-      where: { id },
+      where: { id, deletedAt: null },
       data: {
-        coverImage: dto.coverImage,
-        videoUrl: dto.videoUrl,
-        published: dto.published,
-        // upsert для кожного перекладу — оновить якщо є, створить якщо немає
-        translations: dto.translations
+        status: data.status,
+        publishedAt: data.publishedAt,
+        coverImageUrl: data.coverImageUrl,
+        videoUrl: data.videoUrl,
+        sourceUrl: data.sourceUrl,
+        translations: data.translations
           ? {
-              upsert: dto.translations.map(t => ({
-                where: { postId_language: { postId: id, language: t.language } },
-                create: t,
-                update: { title: t.title, excerpt: t.excerpt, content: t.content },
+              upsert: data.translations.map((translation) => ({
+                where: {
+                  postId_languageCode: {
+                    postId: id,
+                    languageCode: translation.languageCode,
+                  },
+                },
+                create: translation,
+                update: {
+                  title: translation.title,
+                  excerpt: translation.excerpt,
+                  content: translation.content,
+                },
               })),
             }
           : undefined,
-        // Якщо передали теги — перезаписуємо повністю
-        tags: dto.tagIds
-          ? {
-              deleteMany: {},
-              create: dto.tagIds.map(tagId => ({ tagId })),
-            }
-          : undefined,
+        tags: replaceRelation(data.tagIds, (tagId) => ({ tagId })),
+        clubs: replaceRelation(data.clubIds, (clubId) => ({ clubId })),
+        competitions: replaceRelation(data.competitionIds, (competitionId) => ({
+          competitionId,
+        })),
       },
-      select: this.postSelect('en'),
+      select: ADMIN_POST_SELECT,
     });
   }
 
-  async softDelete(id: string) {
-    // Soft delete — встановлюємо deletedAt, не видаляємо з БД
-    return this.prisma.post.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+  /** Soft delete; `false` — поста немає або вже видалений (повтор → 404). */
+  async softDelete(id: string, deletedAt: Date): Promise<boolean> {
+    const { count } = await this.prisma.post.updateMany({
+      where: { id, deletedAt: null },
+      data: { deletedAt },
     });
+    return count === 1;
   }
 
-  private generateSlug(title: string): string {
-    return (
-      title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-') +
-      '-' +
-      Date.now()
-    );
+  async countExistingRelations(ids: Required<PostRelationIds>) {
+    const [tags, clubs, competitions] = await Promise.all([
+      this.prisma.tag.count({ where: { id: { in: ids.tagIds } } }),
+      this.prisma.club.count({ where: { id: { in: ids.clubIds } } }),
+      this.prisma.competition.count({
+        where: { id: { in: ids.competitionIds } },
+      }),
+    ]);
+    return { tags, clubs, competitions };
   }
 }

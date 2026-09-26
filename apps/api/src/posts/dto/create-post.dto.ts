@@ -1,56 +1,27 @@
-import {
-  IsString,
-  IsBoolean,
-  IsOptional,
-  IsArray,
-  ValidateNested,
-  IsIn,
-} from 'class-validator';
 import { Type } from 'class-transformer';
 import {
-  IsMediaUrl,
-  IsSourceUrl,
-} from '../../common/validation/url-field.decorators';
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
+import {
+  POST_TRANSLATIONS_MAX,
+  PostFieldsDto,
+  PostTranslationDto,
+} from './post-fields.dto';
 
-export class PostTranslationDto {
-  @IsString()
-  @IsIn(['en', 'ua'])
-  language: string;
+export { PostTranslationDto } from './post-fields.dto';
 
-  @IsString()
-  title: string;
-
-  @IsString()
-  excerpt: string;
-
-  @IsString()
-  content: string;
-}
-
-export class CreatePostDto {
+/**
+ * `POST /posts` (ADMIN). Переклад default-мови обов'язковий (перевіряє сервіс — потрібна БД);
+ * без `status` — чернетка.
+ */
+export class CreatePostDto extends PostFieldsDto {
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(POST_TRANSLATIONS_MAX)
   @ValidateNested({ each: true })
   @Type(() => PostTranslationDto)
   translations: PostTranslationDto[];
-
-  @IsMediaUrl()
-  @IsOptional()
-  coverImage?: string;
-
-  @IsMediaUrl()
-  @IsOptional()
-  videoUrl?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  published?: boolean;
-
-  @IsSourceUrl()
-  @IsOptional()
-  sourceUrl?: string;
-
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  tagIds?: string[];
 }

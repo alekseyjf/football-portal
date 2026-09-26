@@ -1,66 +1,67 @@
 import {
-  Controller, Get, Post, Put, Delete,
-  Param, Body, Query, UseGuards, Req,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import type { Request } from 'express';
-import { PostService } from './post.service';
-import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/guards/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
+import { CreatePostDto } from './dto/create-post.dto';
+import { ListPostsQueryDto } from './dto/list-posts-query.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
+import { PostService } from './post.service';
 
 @Controller('posts')
 export class PostController {
   constructor(private postService: PostService) {}
 
   @Get()
-  getPosts(
-    @Query('page') page = '1',
-    @Query('limit') limit = '10',
-    @Query('lang') lang = 'en',
-  ) {
-    return this.postService.getPosts(+page, +limit, lang);
-  }
-
-  @Get('admin/all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  getAllForAdmin(@Query('lang') lang = 'en') {
-    return this.postService.getAllForAdmin(lang);
+  getPosts(@Query() query: ListPostsQueryDto) {
+    return this.postService.getPublicPosts(query);
   }
 
   // ⚠️ admin/all ОБОВ'ЯЗКОВО перед :slug — інакше NestJS думає що 'admin' це slug
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  getAllForAdmin() {
+    return this.postService.getAllForAdmin();
+  }
+
   @Get(':slug')
-  getPostBySlug(
-    @Param('slug') slug: string,
-    @Query('lang') lang = 'en',
-  ) {
-    return this.postService.getPostBySlug(slug, lang);
+  getPostBySlug(@Param('slug') slug: string, @Query('lang') lang?: unknown) {
+    return this.postService.getPublicPostBySlug(slug, lang);
   }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(Role.ADMIN)
   createPost(@Body() dto: CreatePostDto, @Req() req: Request) {
-    const user = req.user as { id: string; role: string };
+    const user = req.user as AuthenticatedUser;
     return this.postService.createPost(dto, user.id);
   }
 
+  // Лише ADMIN (P3-7): зі `status` в тілі автор без ролі міг би публікувати
   @Put(':id')
-  @UseGuards(JwtAuthGuard)
-  updatePost(
-    @Param('id') id: string,
-    @Body() dto: UpdatePostDto,
-    @Req() req: Request,
-  ) {
-    const user = req.user as { id: string; role: string };
-    return this.postService.updatePost(id, dto, user.id, user.role);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  updatePost(@Param('id') id: string, @Body() dto: UpdatePostDto) {
+    return this.postService.updatePost(id, dto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(Role.ADMIN)
   deletePost(@Param('id') id: string) {
     return this.postService.deletePost(id);
   }

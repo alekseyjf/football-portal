@@ -13,6 +13,12 @@ import {
   PASSWORD_INPUT_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  POST_CONTENT_MAX_LENGTH,
+  POST_CONTENT_MIN_LENGTH,
+  POST_EXCERPT_MAX_LENGTH,
+  POST_EXCERPT_MIN_LENGTH,
+  POST_TITLE_MAX_LENGTH,
+  POST_TITLE_MIN_LENGTH,
   URL_MAX_LENGTH,
 } from './index';
 
@@ -57,6 +63,25 @@ export const mediaUrlSchema = z
     (value) => hasAllowedProtocol(value, MEDIA_URL_PROTOCOLS),
     'Must be an https:// URL',
   );
+
+/** Поля перекладу поста (форма адмінки). */
+export const postTitleSchema = z
+  .string()
+  .trim()
+  .min(POST_TITLE_MIN_LENGTH, `Title must be at least ${POST_TITLE_MIN_LENGTH} characters`)
+  .max(POST_TITLE_MAX_LENGTH, `Title must be at most ${POST_TITLE_MAX_LENGTH} characters`);
+
+export const postExcerptSchema = z
+  .string()
+  .trim()
+  .min(POST_EXCERPT_MIN_LENGTH, `Excerpt must be at least ${POST_EXCERPT_MIN_LENGTH} characters`)
+  .max(POST_EXCERPT_MAX_LENGTH, `Excerpt must be at most ${POST_EXCERPT_MAX_LENGTH} characters`);
+
+export const postContentSchema = z
+  .string()
+  .trim()
+  .min(POST_CONTENT_MIN_LENGTH, `Content must be at least ${POST_CONTENT_MIN_LENGTH} characters`)
+  .max(POST_CONTENT_MAX_LENGTH, `Content must be at most ${POST_CONTENT_MAX_LENGTH} characters`);
 
 function hasAllowedProtocol(value: string, protocols: readonly string[]): boolean {
   try {
