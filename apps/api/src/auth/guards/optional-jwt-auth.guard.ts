@@ -1,6 +1,7 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request } from 'express';
+import { readAccessToken } from '../auth-cookies';
 
 /**
  * Дозволяє публічний доступ; якщо є валідний access_token у cookie — заповнює req.user.
@@ -10,7 +11,7 @@ import type { Request } from 'express';
 export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    if (!request?.cookies?.['access_token']) {
+    if (!readAccessToken(request)) {
       return true;
     }
     try {

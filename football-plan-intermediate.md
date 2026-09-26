@@ -1114,12 +1114,20 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
 - [x] Логін адміна `test@test.com` з seed → 200, `role: ADMIN`, `name: "Test User"`; захищений роут з його access-токеном → 200 (хеш з експорту Фази 0 пережив міграцію)
 - [x] `tsc`: 81 → **70** (auth 0, users 0)
 
-#### 2b — Refresh-сесії
-- [ ] `AuthSessionRepository` (create, findByTokenHash, rotate, revoke, revokeFamily, revokeAllForUser, deleteExpired)
-- [ ] Opaque refresh (`randomBytes(32)`, у БД `sha256`), `userAgent`/`ipAddress`; P2-3…P2-7
-- [ ] `POST /auth/refresh`, `POST /auth/logout` (без guard, за refresh-cookie), `POST /auth/logout-all` (guard), `GET /auth/me` (user + profile)
-- [ ] Cookie-хелпери (`auth-cookies.ts`): `refresh_token` з `path=/api/v1/auth`
-- [ ] Перевірка `curl`: ротація, reuse → відкликано сім'ю, гонка → 409, logout, logout-all, me
+#### 2b — Refresh-сесії ✅ (2026-09-26)
+- [x] `auth/sessions/`: `AuthSessionRepository` (`create`, `findByTokenHash`, `rotate`, `findActiveInFamily`, `revokeByTokenHash`, `revokeFamily`, `revokeAllForUser`, `deleteExpired`) в окремому `AuthSessionsModule` — його імпортуватимуть `security/` (2c) і `users/` (2d) без циклу з `AuthModule`. `create` і `revokeAllForUser` приймають `db` (P2-8)
+- [x] `AuthSessionService`: `startSession` (логін, нова сім'я `randomUUID()`), `rotateSession` (P2-3…P2-6), `endSession`, `endAllSessions`; підпис access-JWT переїхав сюди. `JWT_REFRESH_SECRET` більше не використовується — прибрати з `.env` і `CLAUDE.md` у Фазі 6
+- [x] Opaque refresh: `randomBytes(32)` → base64url, у БД `sha256` hex; `userAgent` (≤ 512) / `ipAddress` (`req.ip`, ≤ 45) з кожного логіну й ротації. На проді за проксі потрібен `trust proxy`, інакше `ipAddress` = адреса проксі
+- [x] Ротація: `$transaction` → `updateMany({ id, revokedAt: null })`, `count !== 1` → наступника не створюємо, запит іде гілкою «відкликаний токен» (P2-4)
+- [x] Відкликаний токен: `< 30 с` + живий наступник у сім'ї → `409 REFRESH_SUPERSEDED` (cookies не чіпаємо); інакше — `revokeFamily` → 401. `Logger.warn` лише якщо в сім'ї справді було що відкликати (повторний refresh після logout / logout-all не шумить)
+- [x] Усі 401 refresh-у — один код `INVALID_REFRESH_TOKEN` (не розкриваємо, що спрацювала reuse detection); `LOCKED` → `403 ACCOUNT_LOCKED`, `DELETED` → 401; 401/403 чистять cookies, 409 — ні
+- [x] Роль у новому access-токені береться з БД під час refresh — зміна ролі діє максимум через 15 хв
+- [x] Логін відкликає сесію з refresh-cookie цього ж браузера (повторні логіни не накопичують живі сесії)
+- [x] `POST /auth/refresh`, `POST /auth/logout` (без guard, ідемпотентний), `POST /auth/logout-all` (guard, `{ revokedSessions }`), `GET /auth/me` → `{ user: UserAccount }` (`name`/`avatarUrl` з профілю; `bio` — коли з'явиться сторінка профілю, етап 10)
+- [x] `auth/auth-cookies.ts`: `refresh_token` з `path=/api/v1/auth` і `expires` = кінець сесії; access — `path=/`, 15 хв; legacy `refresh_token` з `path=/` чиститься при login / refresh / logout (P2-7). Якщо браузер шле обидва — cookie з довшим `path` іде першим, `cookie-parser` бере перше входження. `JwtStrategy` і `OptionalJwtAuthGuard` читають access через `readAccessToken`. `API_GLOBAL_PREFIX` → `app.constants.ts` (`main.ts` і `path` cookie)
+- [x] Перевірка (мінімальний Nest з `PrismaModule` + `AuthModule`, `curl` + `psql`): login → 3 `Set-Cookie` (access, refresh з `path`, очищення legacy); `me` → 200; ротація (старий revoked, новий у тій самій сім'ї, `expiresAt` +7 д); старий токен одразу → 409 без `Set-Cookie`; 5 паралельних refresh одним токеном → `200 409 409 409 409`, 1 жива сесія; старий токен через 60 с → 401, сім'я відкликана, легітимний наступник → 401, 1 warn; logout лише з refresh-cookie → відкликано, cookies очищено; logout без cookies → 200; logout-all (3 сесії) → `revokedSessions: 3`, інший пристрій → 401; LOCKED → refresh 403, сесія **не** відкликана, `me` → 401; DELETED → 401; прострочена → 401; сміття / legacy JWT → 401; `new; legacy` у Cookie → 200; USER→ADMIN у БД → після refresh `role: ADMIN` у токені. Тестового юзера видалено (сесії — каскадом)
+- [x] `tsc`: 70 → **70** (auth 0, users 0 — 2b чужих модулів не лагодить)
+- Свідомо не робимо: абсолютний ліміт життя сім'ї (ковзне вікно P2-6 — активний користувач живе в сесії безстроково); rate-limit на `/auth/login|refresh` — окремо, етап безпеки
 
 #### 2c — Moderation
 - [ ] `security/`: `SecurityModule`, `UserSanctionRepository`, `RateLimitRepository`, спільний anti-abuse (P2-9…P2-12)

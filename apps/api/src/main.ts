@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
+import { API_GLOBAL_PREFIX } from './app.constants';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -19,7 +20,7 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, transform: true }),
   );
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix(API_GLOBAL_PREFIX);
   
   await app.listen(process.env.PORT ?? 4000);
   console.log('🚀 API running on http://localhost:4000/api/v1');
