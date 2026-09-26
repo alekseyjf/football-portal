@@ -5,13 +5,14 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { Prisma, Role, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { toUserAccount } from '../users/user-account';
 import { UserRepository } from '../users/user.repository';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import type { SessionClientContext } from './session-client-context';
+import { AuthSessionService } from './sessions/auth-session.service';
 
 const PASSWORD_HASH_ROUNDS = 10;
 
@@ -28,7 +29,7 @@ export class AuthService {
 
   constructor(
     private userRepository: UserRepository,
-    private jwt: JwtService,
+    private sessionService: AuthSessionService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -53,7 +54,15 @@ export class AuthService {
     }
   }
 
-  async login(dto: LoginDto) {
+  /**
+   * `previousRefreshToken` — cookie попереднього входу з цього ж браузера:
+   * відкликаємо, щоб повторні логіни не накопичували живі сесії.
+   */
+  async login(
+    dto: LoginDto,
+    client: SessionClientContext,
+    previousRefreshToken: string | undefined,
+  ) {
     const email = normalizeEmail(dto.email);
     const credentials = await this.userRepository.findCredentialsByEmail(email);
 
@@ -78,11 +87,16 @@ export class AuthService {
     const account = await this.userRepository.findAccountById(credentials.id);
     if (!account) throw new UnauthorizedException('Invalid credentials');
 
-    const tokens = await this.generateTokens({
-      sub: account.id,
-      role: account.role,
-    });
-    return { user: toUserAccount(account), ...tokens };
+    await this.sessionService.endSession(previousRefreshToken);
+    const tokens = await this.sessionService.startSession(account, client);
+    return { user: toUserAccount(account), tokens };
+  }
+
+  /** `GET /auth/me`: статус уже перевірив `JwtStrategy`. */
+  async getCurrentUser(userId: string) {
+    const account = await this.userRepository.findAccountById(userId);
+    if (!account) throw new UnauthorizedException();
+    return toUserAccount(account);
   }
 
   private getDummyPasswordHash(): Promise<string> {
@@ -91,22 +105,6 @@ export class AuthService {
       PASSWORD_HASH_ROUNDS,
     );
     return this.dummyPasswordHash;
-  }
-
-  // TODO(Фаза 2b): refresh → opaque-токен в AuthSession, ротація.
-  private async generateTokens(payload: AccessTokenPayload) {
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAsync(payload, {
-        secret: process.env.JWT_SECRET,
-        expiresIn: '15m',
-      }),
-      this.jwt.signAsync(payload, {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: '7d',
-      }),
-    ]);
-
-    return { accessToken, refreshToken };
   }
 }
 

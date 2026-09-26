@@ -1,9 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { UserStatus } from '@prisma/client';
-import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserRepository } from '../../users/user.repository';
+import { readAccessToken } from '../auth-cookies';
 import type { AccessTokenPayload } from '../auth.service';
 
 /** Те, що потрапляє в `req.user` (P2-1). */
@@ -17,11 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private userRepository: UserRepository) {
     super({
       // Читаємо токен з httpOnly cookie, а не з заголовку
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        (req: Request): string | null =>
-          (req?.cookies as Record<string, string | undefined> | undefined)
-            ?.access_token ?? null,
-      ]),
+      jwtFromRequest: ExtractJwt.fromExtractors([readAccessToken]),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET!,
     });

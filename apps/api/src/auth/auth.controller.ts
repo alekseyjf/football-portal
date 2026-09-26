@@ -1,49 +1,113 @@
-import { Controller, Post, Body, Res, Req, UseGuards, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  Body,
+  Res,
+  Req,
+  UseGuards,
+  HttpCode,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { AuthService } from './auth.service';
+import {
+  clearAuthCookies,
+  readRefreshToken,
+  setAuthCookies,
+} from './auth-cookies';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { readSessionClientContext } from './session-client-context';
+import { AuthSessionService } from './sessions/auth-session.service';
+import type { AuthenticatedUser } from './strategies/jwt.strategy';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private sessionService: AuthSessionService,
+  ) {}
 
   @Post('register')
-  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+  async register(@Body() dto: RegisterDto) {
     const user = await this.authService.register(dto);
     return { message: 'Registered successfully', user };
   }
 
   @Post('login')
   @HttpCode(200)
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const { user, accessToken, refreshToken } = await this.authService.login(dto);
-
-    // Зберігаємо токени в httpOnly cookies — JS на фронті не може їх прочитати
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 хвилин
-    });
-
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 днів
-    });
-
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, tokens } = await this.authService.login(
+      dto,
+      readSessionClientContext(req),
+      readRefreshToken(req),
+    );
+    setAuthCookies(res, tokens);
     return { message: 'Logged in successfully', user };
   }
 
+  /**
+   * 409 `REFRESH_SUPERSEDED` — cookies не чіпаємо: інша вкладка вже поставила нові,
+   * клієнт просто повторює свій запит (P2-5).
+   */
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    try {
+      const tokens = await this.sessionService.rotateSession(
+        readRefreshToken(req),
+        readSessionClientContext(req),
+      );
+      setAuthCookies(res, tokens);
+      return { message: 'Session refreshed' };
+    } catch (error) {
+      // Сесії більше немає — прибираємо мертві cookies, щоб браузер їх не слав.
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof ForbiddenException
+      ) {
+        clearAuthCookies(res);
+      }
+      throw error;
+    }
+  }
+
+  /** Без guard: access-токен міг прострочитися, а сесію відкликати все одно треба. */
   @Post('logout')
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
-  logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.sessionService.endSession(readRefreshToken(req));
+    clearAuthCookies(res);
     return { message: 'Logged out successfully' };
+  }
+
+  @Post('logout-all')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async logoutAll(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const user = req.user as AuthenticatedUser;
+    const revokedSessions = await this.sessionService.endAllSessions(user.id);
+    clearAuthCookies(res);
+    return { message: 'Logged out on all devices', revokedSessions };
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async me(@Req() req: Request) {
+    const user = req.user as AuthenticatedUser;
+    return { user: await this.authService.getCurrentUser(user.id) };
   }
 }
