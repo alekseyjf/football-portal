@@ -3,6 +3,30 @@
  * Дати з API — ISO string (JSON).
  */
 
+// ─── Users ───
+
+/**
+ * Автор поста/коментаря у публічних відповідях. Для видаленого акаунта `name` = 'Deleted user'
+ * з БД, але UI показує локалізований підпис за `isDeleted`.
+ */
+export interface PublicAuthor {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  isDeleted: boolean;
+}
+
+export type UserRole = 'USER' | 'ADMIN';
+
+/** Поточний користувач: `POST /auth/login`, `GET /auth/me`. */
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  avatarUrl: string | null;
+}
+
 // ─── Posts + i18n ───
 
 export interface PostTranslation {
@@ -19,11 +43,7 @@ export interface Post {
   videoUrl?: string;
   published: boolean;
   createdAt: string;
-  author: {
-    id: string;
-    name: string;
-    avatar?: string;
-  };
+  author: PublicAuthor;
   translations: PostTranslation[];
   tags?: { tag: { id: string; name: string; slug: string } }[];
 }
@@ -50,20 +70,8 @@ export interface Comment {
   createdAt: string;
   pinnedAt?: string | null;
   parentId?: string | null;
-  author: {
-    id: string;
-    name: string;
-    avatar?: string;
-  };
+  author: PublicAuthor;
   replies?: Comment[];
-}
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: 'USER' | 'ADMIN';
-  avatar?: string;
 }
 
 export interface PaginatedPosts {

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useRegisterMutation } from '@/hooks/useAuth';
+import { isApiError } from '@/lib/api/http';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -53,8 +54,16 @@ export function RegisterForm() {
       });
       router.push('/auth/login');
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Something went wrong');
+      setServerError(registerErrorMessage(err));
     }
+  };
+
+  const registerErrorMessage = (error: unknown): string => {
+    if (!isApiError(error)) return t('genericError');
+    if (error.code === 'EMAIL_BLOCKED') return t('emailBlocked');
+    if (error.code === 'TOO_MANY_REQUESTS') return t('tooManyAttempts');
+    if (error.status === 409) return t('emailInUse');
+    return error.message;
   };
 
   return (

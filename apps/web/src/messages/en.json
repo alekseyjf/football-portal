@@ -115,6 +115,14 @@
     "hasAccount": "Already have an account?",
     "signInLink": "Sign in",
     "adminBadge": "Admin",
-    "accountLocked": "This account is locked. Contact support if you think this is a mistake."
+    "accountLocked": "This account is locked. Contact support if you think this is a mistake.",
+    "genericError": "Something went wrong. Please try again.",
+    "invalidCredentials": "Invalid email or password.",
+    "tooManyAttempts": "Too many attempts. Please try again later.",
+    "emailInUse": "This email is already registered.",
+    "emailBlocked": "This email cannot be used to register."
+  },
+  "users": {
+    "deletedUser": "Deleted user"
   }
 }

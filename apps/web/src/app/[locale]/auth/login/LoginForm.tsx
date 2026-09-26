@@ -6,8 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
-import { useAuthStore } from '@/store/auth.store';
 import { useLoginMutation } from '@/hooks/useAuth';
+import { isApiError } from '@/lib/api/http';
 
 // Схема валідації — один раз описали, і тип і валідація готові
 const loginSchema = z.object({
@@ -20,7 +20,6 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const router = useRouter();
   const t = useTranslations('auth');
-  const setUser = useAuthStore((s) => s.setUser);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const { mutateAsync: login, isPending } = useLoginMutation();
@@ -36,18 +35,21 @@ export function LoginForm() {
   const onSubmit = async (data: LoginFormData) => {
     setServerError(null);
     try {
-      const res = await login(data);
-      setUser(res.user);
+      // Користувача в кеш `me` кладе сама мутація
+      await login(data);
       router.push('/');
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Something went wrong';
-      if (message === 'ACCOUNT_LOCKED') {
-        setServerError(t('accountLocked'));
-      } else {
-        setServerError(message);
-      }
+      setServerError(loginErrorMessage(err));
     }
+  };
+
+  const loginErrorMessage = (error: unknown): string => {
+    if (!isApiError(error)) return t('genericError');
+    if (error.code === 'ACCOUNT_LOCKED') return t('accountLocked');
+    if (error.code === 'TOO_MANY_REQUESTS') return t('tooManyAttempts');
+    if (error.status === 401) return t('invalidCredentials');
+    return error.message;
   };
 
   return (

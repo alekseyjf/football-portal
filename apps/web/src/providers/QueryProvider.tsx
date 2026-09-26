@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { makeQueryClient } from '@/lib/query/queryClient';
+import { AuthSessionSync } from '@/providers/AuthSessionSync';
 
 export function QueryProviders({ children }: { children: React.ReactNode }) {
   // useState щоб QueryClient не створювався заново при кожному рендері
@@ -11,6 +12,7 @@ export function QueryProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AuthSessionSync />
       {children}
       {/* DevTools видно тільки в dev режимі — кнопка внизу екрану */}
       <ReactQueryDevtools initialIsOpen={false} />

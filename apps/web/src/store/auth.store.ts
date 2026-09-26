@@ -1,18 +1,19 @@
 import { create } from 'zustand';
 import type { User } from '@/lib/api/types';
 
+/**
+ * Дзеркало `useAuthQuery` (`GET /auth/me`) для компонентів. Єдиний запис — `AuthSessionSync`;
+ * login / logout змінюють кеш запиту, а не store.
+ */
 interface AuthState {
   user: User | null;
+  /** `true`, поки перший `GET /auth/me` не відповів — не показувати «Увійти» залогіненому. */
   isLoading: boolean;
-  setUser: (user: User | null) => void;
-  setLoading: (loading: boolean) => void;
-  logout: () => void;
+  syncSession: (user: User | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: true,
-  setUser: (user) => set({ user }),
-  setLoading: (isLoading) => set({ isLoading }),
-  logout: () => set({ user: null }),
+  syncSession: (user) => set({ user, isLoading: false }),
 }));

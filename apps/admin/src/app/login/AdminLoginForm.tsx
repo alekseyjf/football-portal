@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAdminLogin } from '@/hooks/useAdminLogin';
 import { useAuthStore } from '@/store/auth.store';
+import { isApiError } from '@/lib/api/http';
 
 const schema = z.object({
   email: z.string().email('Invalid email'),
@@ -14,6 +15,16 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+function loginErrorMessage(error: unknown): string {
+  if (!isApiError(error)) return 'Something went wrong';
+  if (error.code === 'ACCOUNT_LOCKED') return 'This account is locked.';
+  if (error.code === 'TOO_MANY_REQUESTS') {
+    return 'Too many attempts. Please try again later.';
+  }
+  if (error.status === 401) return 'Invalid email or password.';
+  return error.message;
+}
 
 export function AdminLoginForm() {
   const router = useRouter();
@@ -41,7 +52,7 @@ export function AdminLoginForm() {
       router.push('/dashboard');
       router.refresh();
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Something went wrong');
+      setServerError(loginErrorMessage(err));
     }
   };
 

@@ -4,6 +4,7 @@ import { UserStatus } from '@prisma/client';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserRepository } from '../../users/user.repository';
 import { readAccessToken } from '../auth-cookies';
+import { ACCESS_TOKEN_ALGORITHM, readJwtSecret } from '../auth.constants';
 import type { AccessTokenPayload } from '../auth.service';
 
 /** Те, що потрапляє в `req.user` (P2-1). */
@@ -19,7 +20,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Читаємо токен з httpOnly cookie, а не з заголовку
       jwtFromRequest: ExtractJwt.fromExtractors([readAccessToken]),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET!,
+      // Падає на старті, якщо секрету немає або він закороткий
+      secretOrKey: readJwtSecret(),
+      algorithms: [ACCESS_TOKEN_ALGORITHM],
     });
   }
 

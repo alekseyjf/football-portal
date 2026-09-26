@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import type { Comment } from '@/lib/api/types';
 import { useCreateComment, useDeleteComment } from '@/hooks/useComments';
+import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
 import { LikeBar } from '@/components/features/LikeBar';
 
 const replySchema = z.object({
@@ -120,11 +121,14 @@ export function CommentThreadNode({
   const [repliesCollapsed, setRepliesCollapsed] = useState(false);
   const t = useTranslations('comments');
   const { mutate: deleteComment } = useDeleteComment(postId);
+  const authorDisplayName = useAuthorDisplayName();
 
   const canDelete = userId && (userId === comment.author.id || userRole === 'ADMIN');
   const replies = comment.replies ?? [];
   const hasReplies = replies.length > 0;
   const replyIndent = depth > 0 ? 'pl-1' : 'pl-2';
+  const authorName = authorDisplayName(comment.author);
+  const authorDeleted = comment.author.isDeleted;
 
   return (
     <div className={depth > 0 ? 'flex gap-3 mt-2' : ''}>
@@ -146,12 +150,16 @@ export function CommentThreadNode({
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 min-w-0">
               <div
-                className="w-8 h-8 rounded-full bg-green-600 flex items-center 
-                  justify-center text-xs font-bold shrink-0"
+                className={`w-8 h-8 rounded-full flex items-center justify-center
+                  text-xs font-bold shrink-0 ${authorDeleted ? 'bg-gray-700 text-gray-400' : 'bg-green-600'}`}
               >
-                {comment.author.name[0].toUpperCase()}
+                {authorDeleted ? '?' : authorName.charAt(0).toUpperCase() || '?'}
               </div>
-              <span className="text-sm font-medium truncate">{comment.author.name}</span>
+              <span
+                className={`text-sm font-medium truncate ${authorDeleted ? 'italic text-gray-500' : ''}`}
+              >
+                {authorName}
+              </span>
               <span className="text-xs text-gray-500 shrink-0">
                 {new Date(comment.createdAt).toLocaleDateString(dateLocale)}
               </span>

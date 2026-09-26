@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { getPublicWebUrl } from '@/lib/publicWebUrl';
 import { useAdminLogout } from '@/hooks/useAdminLogout';
+import { useAdminSessionExpiry } from '@/hooks/useAdminSessionExpiry';
 
 export function AdminShellBar() {
   const publicWeb = getPublicWebUrl();
   const { mutate: logout, isPending } = useAdminLogout();
+  useAdminSessionExpiry();
 
   return (
     <header className="border-b border-gray-800 bg-gray-950/95 sticky top-0 z-50">

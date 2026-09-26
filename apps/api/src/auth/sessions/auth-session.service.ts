@@ -10,9 +10,11 @@ import { UserStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  ACCESS_TOKEN_ALGORITHM,
   ACCESS_TOKEN_TTL_SECONDS,
   REFRESH_SESSION_TTL_MS,
   REFRESH_SUPERSEDED_GRACE_MS,
+  readJwtSecret,
 } from '../auth.constants';
 import type { AccessTokenPayload } from '../auth.service';
 import type { SessionClientContext } from '../session-client-context';
@@ -37,6 +39,7 @@ const ACCOUNT_LOCKED = 'ACCOUNT_LOCKED';
 @Injectable()
 export class AuthSessionService {
   private readonly logger = new Logger(AuthSessionService.name);
+  private readonly jwtSecret = readJwtSecret();
 
   constructor(
     private prisma: PrismaService,
@@ -176,7 +179,8 @@ export class AuthSessionService {
   }): Promise<string> {
     const payload: AccessTokenPayload = { sub: user.id, role: user.role };
     return this.jwt.signAsync(payload, {
-      secret: process.env.JWT_SECRET,
+      secret: this.jwtSecret,
+      algorithm: ACCESS_TOKEN_ALGORITHM,
       expiresIn: ACCESS_TOKEN_TTL_SECONDS,
     });
   }

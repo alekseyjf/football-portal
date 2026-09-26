@@ -9,20 +9,25 @@ export function NavbarClient() {
   const router = useRouter();
   const tNav = useTranslations('nav');
   const tAuth = useTranslations('auth');
-  const { user, logout } = useAuthStore();
-  const { mutateAsync: logoutApi } = useLogoutMutation();
+  const user = useAuthStore((state) => state.user);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
+  const { mutateAsync: logoutApi, isPending: isLoggingOut } = useLogoutMutation();
 
   const handleLogout = async () => {
     try {
       await logoutApi();
     } catch {
-      // cookies можуть бути вже недійсні — все одно чистимо локальний стан
+      // Локальний стан мутація чистить і при помилці (cookies могли бути вже недійсні)
     } finally {
-      logout();
       router.push('/');
       router.refresh();
     }
   };
+
+  // Сесія ще відновлюється (`GET /auth/me`) — не блимати кнопкою «Увійти»
+  if (isAuthLoading) {
+    return <div className="h-9 w-40" aria-hidden />;
+  }
 
   if (user) {
     return (
@@ -46,7 +51,8 @@ export function NavbarClient() {
         <button
           type="button"
           onClick={handleLogout}
-          className="text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors"
+          disabled={isLoggingOut}
+          className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
         >
           {tNav('logout')}
         </button>

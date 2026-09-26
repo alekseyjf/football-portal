@@ -1,10 +1,12 @@
+import type { PublicAuthor, User } from '@football-portal/types';
+
 /** Рядок списку GET /posts/admin/all */
 export interface AdminPostRow {
   id: string;
   slug: string;
   published: boolean;
   createdAt: string;
-  author: { id: string; name: string; avatar?: string };
+  author: PublicAuthor;
   translations: { language: string; title: string }[];
 }
 
@@ -34,9 +36,10 @@ export interface CreatePostPayload {
   tagIds?: string[];
 }
 
-export interface AdminUser {
-  id: string;
-  email: string;
-  name: string;
-  role: 'USER' | 'ADMIN';
+/** Користувач з `POST /auth/login` (адмінку пускаємо лише з `role: ADMIN`). */
+export type AdminUser = User;
+
+/** Ім'я автора в списках: видалений акаунт — підпис, а не ім'я з БД. */
+export function adminAuthorName(author: PublicAuthor): string {
+  return author.isDeleted ? 'Deleted user' : author.name;
 }

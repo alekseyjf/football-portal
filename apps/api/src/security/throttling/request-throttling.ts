@@ -49,6 +49,7 @@ export const RegisterThrottle = () =>
 /**
  * Refresh-токен — 256 біт, перебір неможливий; ліміт — проти флуду.
  * Щедрий: кожна вкладка рефрешить раз на 15 хв, плюс гонки вкладок (P2-5).
+ * Рахуються лише запити з refresh-cookie — `RefreshThrottlerGuard`.
  */
 export const RefreshThrottle = () =>
   applyDecorators(

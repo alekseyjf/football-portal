@@ -10,7 +10,10 @@ export class RegisterDto {
   @MaxLength(254)
   email: string;
 
-  /** Стає `UserProfile.displayName` */
+  /** Стає `UserProfile.displayName`. Trim до `MinLength`: інакше ім'я з пробілів проходить і стає порожнім */
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MinLength(2)
   @MaxLength(50)
