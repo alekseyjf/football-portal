@@ -9,8 +9,11 @@ export const EMAIL_MAX_LENGTH = 254;
 
 /** Політика для **нового** пароля (реєстрація, згодом — зміна пароля). */
 export const PASSWORD_MIN_LENGTH = 8;
-/** bcrypt обрізає пароль до 72 байт — довший мовчки втратив би хвіст. */
-export const PASSWORD_MAX_LENGTH = 72;
+/**
+ * bcrypt обрізає пароль до 72 **байт** UTF-8 — довший мовчки втратив би хвіст.
+ * Межа саме в байтах: кирилиця — 2 байти на літеру, тож 72 символи кирилицею = 144 байти.
+ */
+export const PASSWORD_MAX_BYTES = 72;
 /**
  * Для **введеного** пароля (логін, підтвердження видалення акаунта): без мінімуму —
  * старі акаунти могли зареєструватися за попередньою політикою (6 символів).
@@ -45,3 +48,11 @@ export const POST_RELATION_IDS_MAX = 20;
 
 /** Сторінка публічної стрічки (`GET /posts?limit=`). */
 export const POSTS_PAGE_LIMIT_MAX = 50;
+
+/**
+ * Довжина рядка в байтах UTF-8 — так її рахує bcrypt. `TextEncoder`, а не `encodeURI`:
+ * на одиночному surrogate (`"\ud800"` у JSON) `encodeURI` кидає виняток, а тут це 3 байти (U+FFFD).
+ */
+export function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}

@@ -11,6 +11,7 @@ import { useTranslations } from 'next-intl';
 import type { Comment } from '@/lib/api/types';
 import { useCreateComment, useDeleteComment } from '@/hooks/useComments';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
+import { useCommentErrorMessage } from '@/hooks/useCommentErrorMessage';
 import { LikeBar } from '@/components/features/LikeBar';
 
 function ReplyForm({
@@ -27,17 +28,10 @@ function ReplyForm({
   const t = useTranslations('comments');
   const { mutate: createComment, isPending } = useCreateComment(postId);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const mapCommentApiError = useCommentErrorMessage();
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CommentFormValues>({
     resolver: zodResolver(commentFormSchema),
   });
-
-  const mapCommentApiError = (error: unknown): string | null => {
-    const code = error instanceof Error ? error.message : '';
-    if (code === 'COMMENT_COOLDOWN') return t('cooldown');
-    if (code === 'COMMENTS_SUSPENDED') return t('commentsSuspended');
-    if (code === 'ACCOUNT_LOCKED') return t('accountLocked');
-    return null;
-  };
 
   const onSubmit = (data: CommentFormValues) => {
     setSubmitError(null);
@@ -128,6 +122,16 @@ export function CommentThreadNode({
   const authorName = authorDisplayName(comment.author);
   const authorDeleted = comment.author.isDeleted;
 
+  // Видалення ховає і всю гілку відповідей під коментарем (у т.ч. чужих) — попереджаємо
+  const confirmAndDelete = () => {
+    const replyCount = countCommentsInTree(replies);
+    const question =
+      replyCount > 0
+        ? t('deleteConfirmWithReplies', { count: replyCount })
+        : t('deleteConfirm');
+    if (window.confirm(question)) deleteComment(comment.id);
+  };
+
   return (
     <div className={depth > 0 ? 'flex gap-3 mt-2' : ''}>
       {depth > 0 && (
@@ -166,7 +170,7 @@ export function CommentThreadNode({
             {canDelete && (
               <button
                 type="button"
-                onClick={() => deleteComment(comment.id)}
+                onClick={confirmAndDelete}
                 className="text-xs text-gray-600 hover:text-red-400 transition-colors shrink-0"
               >
                 {t('delete')}

@@ -1,8 +1,9 @@
 # ⚽ Football Portal — Master Plan & Rules
 
-> **Версія плану:** 4.4 (локалі лише `en`/`ua`; Accept-Language ISO `uk*` → `ua` у proxy; football — підмодулі Nest)
+> **Версія плану:** 4.5 (схема БД v5; локалі лише `en`/`ua`; Accept-Language ISO `uk*` → `ua` у proxy; football — підмодулі Nest)
 > **Автор:** Олексій
-> **Останнє оновлення:** Квітень 2026
+> **Останнє оновлення:** 26 вересня 2026 — частково актуалізовано після Фаз 0–4 проміжного плану `football-plan-intermediate.md` (schema v5) і рев'ю Фаз 1–4
+> **Зараз:** проміжний план, **Фаза 5 (Football + Sync)**; після нього — етап 7 цього плану
 
 ---
 
@@ -76,6 +77,8 @@ include: { author: true }                      // ❌ може потягнут�
 // Post і Comment мають deletedAt DateTime?
 // "Видалення" = встановити deletedAt, не DELETE з БД
 // Запити фільтрують: where: { deletedAt: null }
+// Коментар: soft delete ховає й усю гілку відповідей під ним (Фаза 4)
+// Єдиний виняток — ADMIN purge коментаря (legal / GDPR, D20): /comments/:id/purge, /purge-thread
 ```
 
 **Rule 8 — Email завжди lowercase**
@@ -86,9 +89,21 @@ email = dto.email.toLowerCase().trim();
 
 **Rule 9 — i18n через Translation таблиці**
 ```typescript
-// Контент (title, excerpt, content) → PostTranslation
-// Мета-дані (slug, coverImage, published) → Post
-// Запит завжди з мовою: where: { language: 'en' }
+// Контент (title, excerpt, content) → PostTranslation (languageCode → таблиця Language)
+// Мета-дані (slug, status, publishedAt, coverImageUrl) → Post
+// Запит завжди з `lang`; fallback на default-мову (en) робить API, відповідь несе `resolvedLanguage`;
+// невідома / неактивна мова → default без 400 (LanguageService, кеш 60 с)
+```
+
+**Rule 10 — Транзакції й гонки (уроки Фаз 2–4 і рев'ю)**
+```typescript
+// Лічильники й інваріанти — у ТІЙ САМІЙ транзакції, що й рядки;
+//   умовний updateMany({ where: { id, deletedAt: null } }) → count — атомарна перевірка стану
+// Блокування — завжди в одному порядку: предки → нащадки → агрегат (тред) останнім;
+//   FOR NO KEY UPDATE, не FOR UPDATE (той конфліктує з FK KEY SHARE вставок → deadlock)
+// Prisma 7 + driver adapter: upsert не гарантує атомарності (паралельні вставки → P2002);
+//   deadlock приходить як P2010 / DriverAdapterError, НЕ P2034 → помилки лише через src/prisma/prisma-errors.ts
+// Кожну гонку — перевірити детерміновано (блокування тримає окрема транзакція) + контрольний прогін без фіксу
 ```
 
 ---
@@ -144,8 +159,10 @@ email = dto.email.toLowerCase().trim();
 - Rate limiting — `@nestjs/throttler` на auth-роутах (**є**, Фаза 2d — див. «Ліміти спроб» нижче)
 - `Cache-Control: no-store` на відповідях з персональними даними / токенами (`register`, `login`, `refresh`, `me`)
 - `TRUST_PROXY` — за reverse proxy на проді **обов'язково** (кількість проксі, напр. `1`; `true` заборонено — IP підробляється через `X-Forwarded-For`)
-- Паролі — bcrypt, saltRounds = 10
-- JWT — access 15хв + refresh 7д, httpOnly cookies, `sameSite: 'lax'` (**є**)
+- Паролі — bcrypt, saltRounds = 10; новий пароль — 8…72 **байти** UTF-8 (bcrypt обрізає по байтах; кирилиця — 2 байти на літеру), межі — `packages/validation` (**є**)
+- Access-JWT 15 хв (HS256, `{ sub, role, sid }`) + **opaque refresh у БД** (SHA-256): ротація, reuse detection, ковзне вікно 7 д, абсолютний ліміт 30 д; `JwtStrategy` на кожен запит перевіряє живу сесію й бере роль / статус з БД; httpOnly cookies, `sameSite: 'lax'`, refresh-cookie лише на `/api/v1/auth` (**є**, Фаза 2)
+- Без секретів API не стартує: `JWT_SECRET`, `EMAIL_HASH_SECRET` (≥ 32 символи), `CORS_ORIGINS` (рівно origin-и, на проді лише https); на проді — `TRUST_PROXY` (**є**)
+- Анти-абуз коментарів / лайків — `RateLimitEvent` + `UserSanction`: cooldown 60 с між коментарями, burst 5 за 5 с → бан на дію 24 год, повторний strike → `LOCKED` + відкликання сесій (**є**, Фаза 2c)
 - Ніколи не повертати `password` у відповіді API
 - `whitelist: true` у ValidationPipe — видаляє зайві поля (**є**)
 - Email — завжди toLowerCase() перед збереженням (**є** в auth)
@@ -154,7 +171,7 @@ email = dto.email.toLowerCase().trim();
 
 | Роут | Ліміт |
 |---|---|
-| `POST /auth/login` | 10/хв з IP **і** 10 за 15 хв на один акаунт (email) |
+| `POST /auth/login` і `/auth/login/admin` (спільний лічильник) | 10/хв з IP **і** 10 за 15 хв на один акаунт (email) |
 | `POST /auth/register` | 5 за 10 хв з IP |
 | `POST /auth/refresh` | 30/хв з IP |
 | `DELETE /users/me` | 5 за 15 хв на користувача (підтвердження паролем) |
@@ -168,7 +185,7 @@ email = dto.email.toLowerCase().trim();
 Куки з `SameSite=Lax` вже зменшують класичний CSRF з чужого сайту. Для **defence in depth** перед продакшеном варто додати перевірку для мутацій (заголовок + секрет у cookie або double-submit). Пакет **`csurf` застарілий** — при імплементації краще дивитись на актуальні підходи для Express/Nest 11 (власний middleware, `@edge-csrf/*`, або політика тільки для same-site API + суворий CORS). Не плутати з **Next.js**: подвійний домен (web 3000, api 4000) — це cross-origin; CSRF-токен має видавати API і фронт передає його в заголовку на мутації.
 
 **Frontend:**
-- `DOMPurify` для будь-якого user-generated HTML
+- `DOMPurify` для будь-якого user-generated HTML (зараз HTML не рендериться: контент — текстом, `dangerouslySetInnerHTML` у web / admin немає — перевірено в рев'ю Фаз 1–4)
 - Ніколи `dangerouslySetInnerHTML` без санітизації
 - Токени — тільки httpOnly cookies, ніколи localStorage
 - Env змінні — публічні тільки з `NEXT_PUBLIC_`
@@ -215,305 +232,68 @@ const clean = DOMPurify.sanitize(userContent);
 
 ---
 
-# ЧАСТИНА 2 — СХЕМА БД (Senior Ready v4.0)
+# ЧАСТИНА 2 — СХЕМА БД (v5)
 
-## 🗄️ Повна Prisma схема
+> **Джерело правди — код:** `apps/api/prisma/schema.prisma` + ручні обмеження `apps/api/prisma/sql/constraints.sql` (CHECK і часткові унікальні індекси, яких Prisma не виражає). Схему тут **не дублюємо**: копія v4 у цьому файлі застаріла, щойно змінився код.
+> **Звідки v5:** проміжний план `football-plan-intermediate.md` (розділи 2–5, 9). Схему застосовано у Фазі 1 (2026-09-26); код доменів переведено у Фазах 2–4; FOOTBALL / SYNC — Фаза 5.
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
+## 🗺️ Домени
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// ─────────────────────────────
-// ENUMS
-// ─────────────────────────────
-
-enum Role        { USER ADMIN }
-enum MatchStatus { SCHEDULED LIVE FINISHED POSTPONED CANCELLED }
-enum LikeType    { LIKE DISLIKE }
-// У реальному `apps/api/prisma/schema.prisma` — саме так (без поліморфної Like)
-
-// ─────────────────────────────
-// USER
-// ─────────────────────────────
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique          // завжди зберігати lowercase в коді
-  password  String
-  name      String
-  role      Role     @default(USER)
-  avatar    String?
-  bio       String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  posts        Post[]
-  comments     Comment[]
-  postLikes    PostLike[]
-  commentLikes CommentLike[]
-  matchLikes   MatchLike[]
-}
-
-// ─────────────────────────────
-// POSTS + i18n
-// ─────────────────────────────
-
-model Post {
-  id         String    @id @default(cuid())
-  slug       String    @unique
-  coverImage String?
-  videoUrl   String?   // для відео оглядів матчів
-  published  Boolean   @default(false)
-  sourceUrl  String?   // джерело для AI-парсингу новин
-  authorId   String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime? // soft delete — модерація
-
-  author       User              @relation(fields: [authorId], references: [id])
-  comments     Comment[]
-  likes        PostLike[]
-  tags         PostTag[]
-  translations PostTranslation[]
-
-  @@index([createdAt])
-  @@index([authorId])
-  @@index([published])
-}
-
-// Контент поста розділений по мовах
-// Якщо додаємо нову мову → просто новий рядок, схема не міняється
-model PostTranslation {
-  id       String @id @default(cuid())
-  language String // 'en', 'ua'
-  title    String
-  excerpt  String
-  content  String
-  postId   String
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, language])
-}
-
-// ─────────────────────────────
-// TAGS
-// ─────────────────────────────
-
-model Tag {
-  id    String    @id @default(cuid())
-  name  String    @unique
-  slug  String    @unique
-  posts PostTag[]
-}
-
-model PostTag {
-  postId String
-  tagId  String
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([postId, tagId])
-}
-
-// ─────────────────────────────
-// COMMENTS
-// ─────────────────────────────
-
-model Comment {
-  id        String    @id @default(cuid())
-  content   String
-  authorId  String
-  postId    String?   // прив'язка до поста (опціонально)
-  matchId   String?   // прив'язка до матчу (опціонально)
-  parentId  String?   // для відповідей на коментарі
-  pinnedAt  DateTime? // закріплення (YouTube-стиль)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime? // soft delete — модерація
-
-  author  User      @relation(fields: [authorId], references: [id])
-  post    Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  match   Match?    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies Comment[] @relation("CommentReplies")
-  likes   CommentLike[]
-
-  @@index([createdAt])
-  @@index([postId])
-  @@index([matchId])
-  @@index([postId, pinnedAt])
-  @@index([matchId, pinnedAt])
-}
-
-// ─────────────────────────────
-// LIKES — три окремі таблиці (замість поліморфної)
-// Причина: Prisma не підтримує поліморфні FK через targetId+enum
-// Семантика YouTube: LIKE/DISLIKE, публічно показуємо тільки LIKE
-// @@unique = один голос на користувача на об'єкт
-// onDelete: Cascade = видалення поста/коменту → видаляються лайки
-// ─────────────────────────────
-
-model PostLike {
-  id        String   @id @default(cuid())
-  userId    String
-  postId    String
-  type      LikeType @default(LIKE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, postId])
-  @@index([postId])
-}
-
-model CommentLike {
-  id        String   @id @default(cuid())
-  userId    String
-  commentId String
-  type      LikeType @default(LIKE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, commentId])
-  @@index([commentId])
-}
-
-model MatchLike {
-  id        String   @id @default(cuid())
-  userId    String
-  matchId   String
-  type      LikeType @default(LIKE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, matchId])
-  @@index([matchId])
-}
-
-// ─────────────────────────────
-// FOOTBALL
-// ─────────────────────────────
-
-// externalId = ID від Football-Data.org API
-// Mapper pattern: якщо API зміниться → міняємо тільки football.mapper.ts
-
-model League {
-  id         String  @id @default(cuid())
-  externalId Int     @unique
-  name       String
-  slug       String  @unique
-  country    String
-  season     String
-  logoUrl    String?
-
-  clubs   Club[]
-  matches Match[]
-  table   LeagueTable[]
-}
-
-model Club {
-  id         String  @id @default(cuid())
-  externalId Int     @unique
-  name       String
-  slug       String  @unique
-  shortName  String?
-  logo       String?
-  founded    Int?
-  venue      String?
-  leagueId   String
-
-  league       League        @relation(fields: [leagueId], references: [id])
-  homeMatches  Match[]       @relation("HomeClub")
-  awayMatches  Match[]       @relation("AwayClub")
-  tableEntries LeagueTable[]
-
-  @@index([leagueId])
-}
-
-model Match {
-  id         String      @id @default(cuid())
-  externalId Int         @unique
-  homeScore  Int?        // null до початку матчу
-  awayScore  Int?
-  date       DateTime    // зберігаємо UTC, конвертуємо на фронті
-  status     MatchStatus @default(SCHEDULED)
-  minute     Int?        // поточна хвилина для LIVE матчів
-  matchday   Int?        // тур (football-data) — у репозиторії є
-  leagueId   String
-  homeClubId String
-  awayClubId String
-
-  league   League @relation(fields: [leagueId], references: [id])
-  homeClub Club   @relation("HomeClub", fields: [homeClubId], references: [id])
-  awayClub Club   @relation("AwayClub", fields: [awayClubId], references: [id])
-
-  comments Comment[]
-  likes    MatchLike[]
-
-  @@index([leagueId])
-  @@index([date])
-  @@index([status])
-  @@index([leagueId, date])
-}
-
-model LeagueTable {
-  id           String @id @default(cuid())
-  position     Int
-  played       Int    @default(0)
-  won          Int    @default(0)
-  drawn        Int    @default(0)
-  lost         Int    @default(0)
-  points       Int    @default(0)
-  goalsFor     Int    @default(0)
-  goalsAgainst Int    @default(0)
-  goalDiff     Int    @default(0)
-  leagueId     String
-  clubId       String
-
-  league League @relation(fields: [leagueId], references: [id])
-  club   Club   @relation(fields: [clubId], references: [id])
-
-  @@unique([leagueId, clubId])
-}
+```
+IDENTITY      User · UserProfile · AuthSession
+MODERATION    UserSanction · RateLimitEvent · BlockedEmail
+CONTENT       Language · Post · PostTranslation · Tag · TagTranslation · PostTag · PostCompetition · PostClub
+ENGAGEMENT    CommentThread · Comment · PostLike · CommentLike · MatchLike · UserReactionActivity
+FOOTBALL      Area · Competition · Season · SeasonClub · Club · Match · Standing
+SYNC          CompetitionExternalRef · SeasonExternalRef · ClubExternalRef · MatchExternalRef · SyncRun
 ```
 
-### Ключові рішення схеми і чому:
+Правило залежностей: **FOOTBALL не знає про провайдерів** (жодного `externalId` у доменних таблицях); про провайдерів знає лише SYNC + `football/integration/`.
 
-| Рішення | Чому |
+| Домен | Стан коду |
 |---|---|
-| `PostTranslation` окрема таблиця | Нова мова = новий рядок, схема не міняється |
-| `deletedAt` в Post і Comment | Soft delete — модерація без втрати даних |
-| `parentId` в Comment | Replies без окремої таблиці |
-| `postId?` + `matchId?` в Comment | Separate fields простіші ніж polymorphic для 2 сутностей |
-| `PostLike` + `CommentLike` + `MatchLike` | Prisma не підтримує поліморфні FK — три таблиці дають реальні FK і каскади |
-| `pinnedAt` в Comment | YouTube-стиль закріплення коментарів адміном |
-| `externalId` в League/Club/Match | Mapper pattern — API змінився → міняємо тільки mapper |
-| Індекси на `createdAt`, `date`, `status` | Запити по часу і статусу будуть частими |
-| `email` lowercase в коді | Запобігає дублікатам `User@email.com` і `user@email.com` |
+| Identity, Moderation | ✅ Фаза 2 — сесії, санкції, блоклист пошт, видалення акаунта (анонімізація) |
+| Content | ✅ Фаза 3 — статуси й дата публікації, переклади з fallback, теги / турніри / клуби поста |
+| Engagement | ✅ Фаза 4 — треди коментарів, soft delete гілкою, purge, лайки |
+| Football, Sync | ◻ Фаза 5 — схема є, код `football/` ще під v4 і **не компілюється** |
+
+### Ключові рішення схеми (D1–D20)
+
+| # | Рішення | Чому |
+|---|---|---|
+| D1 | `League` → **`Competition`** (`type: LEAGUE \| CUP`) | ЛЧ, кубки, ЧС — не «ліги» |
+| D2 | **`Season`**; `Match` і `Standing` прив'язані до сезону | Історія сезонів, перехід сезону без втрат |
+| D3 | `Club` без `leagueId`; участь — **`SeasonClub`** (M:N) | Клуб грає в PL і CL одночасно |
+| D4 | **`Standing`** з `stage`, `groupName`, `type` | Групи ЛЧ, кілька таблиць в одному сезоні |
+| D5 | `externalId` → таблиці **`*ExternalRef`** `(provider, externalId)` | Новий провайдер без міграції доменних таблиць |
+| D6 | **`SyncRun`** — журнал і лок синку | Видно, що синкнулось; два синки одного турніру неможливі |
+| D7 | Турніри для синку — з БД (`Competition.isActive`) | Новий турнір без редеплою |
+| D8 | **`Language`** — таблиця | Нова мова = `INSERT` + файл перекладів на web |
+| D9 | Fallback контенту: запитана мова → default (`en`) | Відповідь несе `resolvedLanguage` |
+| D10 | `Post.published` → **`status`** (`DRAFT` / `SCHEDULED` / `PUBLISHED` / `ARCHIVED`) + **`publishedAt`** | Чернетки, відкладена публікація без cron |
+| D11 | **`CommentThread`** — одна гілка на пост / матч | Один FK у коментаря; тут `isLocked`, `commentCount` |
+| D12 | `Comment.rootId` + `depth` + `replyCount` | Гілка одним запитом, без рекурсії |
+| D13 | `User` = лише ідентичність; **`UserProfile`** 1:1 (`displayName`, `avatarUrl`, `bio`) | Auth-запити не тягнуть профіль |
+| D14 | **`UserSanction`** + **`RateLimitEvent`** | Історія санкцій, strikes, ручні бани |
+| D15 | **`AuthSession`** — refresh у БД (хеш), ротація, reuse detection | Logout справді відкликає |
+| D16 | **`PostCompetition`**, **`PostClub`** | Новини турніру / клубу окремо від тегів |
+| D17 | **`TagTranslation`** | Теги з тим самим fallback, що й пости |
+| D18 | `Match.stage` — String | Нова стадія провайдера не ламає синк |
+| D19 | Видалення користувача = **анонімізація**, не `DELETE` | Пости / коментарі цілі, `Restrict` не заважає |
+| D20 | Коментар: soft delete + **ADMIN purge** | Legal / GDPR; purge лише листка або всієї гілки |
+
+Повні формулювання — розділ 2 проміжного плану. **Спроєктовано, але ще не створено** (адитивно, коли знадобиться): `Player` / `SquadMember` (етап 7.4), `MatchEvent` (15), `ClubTranslation`, `ContentReport` (16), `UserFavoriteClub` (10), `MatchPrediction`, `AuthAccount` (OAuth) тощо — розділ 9 проміжного плану.
 
 ---
 
 ## 📌 Prisma та міграції — **рішення на зараз** (узгоджено)
 
-- **`LikeType`:** залишаємо **`enum LikeType { LIKE DISLIKE }`**, **без** переходу на `String` + CHECK, доки немає реальної потреби. Перегляд схеми — **лише коли** з’явиться новий тип голосу чи інші вимоги.
-- **`createPost`:** один `prisma.post.create` з nested `translations` / `tags` у Prisma вже атомарний; окремий `$transaction` — за потреби для складніших сценаріїв (зовнішній сервіс + БД).
-- **Soft delete:** поки що достатньо фільтрів `deletedAt: null` у репозиторії; додаткові DB constraints — опційно пізніше.
+- **`LikeType`:** залишаємо **`enum LikeType { LIKE DISLIKE }`**, **без** переходу на `String` + CHECK, доки немає реальної потреби.
+- **Атомарність:** створення / оновлення поста — одна nested-операція (поля + переклади + зв'язки); багатокрокові зміни з лічильниками — `$transaction` за правилом 10 Частини 1.
+- **Інваріанти, яких Prisma не виражає**, — у `prisma/sql/constraints.sql`: рівно одна ціль треду, різні клуби матчу, опублікований / запланований пост має дату, одна default-мова, один поточний сезон турніру, один `RUNNING` синк на ціль, формат анонімізованих email.
+- **Squash до релізу** (розділ 11 проміжного плану): поки немає прод-БД, історію міграцій схлопуємо — `migrate reset` → `migrate dev --name init --create-only` → **дописати `constraints.sql` у baseline** → `migrate dev` → `db seed`. Останній squash — безпосередньо перед релізом (етап 14): прод стартує з однієї `0001_init`. Зараз міграцій чотири: `0001_init` … `0004_auth_session_absolute_lifetime`.
+- **Після релізу:** застосовані міграції не редагуємо й не видаляємо; структурні зміни — expand → backfill → contract (окремі міграції / деплої); кожну міграцію генеруємо з `--create-only` і читаємо SQL (Prisma любить `DROP` + `ADD` замість `RENAME`; перевіряти, що не зникли об'єкти з `constraints.sql`); `pg_dump` перед кожним `migrate deploy`.
+- Supabase: `migrate` іде через `DIRECT_URL` (`prisma.config.ts`).
 
 ---
 
@@ -526,15 +306,15 @@ model LeagueTable {
 | Winston / Pino | Після структурованого Nest `Logger` — коли знадобляться файли / агрегація |
 | `@nestjs/event-emitter` | Не зараз; коли 2+ підписники на подію або черги |
 | Zustand | Вже є для auth — без змін «з нуля» |
-| `GET /auth/me` + refresh | Залишається в roadmap polish |
+| `GET /auth/me` + refresh | ✅ Фаза 2e — відновлення сесії після F5, refresh-on-401 (single-flight) у web і admin |
 
 ### Короткий backlog якості (без зайвих міграцій)
 
-1. **Helmet** у `main.ts`
-2. **`@nestjs/throttler`** (хоча б `/auth/login`)
-3. **Валідація `process.env`** при старті
-4. **Ліміти в DTO** (`@MaxLength` тощо), де ще немає
-5. **CSRF** (double-submit cookie + заголовок) під схему портів 3000 → 4000
+1. ~~**Helmet**~~ ✅ Фаза 2d (`app.setup.ts`)
+2. ~~**`@nestjs/throttler`**~~ ✅ Фаза 2d — на IP і на акаунт
+3. **Валідація `process.env`** при старті — ◐ частково: без `JWT_SECRET` / `EMAIL_HASH_SECRET` (≥ 32), `CORS_ORIGINS`, на проді `TRUST_PROXY` API не стартує; решта (`DATABASE_URL`, `FOOTBALL_*`) — без схеми
+4. ~~**Ліміти в DTO**~~ ✅ Фази 2f і 3 (`packages/validation` — ті самі числа в DTO і формах)
+5. **CSRF** (double-submit cookie + заголовок) під схему портів 3000 → 4000 — ◻
 6. **Файлові логи** — за потреби
 
 ---
@@ -547,10 +327,10 @@ model LeagueTable {
 | У prompt | У проєкті |
 |----------|-----------|
 | Generic prompt з `/uk/...` | У проєкті лише **`/ua/...`** і `messages/ua.json`. У Accept-Language браузер може надіслати стандартний код **`uk`** — у `proxy.ts` викликається **`normalizeAcceptLanguageForAppLocales`** (`accept-language.ts`), щоб next-intl бачив **`ua`**. Для `Intl` / дат лишається **`uk-UA`** у `content-lang.ts` (не сегмент URL). |
-| `Competition` / `Team` / `Standing` | **`League`**, **`Club`**, **`LeagueTable`** (Prisma) |
+| `Competition` / `Team` / `Standing` | З v5 назви майже збігаються: **`Competition`** (`type: LEAGUE \| CUP`), **`Season`**, **`SeasonClub`**, **`Club`**, **`Standing`**. Публічні роути лишаються `football/leagues/:slug/…` (`?season=`), нові ендпоінти — розділ 6.4 проміжного плану (Фаза 5) |
 | `teamId` у шляху | Краще **`[clubSlug]`** (є `Club.slug`); внутрішній `id` — для API за потреби |
 | Окремі Nest-модулі `competitions`, `teams`, … | **Один** кореневий `FootballModule` + **внутрішні підмодулі**: `FootballIntegrationModule` (зовнішнє API), `FootballPersistenceModule`, `FootballQueryModule`, `FootballSyncModule` — див. **етап 5b** та дерево в **актуалізації**. |
-| Модель `Player` у схемі | **Поки немає** в Prisma — сторінки **squad** / **players** або **після альфи**, або окремий етап із міграцією + синком |
+| Модель `Player` у схемі | **Поки немає** в Prisma; спроєктовано `Player` / `SquadMember` (розділ 9 проміжного плану) — сторінки **squad** / **players** після окремої міграції + синку |
 | Крок «додати i18n» | **Вже зроблено** (next-intl, `app/[locale]`) — у плані альфи не повторювати |
 
 ### Глобальні вимоги альфи
@@ -559,7 +339,7 @@ model LeagueTable {
 - **Зовнішній API:** виклики **лише** з Nest (`football-data.client`); фронт — **тільки** `NEXT_PUBLIC_API_URL` / `lib/api/http.ts`.
 - **Ліміти football-data.org:** кеш на бекенді (in-memory, TTL **60–300 с**) для агрегованих read-ендпоінтів; не дублювати запити з кожного клієнта. Redis — коли буде кілька інстансів API.
 - **Дані:** агрегаційний шар у бекенді (один відповідь = таблиця + найближчі матчі + список клубів тощо), щоб зменшити чатання з фронта.
-- **Безпека:** httpOnly JWT + **CSRF на мутації** + Helmet + throttler до публічної альфи — список у **«Короткий backlog якості»** вище (Частина 2).
+- **Безпека:** httpOnly JWT, Helmet, throttler — ✅; **CSRF на мутації** — ◻ до публічної альфи (див. **«Короткий backlog якості»** вище).
 - **Не робити в альфі:** окремий продукт **live** на іншому платному API; **transfers** без стабільного джерела; прямі fetch до football-data з браузера.
 
 ### Цільове дерево `apps/web/src/app/[locale]/`
@@ -594,7 +374,7 @@ calendar/
 
 | Крок | Backend | Frontend |
 |------|---------|----------|
-| **A** | Розширити **football** (**етап 7.0**): агреговані ендпоінти + **кеш TTL** на read | — |
+| **A** | Передумова — **Фаза 5 проміжного плану** (синк v5, поточний сезон `isCurrent`, ендпоінти 6.4). Далі розширити **football** (**етап 7.0**): агреговані ендпоінти + **кеш TTL** на read | — |
 | **B** | — | `leagues/` + `[leagueSlug]/standings|matches|clubs` (реюз UI з сайдбару де можливо) |
 | **C** | — | `clubs/[clubSlug]/` + `matches/` підмаршрут |
 | **D** | — | `matches/page.tsx` (загальний список) |
@@ -610,7 +390,7 @@ calendar/
 # ЧАСТИНА 3 — ПЛАН РЕАЛІЗАЦІЇ
 > **Як читати:** нижче — етапи з чекбоксами `[x]` / `[ ]`. Щоб не роздувати файл, **детальний знімок** (що саме вже зроблено в репо) винесено в **«Актуалізація плану»** в кінці документа.
 >
-> **Порядок робіт (не змішувати):** **5b** (структура `football` — підмодулі Nest) → **6** (лайки) → **7** (альфа football UI + агрегація API) → **8** (коментарі / матчі / YouTube-глибина) → **9+** за номерами.
+> **Порядок робіт (не змішувати):** спершу **проміжний план `football-plan-intermediate.md`** — Фаза **5** (Football + Sync на v5) → **5b** (перемикач ліг у сайдбарі) → **6** (типи, документація) → **7** (фінальна перевірка); потім цей план — **7** (альфа football UI + агрегація API) → **8** (коментарі на матчі) → **9+** за номерами. Етап **6** (лайки) — ✅.
 
 ## ✅ Що вже зроблено
 
@@ -628,6 +408,7 @@ calendar/
 - JWT httpOnly cookies (access 15хв + refresh 7д)
 - JwtAuthGuard, RolesGuard, @Roles decorator
 - ValidationPipe + class-validator
+- **v5 (Фаза 2 проміжного плану, 2a–2f):** `AuthSession` (opaque refresh, ротація, reuse detection, 7 д ковзне / 30 д абсолютне), `sid` у access-JWT, `logout-all`, `POST /auth/login/admin`; `UserProfile`; видалення акаунта (`DELETE /users/me`, `DELETE /users/:id`) — анонімізація + блок пошти (HMAC); анти-абуз (`UserSanction` / `RateLimitEvent`); throttling, Helmet, суворий CORS; web / admin — відновлення сесії після F5 і refresh-on-401
 
 ### Етап 3 — Posts + Comments ✅
 - CRUD постів з пагінацією і Repository pattern
@@ -677,13 +458,13 @@ const { mutateAsync } = useMutation({
 });
 ```
 
-**Далі (опційно):** `useAuthQuery` / `/auth/me` для синхронізації сесії без лише Zustand.
+**Зроблено (Фаза 2e):** `useAuthQuery` / `GET /auth/me` + refresh-on-401 — сесія переживає F5; Zustand лише дзеркалить кеш (`AuthSessionSync`).
 
 ---
 
 ### Етап 4 — Рефакторинг схеми + Football Module
 
-#### 4.1 — Оновити Prisma схему v4.0 ✅ ЗАВЕРШЕНО
+#### 4.1 — Оновити Prisma схему v4.0 ✅ ЗАВЕРШЕНО (історично — замінено схемою v5, див. 4.4)
 - [x] Замінити `schema.prisma` на v4.0
 - [x] `PostTranslation` для i18n
 - [x] `PostLike` / `CommentLike` / `MatchLike` — три окремі таблиці (YouTube-стиль)
@@ -701,8 +482,11 @@ const { mutateAsync } = useMutation({
 - [x] `auth.service.ts` — `email.toLowerCase().trim()`
 - [x] `GET /posts?lang=` та `GET /posts/:slug?lang=`
 - [x] Адмінка — форма створення з блоками EN (обов'язково) та UA (опційно), TanStack Query
+- [x] **v5 (Фаза 3):** `languageCode` (таблиця `Language`), `status` + `publishedAt` (Draft / Publish now / Schedule в адмінці), `coverImageUrl`; переклад розгорнуто у відповідь + `resolvedLanguage`; slug з EN-заголовка з суфіксом при колізії; `PUT` / `DELETE` — лише ADMIN; `tagIds` / `clubIds` / `competitionIds` з перевіркою існування
 
 #### 4.3 — Football Module (NestJS) ✅ backend (+ шаруватість)
+> ⚠️ **Опис нижче — стан v4.** Під схемою v5 код `football/` не компілюється (25 помилок `tsc`: `League`, `externalId`, `Club.leagueId`, `Match.date`, `LeagueTable`) — переписується у **Фазі 5 проміжного плану**: порт провайдера + адаптер football-data, `*ExternalRef`, `SyncRun` (журнал і лок), `Season` з `isCurrent`, турніри з `Competition.isActive`. Приклади з `externalId` / `upsert` нижче після Фази 5 застаріють.
+
 **Джерело правди — наша БД.** Синк: cron + `POST /football/sync` (**202 Accepted**, фоновий імпорт без Bull — див. README).
 
 **Архітектура модуля (фактичне дерево `apps/api/src/football/`):**
@@ -765,6 +549,21 @@ await this.prisma.club.upsert({
 
 ---
 
+#### 4.4 — Schema v5 refactor ◐ (проміжний план `football-plan-intermediate.md`)
+- [x] Фаза 0 — підготовка, експорт контенту
+- [x] Фаза 1 — схема v5 + baseline-міграція + seed, `prisma/sql/constraints.sql`
+- [x] Фаза 2 (2a–2f) — identity, refresh-сесії, модерація, видалення акаунта, frontend-сесія, hardening
+- [x] Фаза 3 — контент: статуси, мови з БД і fallback, контракт постів
+- [x] Фаза 4 — engagement: треди коментарів, soft delete гілкою, purge, лайки
+- [x] Рев'ю Фаз 1–4 — гонки коментарів / лайків, мапінг помилок Prisma 7, межа пароля в байтах
+- [ ] Фаза 5 — Football + Sync на v5 (**наступна**)
+- [ ] Фаза 5b — перемикач ліг у сайдбарі
+- [ ] Фаза 6 — типи, документація (частково зроблено у Фазах 3–4)
+- [ ] Фаза 7 — фінальна перевірка (частково покрито перевірками Фаз 2–4)
+- [ ] Squash міграцій — безпосередньо перед релізом (етап 14)
+
+---
+
 ### Етап 5 — i18n (Мультимовність)
 
 - [x] `pnpm add next-intl`
@@ -776,6 +575,7 @@ await this.prisma.club.upsert({
 - [x] Перемикач мови в Navbar
 - [x] API: `GET /posts?lang=` з сегмента URL (`en` | `ua`)
 - [x] Локалізація дат (`localeToBcp47`), статусів матчів і UI сайдбару через переклади
+- [x] API: мови з таблиці `Language` (кеш 60 с), fallback на default + `resolvedLanguage`; web — бейдж / банер «Переклад недоступний», правильний атрибут `lang` (Фаза 3)
 
 ---
 
@@ -794,21 +594,22 @@ await this.prisma.club.upsert({
 
 ### Етап 6 — Likes система
 
-#### 6.1 — Backend
-- [ ] `src/likes/like.module.ts`
-- [ ] `src/likes/like.service.ts` — toggle логіка (є лайк → видалити, немає → створити)
-- [ ] `src/likes/like.controller.ts`
-  - `POST /likes` — toggle like/dislike
-  - `GET /likes/stats/:targetType/:targetId` — кількість лайків і дізлайків
+> ✅ Зроблено ще до проміжного плану; у v5 доведено (Фази 2c, 4, рев'ю).
 
-#### 6.2 — Frontend
-- [ ] `components/features/LikeButton.tsx` (Client Component)
-  - Показує кількість лайків (👍 N)
-  - Дізлайки не показуються публічно
-  - Оптимістичне оновлення (UI змінюється одразу, потім запит)
-- [ ] Підключити до сторінки новини
-- [ ] Підключити до CommentSection
-- [ ] Підключити до сторінки матчу
+#### 6.1 — Backend ✅
+- [x] `src/likes/like.module.ts`
+- [x] `src/likes/like.service.ts` — toggle логіка (та сама дія знімає голос, як на YouTube)
+- [x] `src/likes/like.controller.ts`
+  - `POST /likes` — toggle like/dislike
+  - `GET /likes/stats/:targetType/:targetId` — кількість лайків (дізлайки публічно не показуємо) + `myReaction`
+- [x] v5: `UserReactionActivity { targetType, reaction }` на кожну зміну; анти-абуз (burst → `LIKES_SUSPENDED`); пост — лише живий, коментар — лише видимий (не під чернеткою); транзакція спершу блокує рядок цілі (паралельні кліки по черзі, purge → 404)
+
+#### 6.2 — Frontend ✅
+- [x] `components/features/LikeBar.tsx` + `hooks/useLikes.ts` (оптимістичне оновлення)
+  - Показує кількість лайків (👍 N), дізлайки не показуються публічно
+- [x] Підключено до сторінки новини, коментарів і сторінки матчу
+- [ ] Борг: ESLint error `react-hooks/set-state-in-effect` у `LikeBar.tsx` (з 2e)
+- [ ] Статистика дізлайків — лише в адмінці (етап 11)
 
 ---
 
@@ -817,6 +618,7 @@ await this.prisma.club.upsert({
 Детальна карта маршрутів — у розділі **«Альфа-реліз: карта сторінок»** вище (кроки A–F). **Окремо від етапу 6** (спочатку лайки, потім цей блок).
 
 #### 7.0 — Backend під альфу (паралельно з UI)
+- [ ] **Передумова:** Фаза 5 проміжного плану — синк v5 (`Season`, `SeasonClub`, `Standing` по групах), запити через поточний сезон (`isCurrent`) з опційним `?season=2025-26`, публічні ендпоінти ліг (розділ 6.4)
 - [ ] Агреговані ендпоінти в `football` (hub ліги, список матчів, календар, сторінка клубу) — поверх існуючого repository
 - [ ] In-memory кеш read-only з TTL 60–300 с (ключ: leagueSlug / clubSlug / date range); задокументувати інвалідацію після sync
 - [ ] Розширення API альфи в межах існуючих підмодулів `football` (**етап 5b** вже застосовано)
@@ -828,6 +630,10 @@ await this.prisma.club.upsert({
 - [ ] `.../matches/page.tsx` — матчі ліги (тури)
 - [ ] `.../clubs/page.tsx` — клуби ліги
 - [x] Таблиця + тури на **головній** (сайдбар) — вже є; після hub — лінки
+- [ ] Маршрути з урахуванням сезону: `/leagues/[slug]?season=2025-26` (без параметра — поточний)
+- [ ] Вигляд сторінки за `Competition.type`: LEAGUE → таблиця + тури, CUP → групи / ліга-фаза + сітка плей-оф
+- [ ] Перемикач ліг у сайдбарі (`?league=`, групи «Ліги» / «Кубки») — **Фаза 5b проміжного плану**
+- [ ] Новини ліги / клубу — через `PostCompetition` / `PostClub` (зв'язки вже пишуться з адмінки: `competitionIds` / `clubIds`; деталь поста віддає `competitions` / `clubs`)
 
 #### 7.2 — Клуби (teams у generic naming)
 - [ ] `/[locale]/clubs/page.tsx` — опційно
@@ -840,7 +646,7 @@ await this.prisma.club.upsert({
 - [ ] `/[locale]/calendar/page.tsx` — календар
 
 #### 7.4 — Гравці / склад (поза мінімальною альфою, якщо немає Player у БД)
-- [ ] Рішення: міграція `Player` + синк **або** відкласти після v1 альфи
+- [ ] Рішення: міграція `Player` + синк **або** відкласти після v1 альфи (модель спроєктовано: `Player`, `PlayerExternalRef`, `SquadMember { seasonId, clubId, playerId, shirtNumber, position }` — розділ 9 проміжного плану)
 - [ ] `/[locale]/clubs/[clubSlug]/squad/page.tsx`
 - [ ] `/[locale]/players/[playerId]/page.tsx`
 
@@ -852,16 +658,20 @@ await this.prisma.club.upsert({
 
 ### Етап 8 — Comments розширення (replies, матчі, YouTube-глибина)
 
-#### 8.1 — Backend ✅ (база) · далі за потреби
-- [x] `CreateCommentDto` — `parentId?: string`
-- [x] `comment.repository.ts` / `post.repository` — replies у дереві коментарів до поста
-- [x] Валідація в `comment.service`: відповідь не на відповідь (один рівень вкладеності)
-- [ ] Система коментарів як в youtube
-- [ ] Кнопка "Reply" під кожним коментарем, щоб можна було відповідати далі під коментарем один одному як в youtube
+#### 8.1 — Backend ✅ (v5, Фаза 4 проміжного плану)
+- [x] `CreateCommentDto` — рівно одна ціль (`postId` | `matchId`), `parentId?`
+- [x] `CommentThread` — одна гілка на пост / матч, створюється з першим коментарем; `rootId` / `depth` зберігаються (відповіді до глибини 15), лічильники `commentCount` / `replyCount` у тій самій транзакції
+- [x] Коментувати й читати можна лише живий пост (чернетка → 404); `GET /comments/match/:matchId` і `POST` з `matchId` — API коментарів матчу готовий
+- [x] `DELETE /comments/:id` — soft delete разом з гілкою відповідей; ADMIN purge / purge-thread (фізично, legal / GDPR)
+- [x] `isLocked` треду → 403 `COMMENT_THREAD_LOCKED` (ендпоінту блокування ще немає — етап 11)
+- [x] Відповідь на будь-який коментар (вкладене дерево) — замість старого «один рівень вкладеності»
+- [ ] Відображення «як в YouTube»: вирішити, чи сплющувати глибокі відповіді (YouTube — один рівень + `@згадка`), чи лишити дерево
+- [ ] Пагінація дерева (зараз `GET` віддає весь тред; ріст обмежений cooldown-ом коментарів)
+- [ ] Pin / lock / unlock — ендпоінти для адмінки (етап 11)
 
 #### 8.2 — Frontend
-- [x] `CommentSection.tsx` — replies для **поста**
-- [ ] Те саме UX для коментарів на **сторінці матчу** (коли підключите `matchId` у UI)
+- [x] `CommentSection.tsx` / `CommentThreadNode.tsx` — дерево відповідей для **поста**, «Відповісти» на кожному вузлі, підтвердження видалення з кількістю відповідей
+- [ ] Те саме UX на **сторінці матчу** — API готовий, лишилось підключити `useComments` під `matchId`
 
 ---
 
@@ -869,10 +679,11 @@ await this.prisma.club.upsert({
 
 #### 9.1 — Backend
 - [ ] `src/tags/tag.module.ts`
-- [ ] CRUD тегів (тільки ADMIN створює)
+- [ ] CRUD тегів (тільки ADMIN створює) — з `TagTranslation` (D17)
 - [ ] `GET /tags` — список всіх тегів
 - [ ] `GET /posts?tag=premier-league` — пости по тегу
-- [ ] Оновити `CreatePostDto` — `tagIds?: string[]`
+- [x] `CreatePostDto` / `UpdatePostDto` — `tagIds?: string[]` (≤ 20, існування перевіряється → 400 `UNKNOWN_TAG`; Фаза 3)
+- [x] Теги в публічній відповіді поста — назва мовою запиту → default → `slug` (Фаза 3)
 
 #### 9.2 — Frontend
 - [ ] Теги на картці поста і сторінці новини
@@ -884,28 +695,33 @@ await this.prisma.club.upsert({
 ### Етап 10 — Профіль користувача
 
 #### 10.1 — Backend
-- [ ] `src/users/user.controller.ts`
-  - `GET /users/:id` — публічний профіль
+- [ ] `src/users/user.controller.ts` (зараз є `users/management/user.controller.ts` — лише видалення)
+  - `GET /users/:id` — публічний профіль (`UserProfile`: `displayName`, `avatarUrl`, `bio`; видалений → «Deleted user»)
   - `GET /users/:id/comments` — коментарі юзера (для авторизованих)
-  - `PUT /users/me` — редагування свого профілю (name, bio, avatar)
-- [ ] `src/users/user.service.ts`
-- [ ] `src/users/user.repository.ts`
+  - `PUT /users/me` — редагування свого профілю (пише в `UserProfile`, не в `User`)
+- [x] `DELETE /users/me` — видалення свого акаунта з підтвердженням паролем: анонімізація, сесії видаляються, пошта заблокована на 30 днів (Фаза 2d)
+- [x] `src/users/user.repository.ts` (identity + профіль)
+- [ ] `UserFavoriteClub` — улюблений клуб (спроєктовано, розділ 9 проміжного плану)
 
 #### 10.2 — Frontend
 - [ ] `/profile/[id]/page.tsx`
   - Аватар, ім'я, bio
   - Список коментарів юзера (для авторизованих)
 - [ ] `/profile/me/page.tsx` — свій профіль з формою редагування
+- [ ] «Видалити акаунт» — підтвердження паролем (API готовий; `apiDelete(url, body)` уже вміє тіло; 403 `INVALID_PASSWORD` — помилка форми)
 
 ---
 
 ### Етап 11 — Адмінка (розширення)
 
-- [ ] Редагування постів
+- [ ] Редагування постів і зміна статусу (Draft / Scheduled / Published / Archived) — API `PUT /posts/:id` готовий (Фаза 3); редагування slug чернетки
+- [ ] Пагінація `GET /posts/admin/all`
 - [ ] Управління тегами (CRUD)
 - [x] Ручний тригер sync (`POST /football/sync`) — кнопка на дашборді
+- [ ] Журнал `SyncRun` на дашборді (Фаза 5 проміжного плану), керування `Competition.isActive`
 - [ ] Статистика лайків і дізлайків (тільки адмін бачить дізлайки)
-- [ ] Модерація коментарів (soft delete через `deletedAt`)
+- [ ] Модерація коментарів: soft delete (API ✅), **purge / purge-thread** (API ✅ — з окремим підтвердженням, не плутати з «Delete»), lock / unlock треду, pin
+- [ ] Користувачі: видалення акаунта (`DELETE /users/:id` — API ✅, пише `UserSanction(ACCOUNT_DELETED)`), ручні санкції, розблокування (див. бэклог безпеки)
 - [ ] Список AI-парсингу новин (чернетки з `sourceUrl`)
 
 ---
@@ -922,6 +738,8 @@ await this.prisma.club.upsert({
 ### Етап 13 — SEO
 
 - [ ] `generateMetadata` для всіх сторінок (враховувати мову)
+- [ ] `hreflang` лише для мов, де є переклад (API вже віддає `availableLanguages`), `canonical` на EN-версію; потрібен `metadataBase` (абсолютний URL сайту)
+- [ ] Title сторінки 404 для неіснуючого поста (зараз «Не вдалося завантажити пост» — косметика)
 - [ ] OpenGraph теги (title, description, image)
 - [ ] `sitemap.ts` — динамічний sitemap
 - [ ] JSON-LD structured data для матчів і статей
@@ -952,8 +770,10 @@ await this.prisma.club.upsert({
 - [ ] GitHub Actions: lint + build при PR
 - [ ] Vercel для web + admin
 - [ ] Railway для api
-- [ ] Environment variables в продакшні
+- [ ] Environment variables в продакшні: `JWT_SECRET`, `EMAIL_HASH_SECRET` (≥ 32, випадкові; `EMAIL_HASH_SECRET` не змінювати після запуску), `CORS_ORIGINS` (https), `TRUST_PROXY` (кількість проксі), `NODE_ENV=production` (secure cookies); прибрати `JWT_REFRESH_SECRET`
 - [ ] CORS оновити на продакшн домени
+- [ ] Міграції: останній squash перед релізом (Частина 2) → прод з `0001_init`; `pg_dump` перед кожним `migrate deploy`
+- [ ] Кілька інстансів API → Redis-сховище для throttler (зараз пам'ять процесу)
 
 ---
 
@@ -970,8 +790,8 @@ await this.prisma.club.upsert({
 
 - [ ] Фільтр нецензурної лексики (`bad-words` або власний список)
 - [ ] Middleware на `POST /comments`
-- [ ] Можливість скаржитись на коментар (report)
-- [ ] В адмінці: список скарг + швидке видалення
+- [ ] Можливість скаржитись на коментар (report) — таблиця `ContentReport { reporterId, commentId, reason, status }` (спроєктовано, розділ 9 проміжного плану)
+- [ ] В адмінці: список скарг + швидке видалення (soft delete і purge у API вже є)
 
 ---
 
@@ -1001,10 +821,14 @@ await this.prisma.club.upsert({
 - [ ] **Прогресивний бан** замість одразу permanent: 1 хв → 10 хв → 1 год → 1 день → permanent (рівень — з кількості порушень у sliding window); permanent — лише після ручного рішення або вичерпання рівнів
 - [ ] **Email confirmation + anti-enumeration:** однакова відповідь `register` незалежно від зайнятості / блоку адреси — див. **Етап 13.5**
 - [ ] **Session store для `sid` у Redis:** множина активних сесій користувача (instant revoke без запиту до БД на кожен запит; список «мої пристрої»); `AuthSession` у БД лишається джерелом правди для refresh / reuse-detection
+- [ ] **CSRF для мутацій** (defence in depth поверх `SameSite=Lax` — див. Частину 1) — до публічного проду
+- [ ] **Cooldown коментарів не атомарний** (з 2c): N паралельних коментарів проходять перевірку разом (до `burstThreshold − 1`); за потреби — `assert` + `record` під одним advisory lock
+- [ ] **`POST /football/live-touch`** — публічний POST, що може витрачати квоту провайдера → ліміт на IP + лок через `SyncRun` (Фаза 5 проміжного плану)
+- [ ] Лайк оновлює `updatedAt` поста / коментаря (Prisma `@updatedAt` на лічильнику) — не брати `updatedAt` для `lastmod` у sitemap без окремого поля
 
 ### Тести
-- [ ] Jest unit тести для сервісів
-- [ ] Integration тести для API endpoints
+- [x] Jest unit тести чистої логіки — **70** (переходи статусу поста, slug, `LanguageService`, дерево / піддерево коментарів, `prisma-errors`, `MaxUtf8Bytes`)
+- [ ] Integration тести для API endpoints — у Фазах 2–4 були **тимчасові** скрипти (мінімальний Nest на dev-БД, справжні HTTP-запити з cookies, детерміновані гонки; сотні перевірок) і видалялись після прогону → перенести в `apps/api/test/` як e2e-набір на окремій БД
 - [ ] E2E тести (Playwright)
 
 ### Docker
@@ -1030,13 +854,16 @@ await this.prisma.club.upsert({
 - **4.3b — Football UI (мінімум):** сайдбар на головній, `/[locale]/matches/[id]`, sync-кнопка в адмінці.
 - **5 — i18n:** next-intl, `app/[locale]/...`, локалі **`en` | `ua`**; у `proxy` нормалізація Accept-Language (**`uk*` → `ua`**) для next-intl; для `Intl` — `uk-UA` у `content-lang.ts`.
 - **5b — Football структура:** підмодулі `FootballIntegrationModule`, `FootballPersistenceModule`, `FootballQueryModule`, `FootballSyncModule` (див. етап 5b у плані).
+- **4.4 — Schema v5 (◐, проміжний план):** Фази 0–4 + рев'ю Фаз 1–4 ✅ — схема v5 і baseline-міграція; auth на refresh-сесіях, модерація, видалення акаунта; пости зі статусами й fallback перекладів; треди коментарів, purge; межа пароля в байтах.
+- **6 — Лайки:** API + `LikeBar` на новині, коментарях і матчі; у v5 — журнал реакцій, анти-абуз, блокування цілі.
 
-### У роботі / наступні за планом v4.4
+### У роботі / наступні за планом v4.5
 
-1. **6** — лайки.  
-2. **7** — альфа football UI + агреговані ендпоінти + кеш.  
-3. **8** — коментарі на матчі (+ глибина YouTube за потреби).  
-4. Далі **9+** за нумерацією в плані.
+1. **Проміжний план, Фаза 5** — Football + Sync на v5 (зараз `football/` не компілюється).
+2. **Фази 5b → 6 → 7** проміжного плану (перемикач ліг, типи й документація, фінальна перевірка).
+3. **7** — альфа football UI + агреговані ендпоінти + кеш.
+4. **8** — коментарі на сторінці матчу (API готовий).
+5. Далі **9+** за нумерацією в плані; перед публічним продом — CSRF і підтвердження пошти (13.5).
 
 ### Патерн даних (нагадування)
 
@@ -1046,7 +873,7 @@ Zustand        → user після логіну (web/admin)
 lib/api/http.ts → єдиний fetch + credentials
 ```
 
-**Опційно:** `GET /auth/me` + `useAuthQuery` для сесії після F5.
+**Зроблено (Фаза 2e):** `GET /auth/me` + `useAuthQuery` — сесія після F5; refresh-on-401 у `http.ts` (web і admin — міняти разом).
 
 ---
 
@@ -1059,16 +886,16 @@ lib/api/http.ts → єдиний fetch + credentials
 - API: NestJS 11 + Prisma 7 + PostgreSQL (порт 4000)
 - Monorepo: pnpm + Turborepo
 
-**БД:** PostgreSQL (Supabase). Prisma schema v4: `PostTranslation`, soft delete, `PostLike`/`CommentLike`/`MatchLike`, football-моделі з `externalId` та `Match.matchday`.
-**Ліги:** Football-Data.org v4, синк + dashboard endpoint, LIVE throttle.
-**Auth:** JWT у **httpOnly** cookies (`sameSite: lax`), ролі ADMIN/USER; логін з адмінки.
-**Безпека:** class-validator + CORS + cookies — є; **Helmet, throttler, CSRF — заплановані/частково** (див. Частину 1 плану).
-**Архітектура:** Controller → Service → Repository → Prisma; football: підмодулі + mapper/client у `integration/`; soft delete Post/Comment.
+**БД:** PostgreSQL (Supabase). Prisma **schema v5** (домени identity / moderation / content / engagement / football / sync — Частина 2); ручні обмеження — `prisma/sql/constraints.sql`. Код football / sync — ще під v4 (Фаза 5 проміжного плану).
+**Ліги:** Football-Data.org v4, синк + dashboard endpoint, LIVE throttle — переписується на v5 (порт провайдера, `*ExternalRef`, `SyncRun`, `Season`).
+**Auth:** access-JWT 15 хв (`sid`) + opaque refresh-сесії в БД (ротація, reuse detection), **httpOnly** cookies (`sameSite: lax`), ролі ADMIN/USER; адмінка — `POST /auth/login/admin`.
+**Безпека:** class-validator (межі — `packages/validation`), Helmet, суворий CORS, throttler (IP + акаунт), анти-абуз коментарів / лайків — є; **CSRF і підтвердження пошти — до публічного проду**.
+**Архітектура:** Controller → Service → Repository → Prisma; football: підмодулі + mapper/client у `integration/`; soft delete Post/Comment (+ ADMIN purge коментаря); гонки — правило 10 Частини 1.
 
-**Що вже зроблено:** auth, posts + i18n (`lang` = `en`|`ua`), comments + replies (новини), football API (підмодулі) + сайдбар + `/matches/[id]`, admin (пости, sync), next-intl + нормалізація Accept-Language `uk*`→`ua` у proxy.
+**Що вже зроблено:** auth v5 (сесії, видалення акаунта, модерація), posts + i18n (статуси, `lang` = `en`|`ua` з fallback), коментарі-треди з відповідями (новини; API матчів готовий), лайки, football API (v4) + сайдбар + `/matches/[id]`, admin (пости зі статусами, sync), next-intl + нормалізація Accept-Language `uk*`→`ua` у proxy.
 
 **Альфа (див. план):** football UI — `leagues/*`, `clubs/*`, `matches` (список), `calendar`; бек — агреговані ендпоінти + кеш TTL; гравці/squad — коли з’явиться модель `Player` або окрема версія.
 
-**Наступні кроки (порядок):** **6** (лайки) → **7** (альфа UI + API) → **8** (коментарі на матчі). Потім теги (9), профіль (10), адмінка (11+). Перед публічним прод: CSRF, **підтвердження пошти (Етап 13.5, бета)**; Helmet і throttler — ✅ Фаза 2d (`refactor/schema-v5`).
+**Наступні кроки (порядок):** проміжний план — **Фаза 5** (Football + Sync на v5) → 5b → 6 → 7; потім **7** (альфа UI + API) → **8** (коментарі на матчі). Далі теги (9), профіль (10), адмінка (11+). Перед публічним продом: CSRF, **підтвердження пошти (Етап 13.5, бета)**; Helmet і throttler — ✅ Фаза 2d (`refactor/schema-v5`).
 
 ---

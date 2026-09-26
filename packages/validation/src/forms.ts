@@ -11,7 +11,7 @@ import {
   EMAIL_MAX_LENGTH,
   MEDIA_URL_PROTOCOLS,
   PASSWORD_INPUT_MAX_LENGTH,
-  PASSWORD_MAX_LENGTH,
+  PASSWORD_MAX_BYTES,
   PASSWORD_MIN_LENGTH,
   POST_CONTENT_MAX_LENGTH,
   POST_CONTENT_MIN_LENGTH,
@@ -20,6 +20,7 @@ import {
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
   URL_MAX_LENGTH,
+  utf8ByteLength,
 } from './index';
 
 // ─── Поля ───
@@ -34,7 +35,10 @@ export const emailSchema = z
 export const newPasswordSchema = z
   .string()
   .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
-  .max(PASSWORD_MAX_LENGTH, `Password must be at most ${PASSWORD_MAX_LENGTH} characters`);
+  .refine(
+    (password) => utf8ByteLength(password) <= PASSWORD_MAX_BYTES,
+    `Password is too long: at most ${PASSWORD_MAX_BYTES} bytes (a non-Latin letter takes 2)`,
+  );
 
 /** Введений пароль (логін): без мінімуму — старі акаунти мають коротші паролі. */
 export const currentPasswordSchema = z

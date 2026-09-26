@@ -60,15 +60,16 @@ export class LikeService {
       isAdmin,
     );
 
-    const action =
-      dto.action === 'LIKE' ? LikeType.LIKE : LikeType.DISLIKE;
+    const action = dto.action === 'LIKE' ? LikeType.LIKE : LikeType.DISLIKE;
 
-    await this.likeRepository.applyToggleWithCounterUpdate(
+    const outcome = await this.likeRepository.applyToggleWithCounterUpdate(
       targetType,
       userId,
       dto.targetId,
       action,
     );
+    // Ціль зникла між перевіркою і транзакцією (purge коментаря)
+    if (!outcome) throw new NotFoundException('Target not found');
 
     return this.getStats(targetType, dto.targetId, userId);
   }

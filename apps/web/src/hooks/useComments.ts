@@ -28,13 +28,13 @@ export function useCreateComment(postId: string) {
   });
 }
 
-// Видалити коментар
+// Видалити коментар (API ховає й усю гілку відповідей під ним)
 export function useDeleteComment(postId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (commentId: string) =>
-      apiDelete<void>(`/comments/${commentId}`),
+      apiDelete<{ id: string; deletedCount: number }>(`/comments/${commentId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: commentsQueryKey(postId) });
     },

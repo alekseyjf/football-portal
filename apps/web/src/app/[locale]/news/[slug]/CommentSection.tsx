@@ -11,6 +11,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { useComments, useCreateComment } from '@/hooks/useComments';
+import { useCommentErrorMessage } from '@/hooks/useCommentErrorMessage';
 import { localeToBcp47 } from '@/lib/i18n/content-lang';
 import {
   CommentThreadNode,
@@ -36,13 +37,7 @@ export function CommentSection({ postId }: Props) {
 
   const totalCommentCount = countCommentsInTree(comments);
 
-  const mapCommentApiError = (error: unknown): string | null => {
-    const code = error instanceof Error ? error.message : '';
-    if (code === 'COMMENT_COOLDOWN') return t('cooldown');
-    if (code === 'COMMENTS_SUSPENDED') return t('commentsSuspended');
-    if (code === 'ACCOUNT_LOCKED') return t('accountLocked');
-    return null;
-  };
+  const mapCommentApiError = useCommentErrorMessage();
 
   const onSubmit = (data: CommentFormValues) => {
     setSubmitError(null);

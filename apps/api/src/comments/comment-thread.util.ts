@@ -1,60 +1,52 @@
-export type CommentFlatRow = {
+import type { PublicAuthor } from '../users/public-author';
+
+/** Вузол дерева коментарів у публічній відповіді (P4-9 — форма як у v4). */
+export type PublicCommentNode = {
   id: string;
   content: string;
   pinnedAt: Date | null;
   createdAt: Date;
   parentId: string | null;
-  author: {
-    id: string;
-    name: string;
-    avatar: string | null;
-  };
+  author: PublicAuthor;
+  replies: PublicCommentNode[];
 };
 
-export type CommentTreeNode = CommentFlatRow & {
-  replies: CommentTreeNode[];
-};
+export type PublicCommentFlat = Omit<PublicCommentNode, 'replies'>;
 
 /**
- * З плоского списку будує дерево для одного поста/матчу (parentId → replies).
+ * З плоского списку живих коментарів треду будує дерево (parentId → replies).
+ * Корені: закріплені першими, далі новіші; відповіді — хронологічно.
+ * Під видаленим коментарем живих немає (P4-5), тож «сиріт» бути не повинно;
+ * якщо все ж трапиться — вузол піде в корені, а не зникне.
  */
 export function buildCommentTreeFromFlat(
-  rows: CommentFlatRow[],
-): CommentTreeNode[] {
-  const map = new Map<string, CommentTreeNode>();
-  for (const row of rows) {
-    map.set(row.id, { ...row, replies: [] });
+  comments: PublicCommentFlat[],
+): PublicCommentNode[] {
+  const nodeById = new Map<string, PublicCommentNode>();
+  for (const comment of comments) {
+    nodeById.set(comment.id, { ...comment, replies: [] });
   }
 
-  const roots: CommentTreeNode[] = [];
-  for (const row of rows) {
-    const node = map.get(row.id)!;
-    if (!row.parentId) {
-      roots.push(node);
-      continue;
-    }
-    const parent = map.get(row.parentId);
-    if (parent) parent.replies.push(node);
+  const roots: PublicCommentNode[] = [];
+  for (const node of nodeById.values()) {
+    const parentNode = node.parentId ? nodeById.get(node.parentId) : undefined;
+    if (parentNode) parentNode.replies.push(node);
     else roots.push(node);
   }
 
-  const sortRoots = (list: CommentTreeNode[]) => {
-    list.sort((left, right) => {
-      const pinWeight = (node: CommentTreeNode) => (node.pinnedAt ? 1 : 0);
-      const pinDiff = pinWeight(right) - pinWeight(left);
-      if (pinDiff !== 0) return pinDiff;
-      return right.createdAt.getTime() - left.createdAt.getTime();
-    });
-  };
+  const pinWeight = (node: PublicCommentNode) => (node.pinnedAt ? 1 : 0);
+  roots.sort(
+    (left, right) =>
+      pinWeight(right) - pinWeight(left) ||
+      right.createdAt.getTime() - left.createdAt.getTime(),
+  );
 
-  const sortRepliesDeep = (node: CommentTreeNode) => {
+  const sortRepliesDeep = (node: PublicCommentNode) => {
     node.replies.sort(
       (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
     );
     node.replies.forEach(sortRepliesDeep);
   };
-
-  sortRoots(roots);
   roots.forEach(sortRepliesDeep);
   return roots;
 }
