@@ -1,6 +1,7 @@
 # 🧱 Football Portal — Intermediate Plan: Schema v5
 
-> **Статус:** ◐ у процесі — Фази 0–3 ✅ (2a–2f, 3a), далі Фаза 4
+> **Статус:** ◐ у процесі — Фази 0–4 ✅ (2a–2f, 3a, 4a–4d) + рев'ю Фаз 1–4 ✅, далі **Фаза 5** (контекст і уроки — 5.0)
+> **Основний план:** частково актуалізовано 2026-09-26 (`football-plan-new.md` v4.5) — див. розділ 12
 > **Виконується:** ДО продовження основного плана (`football-plan-new.md`, етапи 7+)
 > **Після завершення:** перенести ключові рішення в Частину 2 основного плана, цей файл — в архів.
 > **Створено:** 2026-09-24
@@ -1014,6 +1015,8 @@ Competition (PL, LEAGUE)                        Competition (CL, CUP)
   3. В одній транзакції видаляти по одному від найглибших до кореня — на момент видалення батька його дітей уже немає, тож `Restrict` не спрацьовує
   4. `thread.commentCount -= purgedCount` у тій самій транзакції
 
+> ⚠️ **Виправлено у Фазі 4** (P4-5…P4-7): кроки 1 і 4 вище неточні. `rootId = id` дає піддерево лише для **кореня** (для відповіді — за `parentId`), а `commentCount` зменшується лише на **живі** з видалених. `purge` перевіряє відсутність **будь-яких** дочірніх рядків, не `replyCount`. Soft delete (`DELETE /comments/:id`) ховає коментар **разом з гілкою** відповідей.
+
 Обидва purge-ендпоінти — явно деструктивні дії; у CLAUDE.md/адмінці позначити окремим підтвердженням (не плутати зі звичайним "Delete").
 
 ---
@@ -1339,17 +1342,126 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
 - Відоме, не виправляємо: EN-заголовок без латиниці (кирилицею) → slug `post` / `post-<hex>` (деградація, не помилка); `generateMetadata` для неіснуючого поста дає title «Не вдалося завантажити пост» на сторінці 404 (косметика)
 
 ### Фаза 4 — Engagement
-- [ ] `CommentThreadRepository.getOrCreateForPost/Match` (upsert за `postId`/`matchId`)
-- [ ] `CommentService.create`: `threadId`, `rootId` = `parent.rootId ?? parent.id`, `depth` = `parent.depth + 1` (ліміт `MAX_COMMENT_THREAD_DEPTH`), інкремент `parent.replyCount` і `thread.commentCount` в одній транзакції; перевірка `thread.isLocked`
-- [ ] Прибрати рекурсивний `depthFromRoot`
-- [ ] Тред для поста — лише для живого (`livePostWhere`, P3-1); `GET /comments/post/:postId` неживого → 404
-- [ ] Soft delete: декремент `commentCount`
-- [ ] Hard delete / purge (розділ 7.5.2): `CommentRepository.purge(id)` (лише `replyCount = 0`, інакше `409`) і `purgeThread(id)` (нащадки за `rootId`, сортування `depth DESC`, видалення в транзакції найглибші → корінь, декремент `thread.commentCount` на `purgedCount`)
-- [ ] `DELETE /comments/:id/purge` і `DELETE /comments/:id/purge-thread` — **ADMIN only**
-- [ ] `LikeRepository`: `UserReactionActivity` з enum-ами
-- [ ] API-контракт коментарів для web не змінювати (дерево як зараз)
+
+Початковий чекліст (деталізовано в 4.1 / 4a–4d):
+- `CommentThreadRepository.getOrCreateForPost/Match` (upsert за `postId`/`matchId`)
+- `CommentService.create`: `threadId`, `rootId` = `parent.rootId ?? parent.id`, `depth` = `parent.depth + 1` (ліміт `MAX_COMMENT_THREAD_DEPTH`), інкремент `parent.replyCount` і `thread.commentCount` в одній транзакції; перевірка `thread.isLocked`
+- Прибрати рекурсивний `depthFromRoot`
+- Тред для поста — лише для живого (`livePostWhere`, P3-1); `GET /comments/post/:postId` неживого → 404
+- Soft delete: декремент `commentCount`
+- Hard delete / purge (розділ 7.5.2): `purge(id)` і `purgeThread(id)` — виправлено в P4-6 / P4-7
+- `DELETE /comments/:id/purge` і `DELETE /comments/:id/purge-thread` — **ADMIN only**
+- `LikeRepository`: `UserReactionActivity` з enum-ами
+- API-контракт коментарів для web не змінювати (дерево як зараз)
+
+#### 4.0 Контекст (аналіз коду, 2026-09-26)
+
+`tsc` API = **35**, з них engagement — 10: `comments/` цілком на v4 (`Comment.postId` / `matchId` замість `threadId`, автор `name` / `avatar` замість `toPublicAuthor`), `likes/like.repository.ts:218` пише в `UserReactionActivity` неіснуючі `state` і `targetType: 'post'`. У dev-БД коментарів, тредів, лайків коментарів і `UserReactionActivity` — **0**, матчів 0 → бекфіл лічильників не потрібен.
+
+Знайдено при аналізі:
+- **`purge-thread` за `rootId` працює лише для кореня.** У відповіді на глибині ≥ 1 нащадки мають `rootId` верхнього кореня, а не її → «нащадки за `rootId = id`» порожні, видалення падає на `Restrict` (або, якщо брати `rootId` гілки, — зносить чужі відповіді) → P4-7
+- **Подвійний декремент:** «`commentCount -= purgedCount`» віднімає ще раз уже soft-видалені рядки (soft delete їх уже відняв) → P4-7
+- **`replyCount = 0` як умова purge небезпечна**, якщо лічильник рахує лише живі відповіді: soft-видалений нащадок лишається рядком і тримає `Restrict` → P4-6
+- Soft delete батька лишав живі відповіді — web будував їх як корені (`buildCommentTreeFromFlat`: батька немає → у корені) без контексту → P4-5
+- `POST /comments` приймав `postId` і `matchId` одночасно; пост не перевірявся взагалі (коментар до чернетки за id); глибина — N запитів `depthFromRoot`
+- Лайк коментаря під чернеткою / видаленим постом проходить (`assertCommentExists` дивиться лише на `Comment.deletedAt`) — та сама діра, що P3-1 закрив для постів → P4-8
+- `DELETE /comments/:id` повертав увесь рядок (`authorId`, `threadId`, лічильники); web видаляє **без підтвердження**
+
+#### 4.1 Рішення (доповнюють розділ 7.5.2)
+
+| # | Рішення | Чому |
+|---|---|---|
+| P4-1 | Ціль — **рівно одна** з `postId` / `matchId` (інакше 400 `COMMENT_TARGET_INVALID`). Пост — живий (`livePostWhere`, P3-1), інакше 404 `POST_NOT_FOUND`; матч — існує, інакше 404 `MATCH_NOT_FOUND`. Тред створюється **лише при першому коментарі** (upsert за `postId` / `matchId` у транзакції створення); `GET` тред не створює: неживий пост / немає матчу → 404, живий без треду → `[]` | Читання без побічних записів; чернетку не прокоментувати і не прочитати за id |
+| P4-2 | Відповідь: батько — не видалений і **в тому ж треді** (404 `PARENT_COMMENT_NOT_FOUND` / 400 `PARENT_COMMENT_MISMATCH`); `rootId = parent.rootId ?? parent.id`, `depth = parent.depth + 1 ≤ MAX_COMMENT_THREAD_DEPTH` (400 `COMMENT_DEPTH_EXCEEDED`). Інкремент `parent.replyCount` — `updateMany where { id, threadId, deletedAt: null }`: 0 рядків → 404 (батька видалили між перевіркою і записом) | Один запит замість рекурсії; гонка з видаленням батька не створює «висячу» відповідь |
+| P4-3 | `thread.isLocked` → 403 `COMMENT_THREAD_LOCKED` для не-ADMIN (модератор може відповісти в закритому треді); перевірка **до** анти-абузу (заблокований тред не палить спробу) і ще раз у транзакції | Ендпоінту блокування поки немає (адмінка, етап 11) — лише читаємо прапорець |
+| P4-4 | Лічильники: `thread.commentCount` = **живі** коментарі треду, `Comment.replyCount` = **живі прямі** відповіді. Змінюються в тій самій транзакції, що й рядки | Обидва — для UI («N коментарів», «N відповідей»); purge на `replyCount` не спирається (P4-6) |
+| P4-5 | **Soft delete = каскад на піддерево** (рішення власника, 2026-09-26): видалення коментаря ховає всю гілку відповідей під ним. Інваріант: **під видаленим коментарем немає живих**. Реалізація — у транзакції, по рівнях: `updateManyAndReturn where parentId IN (<позначені на попередньому рівні>) AND deletedAt IS NULL`, одна мітка `deletedAt` на гілку; `commentCount -= позначені`, `parent.replyCount -= 1`. Права — автор або ADMIN (як було); ціль треду не перевіряється (свій коментар можна прибрати й під знятим постом). Web — підтвердження з кількістю відповідей | Без «пустих» відповідей 2-го рівня без контексту. По рівнях — без гонки: батьки вже заблоковані нашим `UPDATE`, тож паралельна відповідь на них отримає 404 (P4-2), а відповідь на ще не позначений рівень, закомічена раніше, потрапить у наступний `SELECT` рівня. Фізично рядки лишаються (правило 6); прибирає їх лише purge (D20) |
+| P4-6 | `purge`: лише якщо **немає жодного** дочірнього рядка (живого чи soft-видаленого) — 409 `COMMENT_HAS_REPLIES` з підказкою `purge-thread`; `deleteMany where { id, replies: none }` у транзакції. Soft-видалений коментар purge-ити можна. Декременти (`commentCount`, `parent.replyCount`) — лише якщо рядок був живий. Відповідь `{ id, purgedCount }` | Виправлення розділу 7.5.2: `replyCount = 0` при soft-видаленому нащадку → `Restrict` → 500 |
+| P4-7 | `purge-thread`: піддерево = гілка кореня (`id = rootId ?? id` + `rootId = <корінь>`) → у пам'яті від цільового коментаря за `parentId`; піддерево блокується від предків до нащадків (`FOR NO KEY UPDATE`, рев'ю R4 / R5) і видаляється в транзакції **рівнями `depth DESC`** (`deleteMany` на рівень); `commentCount -= живі` — за станом **під блокуванням**, `parent.replyCount -= 1`, якщо ціль була жива. Паралельна нова відповідь у піддереві → FK → транзакція відкочується, 409 `COMMENT_THREAD_CHANGED` | Виправлення розділу 7.5.2: `rootId` дає піддерево лише для кореня; `purgedCount` рахував би soft-видалені двічі |
+| P4-8 | Лайки: `UserReactionActivity { targetType: ReactionTarget, reaction: LikeType \| null }` (`null` = голос знято). Коментар лайкається і має `stats`, лише якщо він не видалений **і ціль треду видима** (пост живий / матч існує) — інакше 404 | Та сама видимість, що в `GET /comments/*` (P4-1) |
+| P4-9 | Контракт web: `GET` — дерево як було (`id`, `content`, `pinnedAt`, `createdAt`, `parentId`, `author: PublicAuthor`, `replies`); `POST` → той самий вузол з `replies: []`; `DELETE` → `{ id, deletedCount }` (було: увесь рядок). Web не змінюється, крім підтвердження видалення і текстів нових кодів помилок | «API-контракт не змінювати»; web відповідь `DELETE` не читає |
+
+Свідомо не робимо: ендпоінти lock / unlock / pin (адмінка, етап 11), коментарі матчу в UI (етап 8), пагінація дерева коментарів, кнопки purge в адмінці (етап 11 — з окремим підтвердженням, розділ 7.5.2).
+
+#### 4a — Коментарі: треди, створення, читання, soft delete ✅ (2026-09-26)
+- [x] `CommentThreadRepository`: `findLivePostTarget` / `findMatchTarget` (ціль + тред одним запитом), `getOrCreateForPost/Match(tx)` (upsert), `changeCommentCount` (повертає `isLocked` — друга перевірка P4-3 у транзакції)
+- [x] **Гонка перших коментарів** (знайдено інтеграцією): `upsert` у Prisma 7 з driver adapter — SELECT + INSERT, не `ON CONFLICT` → 5 з 6 паралельних перших коментарів падали 500 на `CommentThread_postId_key`. Тепер `P2002` на `CommentThread` → транзакція повторюється один раз (після коміту суперника `upsert` знаходить тред); тред і перший коментар створюються атомарно
+- [x] `CommentRepository` — лише запити з `tx`; транзакції й порядок кроків — `CommentService`. Автор — `toPublicAuthor` (`COMMENT_NODE_SELECT`); `depthFromRoot`, дублікат `create` / `createWithTx` прибрано. Порядок блокувань в усіх записах — **батько → ціль → нащадки → тред** (без deadlock-ів між create / delete)
+- [x] DTO: `postId` / `matchId` / `parentId` — непорожні, ≤ 64; «рівно одна ціль» — сервіс (P4-1)
+- [x] Каскадний soft delete по рівнях (`updateManyAndReturn where parentId IN …`), одна мітка `deletedAt` на гілку; декремент батька першим (блокує його), паралельний повтор → відкат → 404
+- [x] `comment-visibility.ts`: `visibleThreadWhere` / `visibleCommentWhere` — спільні для коментарів і лайків
+
+#### 4b — Purge ✅ (2026-09-26)
+- [x] `comment-subtree.ts`: `collectCommentSubtree(branch, targetId)` → рівні від найглибшого, `totalCount`, `liveCount` (unit-тести, у т.ч. «відповідь — не корінь» і «без подвійного декременту»)
+- [x] `purge`: `deleteMany where { id, replies: none }` → інакше 409 `COMMENT_HAS_REPLIES`; `purge-thread`: гілка кореня → піддерево → `deleteMany` рівнями; обидва блокують батька й ціль у тому ж порядку, що soft delete; FK / deadlock → 409. Soft-видалений коментар purge-ити можна. ⚠️ Блокування й мапінг помилок переписано в рев'ю (R4–R6): `FOR NO KEY UPDATE` усього піддерева, живість — під блокуванням, `prisma-errors.ts`
+- [x] `DELETE /comments/:id/purge`, `DELETE /comments/:id/purge-thread` — `JwtAuthGuard` + `RolesGuard` + `@Roles(ADMIN)`
+
+#### 4c — Лайки ✅ (2026-09-26)
+- [x] `UserReactionActivity { targetType: ReactionTarget, reaction: LikeType | null }` (було: `state: 'NONE' | …`, `targetType: 'post'` — `tsc` падав)
+- [x] Коментар — `assertCommentExists` і `getPublicLikeCount` через `visibleCommentWhere` (P4-8); імена `a` / `b` у `counterDelta` → `scoreAfter` / `scoreBefore` (правило 11)
+
+#### 4d — Web, перевірка, документація ✅ (2026-09-26)
+- [x] Web: `window.confirm` перед видаленням — «Видалити коментар разом з N відповідями?» (ICU plural, en / ua); `useCommentErrorMessage` замість двох копій `mapCommentApiError` + `COMMENT_THREAD_LOCKED` / `PARENT_COMMENT_NOT_FOUND` / `COMMENT_DEPTH_EXCEEDED` (refetch дерева на `PARENT_COMMENT_NOT_FOUND` прибрано в рев'ю — ховав форму з текстом)
+- [x] Перевірка:
+  - unit (jest) **8** нових: `collectCommentSubtree` (6), `buildCommentTreeFromFlat` (2) → усього 62/62
+  - інтеграція — мінімальний Nest (`PrismaModule` + `RequestThrottlingModule` + `AuthModule` + `CommentModule` + `LikeModule`, `configureHttpApp`) на dev-БД, справжні HTTP-запити з cookies, **243/243**, 3 прогони поспіль: `GET` живого без треду → `[]` і тред не створено; чернетка / неіснуючий пост / матч → 404 з кодом; 401 без логіну; 0 / 2 цілі, порожній / 65-символьний id → 400; **6 паралельних перших коментарів → один тред, `commentCount` 6**; форма вузла (7 ключів, `PublicAuthor`, trim, без `threadId` / `authorId` / `replyCount`); `rootId` / `depth`, ланцюг до глибини 15 → 16-та 400; батько з іншого поста / треду / треду матчу → 400, неіснуючий → 404; закритий тред: USER → 403 **без запису в `RateLimitEvent`**, відповідь → 403, ADMIN → 201; soft delete гілки з 15 коментарів (чужих теж) → `deletedCount` 15, одна мітка, `commentCount` −15, `replyCount` батька −1, сусідня гілка на місці, рядки лишились; чужий → 403, повтор → 404, відповідь на видалений → 404; purge: USER → 403, з відповіддю → 409, листок → рядок зник і лічильники −1, повтор → 404, soft-видалений листок → лічильники без змін; purge-thread відповіді (5 рядків, 1 soft) → сусідня гілка й корінь цілі, `commentCount` −4; кореня і повністю soft-видаленої гілки (15) → лічильники коректні; **гонки** (×5: delete батька + delete дитини + відповідь дитині + відповідь батьку одночасно; 3 × delete одного → рівно один 200; purge / reply / delete одного) → жодного 5xx; після кожного блоку — інваріанти: `commentCount` = живі, `replyCount` = живі прямі, під видаленим — жодного живого; лайк коментаря → `UserReactionActivity` `COMMENT` / `LIKE`, потім `null`; пост `DISLIKE` → `POST` / `DISLIKE`; пост → DRAFT: лайк / `stats` / `GET` / відповідь → 404, видалити свій — можна; тред матчу (`postId` null), відповідь, лайк; CHECK двох цілей; видалений автор → `isDeleted`
+  - **контрольні прогони:** без повтору транзакції — 5 × 500 на паралельних перших коментарях; «нащадки за `rootId = mid`» з плану — 0 рядків (баг 7.5.2 підтверджено); батько з лише soft-видаленою дитиною має `replyCount` 0 → purge за умовою плану впав би на `Restrict`, у нас 409
+  - тестові юзери / пости / сезон / клуби / матч прибрано (у БД — 1 юзер, 3 seed-пости, 0 коментарів)
+- [x] `tsc` API: 35 → **25** (comments, likes — 0; решта — `football/`, Фаза 5); `eslint` + `prettier` API по змінених файлах чисті; web `eslint` чистий, `pnpm build` ✅
+- [x] `CLAUDE.md`: секції Comments / Likes, статус
+- ~~⚠️ Відоме: deadlock `purge-thread` + soft delete всередині піддерева~~ → виправлено в рев'ю: піддерево блокується в порядку `depth ASC` до видалення
+- ⚠️ `GET /comments/post/:id` — `livePostWhere` без перевірки перекладу default-мови (як і лайки, P3-1); деталь поста її має (P3-5) — розбіжність лише при порушенні інваріанту P3-5
+
+#### Рев'ю Фаз 1–4 (2026-09-26)
+Code review усієї гілки (`master..HEAD` + staged Фаза 4: 131 файл, ≈ 7,2 тис. рядків) + ручне security-рев'ю (skill `security-review` тут не застосовний: `origin/master` уже містить усі коміти гілки — PR #3–#8, тож діапазон `origin/HEAD...` порожній). Кожну знахідку спершу відтворено **контрольним прогоном** на коді до рев'ю (407 ✓ / 13 ✗), потім виправлено.
+
+Знайдено й виправлено:
+- [x] **R1** `POST /comments` з `postId: null` → **500** (`@IsOptional` пропускає `null`, сервіс перевіряв `!== undefined` → `findFirst({ id: null })`); `{ postId: null, matchId }` → хибний 400. Тепер `null` = не передано (як `publishedAt` у Фазі 3), тип DTO `string | null`
+- [x] **R3** лайк у гонці з purge коментаря → **500** (FK на вставці `CommentLike` / P2025 на лічильнику), 5 із 6 спроб. Транзакція лайка тепер **спершу блокує рядок цілі** (`FOR NO KEY UPDATE`, таблиця — з фіксованого списку): цілі немає → 404. Заодно серіалізує паралельні перемикання одного користувача: подвійний клік міг прочитати `existing` до коміту сусіда й роз'їхати лічильник з рядками (цього разу не відтворилось — для лайків Prisma зробила нативний `ON CONFLICT`, але за кодом можливо)
+- [x] **R4** `purge-thread`, поки інша транзакція soft-видаляє нащадка (батько нащадка ≠ ціль) → `commentCount` **двічі зменшено** (у БД 6, живих 8): живість бралась з читання гілки до блокувань. Тепер піддерево блокується (`lockForWrite`, `ORDER BY depth` — від предків до нащадків, як у soft delete), живість читається під блокуванням
+- [x] **R5** відповідь у гілці під час `purge-thread` її кореня → **500**: deadlock — purge тримав `FOR UPDATE` на корені, а вставка відповіді бере FK-`KEY SHARE` на `rootId`. Тепер `FOR NO KEY UPDATE` (з `KEY SHARE` не конфліктує) → відповідь 201, purge → 409 `COMMENT_THREAD_CHANGED` (FK на новій відповіді), без deadlock-у. «Відомий deadlock» з 4d закрито тим самим порядком блокувань
+- [x] **R6 — мапінг deadlock-ів не працював:** код ловив `P2034`, а Prisma 7 з driver adapter кидає deadlock як `P2010` (raw-запит) або «голий» `DriverAdapterError` (звичайний запит) з `originalCode: '40P01'` — перевірено на dev-БД. Новий `src/prisma/prisma-errors.ts`: `isTransientTransactionError` / `isForeignKeyViolation` / `isUniqueViolationOn` розуміють обидві форми (unit-тести + проба справжніми помилками БД). Create — повтор транзакції один раз (гонка треду або deadlock), далі 409; delete / purge → 409 замість 500
+- [x] Soft delete у гонці з `purge-thread` предка: `update` батька кидав P2025 → 500; тепер `updateMany` (батька вже немає → далі 404)
+- [x] Закритий тред перевіряється **до** батька (закритий тред + видалений батько → 403, а не 404); ціль і батько читаються паралельно (`Promise.all`)
+- [x] Web: на `PARENT_COMMENT_NOT_FOUND` дерево інвалідовувалось → refetch прибирав батька → зникала форма відповіді разом з набраним текстом і повідомленням. Інвалідацію прибрано: повідомлення лишається, дерево оновиться при наступному refetch
+- [x] **R7 (Фаза 2, пароль):** межа 72 рахувалась у **символах**, а bcrypt обрізає по 72 **байтах** UTF-8 → 37 літер кирилицею (74 байти) приймались, хвіст пароля мовчки ігнорувався. `PASSWORD_MAX_BYTES` + `utf8ByteLength` у `packages/validation`; API — `@MaxUtf8Bytes` (не `@IsByteLength`: той рахує через `encodeURI`, який кидає на одиночному surrogate → 500), zod — `refine`
+- [x] `CLAUDE.md`: правило 6 — виняток для ADMIN purge (D20); правило 11 — `tx` у списку дозволених (уже скрізь у Фазах 2–4); Database — `Comment` / `CommentThread` v5; Comments / Likes / Auth — рев'ю
+
+Безпека — перевірено, **без проблем**: усі мутуючі ендпоінти під guard-ами (карта роутів); роль і статус — з БД на кожен запит (`JwtStrategy`); refresh — opaque 256 біт, у БД SHA-256, атомарна ротація + reuse detection + абсолютний ліміт; cookies `httpOnly` + `SameSite=Lax` + `secure` на проді, refresh-cookie лише на `/auth`; CSRF — зміни стану лише POST / PUT / DELETE з JSON (preflight) + `Lax`; CORS — точний список без `*`, на проді лише https; `trust proxy` без `true`; helmet; ліміт логіну спільний для `login` / `login/admin`, на IP і на акаунт; логін timing-safe (dummy-hash); видалення акаунта — з паролем, throttle на id, адміна не видалити; блоклист пошт — HMAC із секретом; публічні відповіді без email і службових полів (`PublicAuthor`); IDOR — коментар видаляє автор / ADMIN, пости — лише ADMIN; mass assignment — `whitelist`; XSS — на web / admin немає `dangerouslySetInnerHTML`, контент рендериться текстом, медіа-URL лише `https`, `sourceUrl` не рендериться; SQL — raw-запити лише параметризовані (`Prisma.sql` / `Prisma.join`, імена таблиць — константи); секретів у репо немає, `.env*` у `.gitignore`
+
+Відоме, не виправляємо (не баг поточного коду або інший етап):
+- `POST /football/live-touch` — публічний POST, що може смикати зовнішнє API (квота) → модуль переписується у Фазі 5 (`FootballLiveThrottleService` → `SyncRun`)
+- Реєстрація відповідає 409 на зайнятий email (перелік акаунтів) — звичайний компроміс UX, обмежено `RegisterThrottle` (5 / 10 хв на IP)
+- `GET /comments/*` віддає все дерево без пагінації — ріст обмежений cooldown-ом коментарів; пагінація — разом з UI коментарів матчу (етап 8)
+- Анти-абуз записує спробу коментаря до транзакції: рідкісна гонка (тред закрили / батька видалили між перевіркою і записом) з'їдає cooldown — спроби рахуються за задумом (P2-9)
+- Лайк оновлює `updatedAt` поста / коментаря (Prisma `@updatedAt` на лічильнику) — було й до Фази 4; врахувати, якщо `updatedAt` піде в `lastmod` sitemap
+
+Перевірка:
+- unit (jest) **70/70**: нові — `prisma-errors` (6), `MaxUtf8Bytes` (4); `collectCommentSubtree` — 4 замість 6 (живість більше не його відповідальність)
+- інтеграція (той самий тимчасовий Nest на dev-БД) — усі перевірки 4d + R1–R7, 3 прогони поспіль без жодного провалу (441–451 перевірка: інваріанти рахуються по рядках); R3 — лайк 404 / purge 200 (6/6), R5 — відповідь 201 / `purge-thread` 409 `COMMENT_THREAD_CHANGED`; R4 / R5 детерміновані (блокування тримає окрема транзакція, черга вишиковується)
+- контрольний прогін на коді до рев'ю: 407 ✓ / 13 ✗ (R1 ×3, R3 ×5, R4, R5 ×2 — одна з них перенесена з R4, R7 ×2)
+- `tsc` API: **25** (усі — `football/`, Фаза 5); `eslint` / `prettier` API, `eslint` web — чисто; `pnpm build` web + admin ✅; тестові дані прибрано (у БД — 1 юзер, 3 seed-пости)
 
 ### Фаза 5 — Football + Sync
+
+#### 5.0 Контекст і уроки Фаз 2–4 (стан на 2026-09-26)
+
+Код: `football/` досі під v4 — `tsc` = **25**, усі тут (`persistence/football.repository.ts` 22, `football-standings.util.ts` 2, `sync/football-sync.service.ts` 1: `League`, `externalId`, `Club.leagueId`, `Match.date`, `LeagueTable`). Решта API — 0 помилок.
+
+Дані dev-БД: `Competition` 9 (усі `isActive`; LEAGUE — PL, PD, SA, BL1, FL1, PPL; CUP — CL, WC, EC), `CompetitionExternalRef` 9; `Area`, `Season`, `Club`, `SeasonClub`, `Match`, `Standing`, решта `*ExternalRef`, `SyncRun` — **0** (після reset Фази 1 синку ще не було).
+
+Врахувати (уроки Фаз 2–4 і рев'ю):
+1. **`upsert` у Prisma 7 з driver adapter не атомарний** (`CommentThread` з `update: {}` → P2002 при паралельних вставках, Фаза 4). Паралельні синки різних турнірів ділять клуби (Arsenal — PL і CL) → вставка `Club` / `ClubExternalRef` / `SeasonClub` через `createMany({ skipDuplicates: true })` (`ON CONFLICT DO NOTHING`) + дочитування, або `isUniqueViolationOn` + повтор; голий `upsert` — лише там, де гонки немає
+2. Помилки Prisma — лише через `src/prisma/prisma-errors.ts`: deadlock приходить як `P2010` / «голий» `DriverAdapterError`, не `P2034` (рев'ю R6)
+3. Лок синку — частковий унікальний індекс `SyncRun_single_running_idx`: другий `RUNNING` на ту саму ціль → P2002 → «синк уже йде» (skip / 409), не 500
+4. Транзакції — посторінково й короткі; блокування спільних рядків у стабільному порядку (напр. за `id`), інакше два синки ловлять deadlock на спільних клубах (правило 10 основного плану)
+5. **Матчі не видаляти фізично:** `CommentThread` і `MatchLike` мають `onDelete: Cascade` від `Match` — видалення знищить коментарі й лайки. Скасований / перенесений матч — лише статус. Синк не чіпає `likeCount` / `dislikeCount`
+6. `POST /football/live-touch` — публічний POST, що може витрачати квоту провайдера (рев'ю Фаз 1–4) → ліміт на IP (`ThrottlerGuard`) + не частіше ніж раз на N с на матч через `SyncRun`
+7. Видимість матчу для коментарів / лайків: `visibleThreadWhere` пускає тред **будь-якого** матчу; якщо `Competition.isActive = false` ховатиме матчі на web — вирішити, чи ховати й тред / лайки (зараз — ні)
+8. Web: `packages/types` `Match.date` → `kickoffAt` (використовують `FootballMatchStrip`, `MatchDetailView`); на сторінці матчу вже є `LikeBar`; API коментарів матчу готовий (UI — етап 8 основного плану)
+9. Перевірка — як у Фазах 2–4: тимчасовий Nest на dev-БД, детерміновані гонки (два синки одночасно; синк + `live-touch`), контрольний прогін без фіксу; тестові дані прибирати
+
+#### 5a — Реалізація
 - [ ] `football-provider.port.ts` + адаптер `football-data/` (розділ 6.1); mapper → нейтральні типи, `stage`/`groupName`/half-time/penalties/winner
 - [ ] Mapper: `seasonLabelFromFd` → `"2026"`, якщо рік старту = рік кінця; `ClubKind.NATIONAL` для збірних
 - [ ] `ExternalRefRepository` (batch resolve + upsert з `payloadHash`)
@@ -1361,6 +1473,9 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
 - [ ] Публічні endpoint-и ліг за розділом 6.4; `GET …/dashboard` — **зберегти форму відповіді** (web-сайдбар без змін), додати `season { label }`
 - [ ] Адмінка: список останніх `SyncRun` на дашборді
 - [ ] Web: нові `MatchStatus` (`PAUSED` → «HT», `SUSPENDED`, `AWARDED`) у перекладах; `date` → `kickoffAt`
+- [ ] Вставка спільних сутностей (клуби, `*ExternalRef`, `SeasonClub`) стійка до паралельних синків — без голого `upsert` (5.0, п. 1)
+- [ ] Синк ніколи не видаляє `Match` і не пише `likeCount` / `dislikeCount` (5.0, п. 5)
+- [ ] `POST /football/live-touch`: ліміт на IP + лок / інтервал через `SyncRun` (5.0, п. 6)
 
 ### Фаза 5b — Web: перемикач ліг (мінімум; повні сторінки — етап 7.1)
 - [ ] `components/football/FootballSidebar.tsx`: селектор ліг з `GET /football/leagues` (запит уже є в `hooks/useFootball.ts`), іконка + назва, групування «Ліги» / «Кубки» за `type`
@@ -1368,26 +1483,31 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
 - [ ] Для CUP у сайдбарі — таблиця ліга-фази / першої групи + найближчі матчі
 
 ### Фаза 6 — Типи, документація
-- [ ] `packages/types`: `Post.status`/`publishedAt`/`coverImageUrl`, `resolvedLanguage`, `author.profile` або пласке `author { id, displayName, avatarUrl }`, `Match.kickoffAt`
-- [ ] `CLAUDE.md`: Database-секція → v5, Auth-секція (refresh)
-- [ ] Основний план: див. розділ 12
+- [x] `packages/types`: `Post` — `status`, `publishedAt`, `coverImageUrl`, `resolvedLanguage`, теги (Фаза 3); автор — пласке `PublicAuthor { id, name, avatarUrl, isDeleted }` (Фази 2e, 3)
+- [ ] `packages/types`: `Match.kickoffAt` (замість `date`), нові `MatchStatus`, `season` — разом з Фазою 5
+- [x] `CLAUDE.md`: Auth (refresh-сесії, `sid`, `login/admin`) — Фаза 2; Posts / Languages — Фаза 3; Comments / Likes, `Comment` / `CommentThread`, правила 6 і 11 — Фаза 4 і рев'ю
+- [ ] `CLAUDE.md`: решта Database-секції → v5 (заголовок «schema v4.0»; `User` → `User` + `UserProfile`; `Post` → `status` / `publishedAt` / `coverImageUrl`; `League` / `LeagueTable` → `Competition` / `Season` / `SeasonClub` / `Standing`, `*ExternalRef`, `SyncRun`), Football-секція — після Фази 5; прибрати `JWT_REFRESH_SECRET` з env-списку і з `.env` (не використовується з 2b)
+- [x] Основний план — частково актуалізовано 2026-09-26 (розділ 12); дооновити після Фаз 5–5b
 
 ### Фаза 7 — Перевірка
-- [ ] Реєстрація → логін → через 15 хв запит проходить (refresh) → logout → старий refresh-токен дає 401
-- [ ] Повторне використання старого refresh → вся сім'я відкликана
-- [ ] 5 лайків за 5 с → `UserSanction(LIKES_SUSPENDED)`; другий раз → `LOCKED`, сесії відкликані
-- [ ] `DELETE /users/me` для автора постів/коментарів не падає на FK (Restrict); email анонімізовано, повторна реєстрація тим самим email проходить; старі пости/коментарі рендерять «Видалений користувач»
-- [ ] `DELETE /comments/:id/purge` на коментар з `replyCount > 0` → `409`; на листковий коментар → рядок реально зникає з БД
-- [ ] `DELETE /comments/:id/purge-thread` на гілку з 3+ вкладеними відповідями → усі рядки видалено, `thread.commentCount` зменшено коректно
-- [ ] Пост DRAFT не видно на web; PUBLISHED видно; `?lang=ua` без UA-перекладу → EN + позначка
+> Частину пунктів уже перевірено в межах фаз (посилання в дужках). Наприкінці — один прогін усього разом після Фази 5, бо зміни синку зачіпають матчі, коментарі й лайки.
+
+- [x] Реєстрація → логін → зниклий / прострочений access → refresh і повтор запиту → logout → старий refresh-токен дає 401 (2b, 2e; абсолютний ліміт 30 д — 2f)
+- [x] Повторне використання старого refresh → вся сім'я відкликана (2b)
+- [x] 5 лайків за 5 с → `UserSanction(LIKES_SUSPENDED)`; другий раз → `LOCKED`, сесії відкликані (2c)
+- [x] `DELETE /users/me` для автора постів/коментарів не падає на FK (Restrict); email анонімізовано; повторна реєстрація тим самим email → **403 `EMAIL_BLOCKED`** (self — 30 днів, admin — назавжди; P2-19 — початкове «проходить» застаріло після 2d); старі коментарі рендерять «Видалений користувач» (2d, 2e, 4d)
+- [x] `DELETE /comments/:id/purge` на коментар з відповідями (зокрема лише soft-видаленими) → `409 COMMENT_HAS_REPLIES`; на листковий коментар → рядок реально зникає з БД (4d)
+- [x] `DELETE /comments/:id/purge-thread` на гілку з 3+ вкладеними відповідями → усі рядки піддерева видалено, сусідні гілки цілі, `thread.commentCount` зменшено лише на живі — і під час паралельного soft delete (4d, рев'ю R4)
+- [x] Пост DRAFT не видно на web; PUBLISHED видно; `?lang=ua` без UA-перекладу → EN + позначка (3a)
 - [ ] Синк `PL` + `CL`: клуб в обох турнірах, `SeasonClub` в обох, таблиці не перетирають одна одну
 - [ ] Після повного синку: `SeasonClub` поточного сезону = кількість команд турніру (PL 20, PD 20, SA 20, BL1 18, FL1 18, PPL 18, CL 36); жоден клуб не «зникає» з ліги після синку CL
 - [ ] PL: матчі 2025/26 і 2026/27 у різних `Season`; сайдбар показує лише `isCurrent`
 - [ ] WC/EC: `Club.kind = NATIONAL`, label `2026` / `2024`
 - [ ] Перемикач у сайдбарі: зміна ліги міняє таблицю й тури; `?league=CL` відкривається напряму
 - [ ] Повторний синк без змін → `stats.matchesSkipped` ≈ всі
-- [ ] Два паралельні синки одного турніру → другий відхилено (лок)
-- [ ] Коментар на матчі й на пості → `CommentThread` створюється; вставка з обома ціль-полями падає на CHECK
+- [ ] Два паралельні синки одного турніру → другий відхилено (лок); два синки **різних** турнірів зі спільними клубами (PL + CL) одночасно → без P2002 / deadlock
+- [ ] Після ресинку: коментарі й лайки матчу на місці (матч не перестворено)
+- [x] Коментар на матчі й на пості → `CommentThread` створюється; вставка з обома ціль-полями падає на CHECK (4d)
 
 ---
 
@@ -1419,15 +1539,19 @@ pnpm prisma db seed
 
 ## 12. Що перенести в основний план після виконання
 
-- [ ] **Частина 2:** замінити схему v4.0 на v5 (або посилання на `schema.prisma`) + таблиця рішень D1–D18
-- [ ] **«Prisma та міграції»:** правила з розділу 11
-- [ ] **Етап 4.4 (новий):** «Schema v5 refactor» ✅
-- [ ] **Етап 6 (лайки):** відмітити виконане (backend `likes/` + `LikeBar`, `useLikes` вже є в коді); анти-абуз → `UserSanction`/`RateLimitEvent`
-- [ ] **Етап 7:** маршрути з урахуванням сезону (`/leagues/[slug]?season=2025-26`); вигляд сторінки ліги за `Competition.type` (LEAGUE → таблиця + тури, CUP → групи + сітка плей-оф); перемикач у сайдбарі — виконано у Фазі 5b; новини ліги/клубу через `PostCompetition`/`PostClub`; 7.4 — `Player`/`SquadMember` з розділу 9
-- [ ] **Етап 8:** коментарі на матчі через `CommentThread`
-- [ ] **Етап 9:** теги з `TagTranslation`
-- [ ] **Етап 10 (профіль):** «Видалити акаунт» (`DELETE /users/me`) — див. розділ 7.5.1
-- [ ] **Етап 11 (адмінка):** статуси постів, керування `Competition.isActive`, журнал `SyncRun`, ручні санкції, **видалення акаунта** (`DELETE /users/:id`) і **purge коментаря / purge-thread** — див. розділ 7.5
-- [ ] **Етап 16:** `ContentReport`
-- [ ] **Polish:** `GET /auth/me` + refresh — виконано у Фазі 2
-- [ ] **«Контекст для AI»** і `CLAUDE.md` — оновити
+> **2026-09-26:** основний план **частково актуалізовано** (`football-plan-new.md` v4.5) — перенесено все, що стосується Фаз 0–4 і рев'ю Фаз 1–4. Відкриті пункти залежать від Фаз 5–7.
+
+- [x] **Частина 2:** схему v4.0 замінено посиланням на `schema.prisma` + `constraints.sql`, картою доменів і таблицею рішень **D1–D20**
+- [x] **«Prisma та міграції»:** правила з розділу 11 (squash до релізу, `constraints.sql` у baseline, після релізу — expand / backfill / contract, `pg_dump`)
+- [ ] **Етап 4.4 (новий):** «Schema v5 refactor» — додано як ◐ (Фази 0–4 ✅); відмітити ✅ після Фази 7
+- [x] **Етап 6 (лайки):** відмічено ✅ (backend `likes/` + `LikeBar`, `useLikes`; v5 — `UserReactionActivity`, анти-абуз, блокування цілі); борг — ESLint error у `LikeBar`
+- [ ] **Етап 7:** додано пункти — маршрути з сезоном (`/leagues/[slug]?season=2025-26`), вигляд за `Competition.type`, новини ліги / клубу через `PostCompetition` / `PostClub`, 7.4 — `Player` / `SquadMember`, передумова 7.0 — Фаза 5; **перемикач у сайдбарі відмітити після Фази 5b**
+- [x] **Етап 8:** коментарі через `CommentThread` (API матчу готовий, UI сторінки матчу — відкритий пункт 8.2; прибрано застаріле «один рівень вкладеності»)
+- [x] **Етап 9:** `tagIds` у DTO ✅ (Фаза 3), `TagTranslation` — у пункті CRUD тегів
+- [x] **Етап 10 (профіль):** `DELETE /users/me` ✅ (API, 2d), «Видалити акаунт» у UI — пункт 10.2; профіль пише в `UserProfile`
+- [ ] **Етап 11 (адмінка):** додано статуси постів, purge / purge-thread, видалення акаунта, санкції, lock / pin; `Competition.isActive` і журнал `SyncRun` — доповнити після Фази 5
+- [x] **Етап 16:** `ContentReport`
+- [x] **Polish:** `GET /auth/me` + refresh — ✅ Фаза 2e
+- [x] **«Контекст для AI»** — оновлено; **`CLAUDE.md`** — частково (решта — Фаза 6)
+- [x] **З рев'ю Фаз 1–4:** правило 10 «Транзакції й гонки» (Частина 1), безпека (пароль у байтах, обов'язкові секрети, анти-абуз), бэклог безпеки (CSRF, неатомарний cooldown, `live-touch`, `updatedAt` від лайків), тести (70 unit; тимчасові інтеграційні скрипти → e2e), етап 14 (env, squash, Redis для throttler), SEO (`hreflang` / `canonical` / `metadataBase`)
+- [ ] **Після Фаз 5–7:** етап 4.3 — описати football на v5 замість v4 (зараз там попередження), етап 4.4 → ✅, «Актуалізація плану», пункти 7.0 / 11 про `SyncRun`; цей файл — в архів

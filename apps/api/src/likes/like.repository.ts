@@ -1,8 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { LikeType } from '@prisma/client';
+import { LikeType, Prisma, ReactionTarget } from '@prisma/client';
+import { visibleCommentWhere } from '../comments/comment-visibility';
 import { PrismaService } from '../prisma/prisma.service';
 import type { LikeTargetTypeDto } from './dto/toggle-like.dto';
 import { livePostWhere } from '../posts/post-visibility';
+
+const REACTION_TARGET_BY_TYPE: Record<LikeTargetTypeDto, ReactionTarget> = {
+  post: ReactionTarget.POST,
+  comment: ReactionTarget.COMMENT,
+  match: ReactionTarget.MATCH,
+};
+
+/** Таблиця цілі для блокування рядка — константи, не ввід користувача. */
+const LIKE_TARGET_TABLE: Record<LikeTargetTypeDto, Prisma.Sql> = {
+  post: Prisma.raw('"Post"'),
+  comment: Prisma.raw('"Comment"'),
+  match: Prisma.raw('"Match"'),
+};
 
 export type ToggleOutcome = {
   previous: LikeType | null;
@@ -26,7 +40,7 @@ export class LikeRepository {
     }
     if (targetType === 'comment') {
       const row = await this.prisma.comment.findFirst({
-        where: { id: targetId, deletedAt: null },
+        where: { id: targetId, ...visibleCommentWhere(new Date()) },
         select: { likeCount: true },
       });
       return row?.likeCount ?? 0;
@@ -94,9 +108,10 @@ export class LikeRepository {
     return Boolean(post);
   }
 
+  /** Коментар під чернеткою / знятим постом не лайкнути (P4-8, як P3-1 для постів). */
   async assertCommentExists(commentId: string): Promise<boolean> {
     const comment = await this.prisma.comment.findFirst({
-      where: { id: commentId, deletedAt: null },
+      where: { id: commentId, ...visibleCommentWhere(new Date()) },
       select: { id: true },
     });
     return Boolean(comment);
@@ -112,14 +127,21 @@ export class LikeRepository {
 
   /**
    * Один запис на користувача + оновлення денормалізованих лічильників на сутності.
+   * `null` — цілі вже немає (напр. коментар щойно purge-нули).
    */
   async applyToggleWithCounterUpdate(
     targetType: LikeTargetTypeDto,
     userId: string,
     targetId: string,
     action: LikeType,
-  ): Promise<ToggleOutcome> {
+  ): Promise<ToggleOutcome | null> {
     return this.prisma.$transaction(async (tx) => {
+      // Спершу блокуємо ціль: (1) паралельні перемикання того ж користувача читають
+      // `existing` по черзі — лічильник не роз'їжджається з рядками лайків; (2) вставка лайка
+      // не бере FK-блокування цілі раніше за purge — без deadlock-у й без 500 на FK
+      const isTargetLocked = await this.lockTarget(tx, targetType, targetId);
+      if (!isTargetLocked) return null;
+
       let existing: LikeType | null = null;
       if (targetType === 'post') {
         const row = await tx.postLike.findUnique({
@@ -210,19 +232,31 @@ export class LikeRepository {
         }
       }
 
-      const stateLabel =
-        next === null ? 'NONE' : next === LikeType.LIKE ? 'LIKE' : 'DISLIKE';
+      // `reaction: null` — голос знято
       await tx.userReactionActivity.create({
         data: {
           userId,
-          targetType,
+          targetType: REACTION_TARGET_BY_TYPE[targetType],
           targetId,
-          state: stateLabel,
+          reaction: next,
         },
       });
 
       return { previous: existing, current: next };
     });
+  }
+
+  /** `FOR NO KEY UPDATE` рядка цілі; таблиця — з фіксованого списку, не з запиту. */
+  private async lockTarget(
+    tx: Prisma.TransactionClient,
+    targetType: LikeTargetTypeDto,
+    targetId: string,
+  ): Promise<boolean> {
+    const lockedRows = await tx.$queryRaw<unknown[]>`
+      SELECT 1 FROM ${LIKE_TARGET_TABLE[targetType]}
+      WHERE "id" = ${targetId}
+      FOR NO KEY UPDATE`;
+    return lockedRows.length > 0;
   }
 
   private counterDelta(
@@ -235,8 +269,11 @@ export class LikeRepository {
         : reaction === LikeType.DISLIKE
           ? { like: 0, dislike: 1 }
           : { like: 0, dislike: 0 };
-    const a = score(after);
-    const b = score(before);
-    return { like: a.like - b.like, dislike: a.dislike - b.dislike };
+    const scoreAfter = score(after);
+    const scoreBefore = score(before);
+    return {
+      like: scoreAfter.like - scoreBefore.like,
+      dislike: scoreAfter.dislike - scoreBefore.dislike,
+    };
   }
 }

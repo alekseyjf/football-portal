@@ -14,7 +14,7 @@
 - `JwtStrategy` на кожен запит перевіряє, що сесія `sid` жива → logout / logout-all / блокування гасять access одразу
 - Roles: `ADMIN`, `USER`; Guards: `JwtAuthGuard`, `RolesGuard`, `@Roles('ADMIN')` decorator
 - Адмінка логіниться через `POST /auth/login/admin` (не-ADMIN → 403 `ADMIN_ONLY`, сесія не створюється); cookies спільні на localhost
-- Пароль: новий ≥ 8 (межі — `packages/validation`); логін — без мінімуму (старі акаунти)
+- Пароль: новий ≥ 8 і ≤ 72 **байти** UTF-8 (межа bcrypt; `PASSWORD_MAX_BYTES`, API — `@MaxUtf8Bytes`, межі — `packages/validation`); логін — без мінімуму (старі акаунти)
 
 ## Database (Prisma schema v4.0)
 Key models:
@@ -22,7 +22,8 @@ Key models:
 - `Post` — id, slug, coverImage, videoUrl, published, sourceUrl, authorId, deletedAt (soft delete)
 - `PostTranslation` — postId, language ('en'|'ua'), title, excerpt, content — i18n
 - `PostTag` / `Tag` — many-to-many tags
-- `Comment` — content, authorId, postId?, matchId?, parentId? (replies), pinnedAt, deletedAt
+- `CommentThread` — рівно одна ціль (`postId?` | `matchId?`, CHECK), `isLocked`, `commentCount` (v5)
+- `Comment` — threadId, authorId, parentId?, rootId?, depth, content, replyCount, likeCount, pinnedAt, deletedAt (v5)
 - `PostLike` / `CommentLike` / `MatchLike` — YouTube-style likes (LIKE/DISLIKE, only LIKE shown publicly)
 - `League` / `Club` / `Match` / `LeagueTable` — football data with externalId for API sync
 
@@ -55,11 +56,20 @@ All routes prefixed with `/api/v1/`
 - `LanguageService` — мови з таблиці `Language` (кеш 60 с): `chooseContentLanguage(lang)` → `{ requestedCode, defaultCode }`, `getContentLanguages()` → `{ defaultCode, activeCodes }`
 
 ### Comments — `src/comments/`
-- `GET /comments/post/:postId` — public
-- `GET /comments/match/:matchId` — public
-- `POST /comments` — authenticated, body: `{ content, postId?, matchId?, parentId? }`
-- `DELETE /comments/:id` — author or ADMIN (soft delete)
-- Files: `comment.controller.ts`, `comment.service.ts`, `comment.repository.ts`, `comment.module.ts`
+- **Тред** (`CommentThread`) — один на пост / матч, створюється з першим коментарем (не на `GET`); `commentCount` = живі коментарі, `Comment.replyCount` = живі прямі відповіді; `rootId` / `depth` (≤ `MAX_COMMENT_THREAD_DEPTH` = 15) зберігаються
+- `GET /comments/post/:postId` — public, дерево; неживий пост (`livePostWhere`) → 404 `POST_NOT_FOUND`, без треду → `[]`
+- `GET /comments/match/:matchId` — public; матчу немає → 404 `MATCH_NOT_FOUND`
+- `POST /comments` — authenticated, body: `{ content, postId? | matchId?, parentId? }` — рівно одна ціль (`COMMENT_TARGET_INVALID`); батько — живий і в тому ж треді (`PARENT_COMMENT_NOT_FOUND` / `PARENT_COMMENT_MISMATCH`), `COMMENT_DEPTH_EXCEEDED`; `isLocked` → 403 `COMMENT_THREAD_LOCKED` (ADMIN — можна)
+- `DELETE /comments/:id` — author or ADMIN, **soft delete разом з усією гілкою відповідей** → `{ id, deletedCount }`; під видаленим коментарем живих немає
+- `DELETE /comments/:id/purge` — **ADMIN**, ⚠️ фізичне видалення, лише без жодного дочірнього рядка (інакше 409 `COMMENT_HAS_REPLIES`)
+- `DELETE /comments/:id/purge-thread` — **ADMIN**, ⚠️ фізично коментар + піддерево (гонка → 409 `COMMENT_THREAD_CHANGED`) → `{ id, purgedCount }`
+- Гонки: блокування завжди **від предків до нащадків, тред — останнім**, `FOR NO KEY UPDATE` (не `FOR UPDATE` — той конфліктує з FK-`KEY SHARE` вставки відповіді → deadlock); deadlock / FK-гонка → 409 `COMMENT_THREAD_CHANGED`. Помилки Prisma — лише через `src/prisma/prisma-errors.ts`: Prisma 7 кидає deadlock як `P2010` або «голий» `DriverAdapterError`, **не** `P2034`
+- Files: `comment.controller.ts`, `comment.service.ts` (транзакції; порядок блокувань батько → ціль → тред), `comment.repository.ts`, `comment-thread.repository.ts`, `comment-visibility.ts` (`visibleCommentWhere` — і для лайків), `comment-subtree.ts` (піддерево для purge-thread), `comment-thread.util.ts` (дерево), `comment-response.ts`
+
+### Likes — `src/likes/`
+- `POST /likes` `{ targetType: post|comment|match, targetId, action: LIKE|DISLIKE }` (повтор тієї ж дії знімає голос), `GET /likes/stats/:targetType/:targetId`; пост — живий, коментар — `visibleCommentWhere` (інакше 404)
+- Кожна зміна — рядок `UserReactionActivity { targetType: ReactionTarget, reaction: LikeType | null }`
+- Транзакція перемикання **спершу блокує рядок цілі** (`FOR NO KEY UPDATE`): паралельні кліки одного юзера йдуть по черзі, ціль, прибрана purge-ем, → 404
 
 ### Football — `src/football/` (етап 4.3 + підмодулі)
 - **Корінь:** `football.module.ts`, `football.controller.ts`, `football.constants.ts`, `football-matchday.util.ts`, `football-standings.util.ts`, `dto/*`
@@ -104,12 +114,12 @@ All routes prefixed with `/api/v1/`
 3. **Repository** — Prisma queries only, always use `select` not `include`
 4. **Mapper** — external API transformation only (football module)
 5. **DTO** — class-validator decorators on all inputs
-6. **Soft delete** — Post and Comment use `deletedAt`, never hard delete
+6. **Soft delete** — Post and Comment use `deletedAt`, never hard delete. Єдиний виняток — ADMIN purge коментаря (`DELETE /comments/:id/purge`, `…/purge-thread`, D20: legal / GDPR)
 7. **Email** — always `toLowerCase().trim()` before saving
 8. **i18n** — content in PostTranslation, always pass `lang` param to queries
 9. **Likes** — separate tables (PostLike/CommentLike/MatchLike), DISLIKE stored but not shown publicly
 10. **Security** — DOMPurify on frontend, Helmet + CORS + ValidationPipe on backend
-11. **Іменування** — у бізнес-коді та утилітах уникати одно- та дволітерних імен змінних/параметрів; мінімум **3 символи**, окрім загальноприйнятих: `id`, `url`, `err` у дуже вузькому контексті, індекси циклу `i`/`j` лише якщо немає семантики. Для зовнішніх DTO допускається префікс **`Fd`** (football-data.org) у типах мапера. Назви мають відображати **роль значення** (`matchFromApi`, `encodedCompetitionRef`, `clubIdByExternalTeamId`), а не форму (`map`, `row`). Детальніше: `.cursor/rules/naming-readability.mdc`.
+11. **Іменування** — у бізнес-коді та утилітах уникати одно- та дволітерних імен змінних/параметрів; мінімум **3 символи**, окрім загальноприйнятих: `id`, `url`, `err` у дуже вузькому контексті, `tx` (клієнт транзакції Prisma), індекси циклу `i`/`j` лише якщо немає семантики. Для зовнішніх DTO допускається префікс **`Fd`** (football-data.org) у типах мапера. Назви мають відображати **роль значення** (`matchFromApi`, `encodedCompetitionRef`, `clubIdByExternalTeamId`), а не форму (`map`, `row`). Детальніше: `.cursor/rules/naming-readability.mdc`.
 
 ## Environment Variables
 ### apps/api/.env
@@ -151,7 +161,8 @@ NEXT_PUBLIC_PUBLIC_WEB_URL=http://localhost:3000
 - Web: відновлення сесії після F5 (`GET /auth/me` + `useAuthQuery`); web + admin: refresh-on-401 (Фаза 2e). Admin `/auth/me` не викликає — сесію перевіряє API (401 → refresh → `/login`)
 
 **In progress / polish:**
-- Коментарі до матчів у UI, DOMPurify
+- Schema v5 (`football-plan-intermediate.md`): Фази 0–4 ✅, далі Фаза 5 (Football + Sync)
+- Коментарі до матчів у UI (API готовий), DOMPurify
 
 **Next up:**
 - Коментарі на сторінці матчу, лайки (етап 5), профілі, теги в публічному UI

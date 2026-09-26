@@ -1,128 +1,182 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCommentDto } from './dto/create-comment.dto';
-import {
-  buildCommentTreeFromFlat,
-  type CommentTreeNode,
-} from './comment-thread.util';
+import { PUBLIC_AUTHOR_SELECT } from '../users/public-author';
+import type { BranchComment } from './comment-subtree';
 
-const authorSelect = {
-  select: { id: true, name: true, avatar: true },
+export const COMMENT_NODE_SELECT = {
+  id: true,
+  content: true,
+  pinnedAt: true,
+  createdAt: true,
+  parentId: true,
+  author: { select: PUBLIC_AUTHOR_SELECT },
+} satisfies Prisma.CommentSelect;
+
+export type CommentNodeRow = Prisma.CommentGetPayload<{
+  select: typeof COMMENT_NODE_SELECT;
+}>;
+
+const MODERATION_SELECT = {
+  id: true,
+  authorId: true,
+  threadId: true,
+  parentId: true,
+  rootId: true,
+  depth: true,
+  deletedAt: true,
+} satisfies Prisma.CommentSelect;
+
+/** Стан коментаря для відповіді на нього й модерації; `parentId` / `rootId` / `threadId` незмінні. */
+export type CommentModerationRow = Prisma.CommentGetPayload<{
+  select: typeof MODERATION_SELECT;
+}>;
+
+/** Стан заблокованого рядка (`lockForWrite`). */
+export type LockedComment = { id: string; deletedAt: Date | null };
+
+export type NewCommentRow = {
+  threadId: string;
+  authorId: string;
+  content: string;
+  parentId: string | null;
+  rootId: string | null;
+  depth: number;
 };
 
 @Injectable()
 export class CommentRepository {
   constructor(private prisma: PrismaService) {}
 
-  async findByPostId(postId: string): Promise<CommentTreeNode[]> {
-    const rows = await this.prisma.comment.findMany({
-      where: { postId, deletedAt: null },
-      select: {
-        id: true,
-        content: true,
-        pinnedAt: true,
-        createdAt: true,
-        parentId: true,
-        author: authorSelect,
-      },
-    });
-    return buildCommentTreeFromFlat(rows);
-  }
-
-  async findByMatchId(matchId: string): Promise<CommentTreeNode[]> {
-    const rows = await this.prisma.comment.findMany({
-      where: { matchId, deletedAt: null },
-      select: {
-        id: true,
-        content: true,
-        pinnedAt: true,
-        createdAt: true,
-        parentId: true,
-        author: authorSelect,
-      },
-    });
-    return buildCommentTreeFromFlat(rows);
-  }
-
-  async create(dto: CreateCommentDto, authorId: string) {
-    return this.prisma.comment.create({
-      data: {
-        content: dto.content,
-        authorId,
-        postId: dto.postId,
-        matchId: dto.matchId,
-        parentId: dto.parentId,
-      },
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-        parentId: true,
-        author: authorSelect,
-      },
+  findLiveInThread(threadId: string): Promise<CommentNodeRow[]> {
+    return this.prisma.comment.findMany({
+      where: { threadId, deletedAt: null },
+      select: COMMENT_NODE_SELECT,
     });
   }
 
-  async createWithTx(
-    tx: Prisma.TransactionClient,
-    dto: CreateCommentDto,
-    authorId: string,
-  ) {
-    return tx.comment.create({
-      data: {
-        content: dto.content,
-        authorId,
-        postId: dto.postId,
-        matchId: dto.matchId,
-        parentId: dto.parentId,
-      },
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-        parentId: true,
-        author: authorSelect,
-      },
-    });
-  }
-
-  async findById(id: string) {
+  findForModeration(id: string): Promise<CommentModerationRow | null> {
     return this.prisma.comment.findUnique({
       where: { id },
-      select: {
-        id: true,
-        authorId: true,
-        deletedAt: true,
-        parentId: true,
-        postId: true,
-        matchId: true,
-      },
+      select: MODERATION_SELECT,
+    });
+  }
+
+  insert(
+    tx: Prisma.TransactionClient,
+    newComment: NewCommentRow,
+  ): Promise<CommentNodeRow> {
+    return tx.comment.create({
+      data: newComment,
+      select: COMMENT_NODE_SELECT,
     });
   }
 
   /**
-   * Кількість кроків до кореня (корінь = 0). Для валідації max depth.
+   * +1 відповідь батькові, лише якщо він живий і в тому ж треді (P4-2).
+   * `false` — батька встигли видалити: відповідь не створюємо.
    */
-  async depthFromRoot(commentId: string): Promise<number> {
-    let depth = 0;
-    let currentId: string | null = commentId;
-    for (;;) {
-      const row = await this.prisma.comment.findUnique({
-        where: { id: currentId! },
-        select: { parentId: true, deletedAt: true },
-      });
-      if (!row || row.deletedAt) return -1;
-      if (!row.parentId) return depth;
-      depth += 1;
-      currentId = row.parentId;
-    }
+  async incrementReplyCountIfLive(
+    tx: Prisma.TransactionClient,
+    parentId: string,
+    threadId: string,
+  ): Promise<boolean> {
+    const { count } = await tx.comment.updateMany({
+      where: { id: parentId, threadId, deletedAt: null },
+      data: { replyCount: { increment: 1 } },
+    });
+    return count === 1;
   }
 
-  async softDelete(id: string) {
-    return this.prisma.comment.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+  /**
+   * `updateMany`, а не `update`: батька, якого вже прибрав purge-thread, пропускаємо без P2025
+   * (далі soft delete цілі все одно поверне 404). Рядок, якщо є, блокується до кінця транзакції.
+   */
+  async changeReplyCount(
+    tx: Prisma.TransactionClient,
+    commentId: string,
+    delta: number,
+  ): Promise<void> {
+    await tx.comment.updateMany({
+      where: { id: commentId },
+      data: { replyCount: { increment: delta } },
     });
+  }
+
+  /**
+   * Блокує рядки до кінця транзакції й повертає їхній актуальний стан (після очікування —
+   * версію, закомічену суперником). Порядок — від предків до нащадків (`depth`), як у
+   * soft delete, тож вони не зациклюються. `FOR NO KEY UPDATE`, а не `FOR UPDATE`: не
+   * конфліктує з FK-блокуванням (`KEY SHARE`), яке бере вставка відповіді на `rootId` / `parentId`,
+   * інакше відповідь у гілці + purge її кореня давали deadlock.
+   */
+  lockForWrite(
+    tx: Prisma.TransactionClient,
+    commentIds: string[],
+  ): Promise<LockedComment[]> {
+    if (commentIds.length === 0) return Promise.resolve([]);
+    return tx.$queryRaw<LockedComment[]>`
+      SELECT "id", "deletedAt" FROM "Comment"
+      WHERE "id" IN (${Prisma.join(commentIds)})
+      ORDER BY "depth", "id"
+      FOR NO KEY UPDATE`;
+  }
+
+  async softDeleteIfLive(
+    tx: Prisma.TransactionClient,
+    commentId: string,
+    deletedAt: Date,
+  ): Promise<boolean> {
+    const { count } = await tx.comment.updateMany({
+      where: { id: commentId, deletedAt: null },
+      data: { deletedAt },
+    });
+    return count === 1;
+  }
+
+  /** Один рівень каскадного soft delete (P4-5): живі прямі відповіді на `parentIds`. */
+  async softDeleteLiveRepliesOf(
+    tx: Prisma.TransactionClient,
+    parentIds: string[],
+    deletedAt: Date,
+  ): Promise<string[]> {
+    const deletedReplies = await tx.comment.updateManyAndReturn({
+      where: { parentId: { in: parentIds }, deletedAt: null },
+      data: { deletedAt },
+      select: { id: true },
+    });
+    return deletedReplies.map((reply) => reply.id);
+  }
+
+  /** Фізичне видалення без жодного дочірнього рядка, живого чи soft-видаленого (P4-6). */
+  async purgeIfNoReplies(
+    tx: Prisma.TransactionClient,
+    commentId: string,
+  ): Promise<boolean> {
+    const { count } = await tx.comment.deleteMany({
+      where: { id: commentId, replies: { none: {} } },
+    });
+    return count === 1;
+  }
+
+  /** Уся гілка: корінь і всі рядки з `rootId = корінь` (P4-7). */
+  findBranch(
+    tx: Prisma.TransactionClient,
+    branchRootId: string,
+  ): Promise<BranchComment[]> {
+    return tx.comment.findMany({
+      where: { OR: [{ id: branchRootId }, { rootId: branchRootId }] },
+      select: { id: true, parentId: true, depth: true },
+    });
+  }
+
+  async purgeByIds(
+    tx: Prisma.TransactionClient,
+    commentIds: string[],
+  ): Promise<number> {
+    const { count } = await tx.comment.deleteMany({
+      where: { id: { in: commentIds } },
+    });
+    return count;
   }
 }
