@@ -59,18 +59,10 @@ export class CommentService {
       isAdmin,
     );
 
-    return this.prisma.$transaction(async (tx) => {
-      const comment = await this.commentRepository.createWithTx(
-        tx,
-        dto,
-        authorId,
-      );
-      await tx.user.update({
-        where: { id: authorId },
-        data: { lastCommentAt: new Date() },
-      });
-      return comment;
-    });
+    // Cooldown тепер рахується з RateLimitEvent (записаний вище), не з User.lastCommentAt
+    return this.prisma.$transaction((tx) =>
+      this.commentRepository.createWithTx(tx, dto, authorId),
+    );
   }
 
   async deleteComment(id: string, userId: string, userRole: string) {
