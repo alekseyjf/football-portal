@@ -9,13 +9,17 @@ import { CommentModule } from './comments/comment.module';
 import { FootballModule } from './football/football.module';
 import { LikeModule } from './likes/like.module';
 import { SecurityModule } from './security/security.module';
+import { RequestThrottlingModule } from './security/throttling/request-throttling.module';
+import { UserManagementModule } from './users/management/user-management.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     PrismaModule,
+    RequestThrottlingModule,
     AuthModule,
     SecurityModule,
+    UserManagementModule,
     PostModule,
     CommentModule,
     FootballModule,

@@ -114,6 +114,8 @@ FOOTBALL_API_URL=https://api.football-data.org/v4
 FOOTBALL_COMPETITION_IDS=PL
 FOOTBALL_LIVE_CRON_ENABLED=false
 FOOTBALL_HTTP_LOG=true
+EMAIL_HASH_SECRET=... (обов'язковий, ≥ 32 символи, випадковий; HMAC блоклиста пошт видалених акаунтів — НЕ змінювати після запуску)
+TRUST_PROXY= (порожньо в dev; за reverse proxy — кількість проксі, напр. 1; `true` заборонено)
 ```
 (`FOOTBALL_HTTP_LOG` — логувати всі запити до football-data; у dev це вмикається автоматично)
 ### apps/web/.env.local

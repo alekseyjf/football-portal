@@ -29,6 +29,10 @@ coverage
 .env.*.local
 !.env.example
 
+# Cookie jar-и curl (містять JWT / refresh-токени)
+cookies.txt
+*.cookies
+
 # Logs & debug
 *.log
 npm-debug.log*

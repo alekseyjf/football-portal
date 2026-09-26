@@ -1,6 +1,6 @@
 # 🧱 Football Portal — Intermediate Plan: Schema v5
 
-> **Статус:** ◐ у процесі — Фази 0–1 ✅, Фаза 2 (2a–2e) у процесі
+> **Статус:** ◐ у процесі — Фази 0–1 ✅, Фаза 2: 2a–2d ✅, 2e у процесі
 > **Виконується:** ДО продовження основного плана (`football-plan-new.md`, етапи 7+)
 > **Після завершення:** перенести ключові рішення в Частину 2 основного плана, цей файл — в архів.
 > **Створено:** 2026-09-24
@@ -947,11 +947,11 @@ Competition (PL, LEAGUE)                        Competition (CL, CUP)
 
 Рядок `User` **ніколи не видаляється фізично** — це одразу знімає проблему з `Restrict` на `Post.author`/`Comment.author`, без зміни FK-стратегії. «Видалення» = одна транзакція:
 
-1. `email` → `deleted-<userId>@removed.invalid` (зберігає `@unique`, звільняє реальний email для повторної реєстрації)
+1. `email` → `deleted-<userId>@removed.invalid` (зберігає `@unique`). Справжня адреса **не звільняється**: її HMAC іде в `BlockedEmail` — admin-видалення блокує назавжди, self — на 30 днів (P2-19)
 2. `passwordHash` → значення, яке ніколи не пройде `bcrypt.compare` (наприклад, `''`)
 3. `UserProfile.displayName` → `'Deleted user'`; `avatarUrl`, `bio` → `null`
 4. `status = DELETED`, `deletedAt = now()`
-5. Відкликати всі `AuthSession` користувача (`revokedAt = now()`)
+5. ~~Відкликати~~ **Видалити** всі `AuthSession` користувача (P2-16, 2d: у сесіях IP / user-agent)
 6. Пости й коментарі **лишаються** (цілісність стрічки/тредів) — на фронті автор рендериться як «Видалений користувач», якщо `author.deletedAt` не `null`
 
 Ендпоінти:
@@ -1101,6 +1101,12 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
 | P2-13 | Публічний автор = `{ id, name, avatarUrl, isDeleted }` (замість `deletedAt` з 7.5.1); `name` = `UserProfile.displayName`. Спільні `PUBLIC_AUTHOR_SELECT` + `toPublicAuthor()` у `users/` — Фази 3–4 використовують їх у posts/comments | Не світимо дату видалення; фронт локалізує «Видалений користувач» за прапорцем |
 | P2-14 | Адміна через API не видаляємо (ні `/users/me`, ні `/users/:id`) → 403 | Захист від стану «жодного адміна» |
 | P2-15 | `DELETE /users/me` з тілом `{ password }`; web `apiDelete` отримує опційне `body` | Підтвердження паролем (7.5.1) |
+| P2-16 | Видалення акаунта **видаляє** `AuthSession` (а не відкликає, як у 7.5.1 п. 5) | У сесіях `ipAddress` / `userAgent` — персональні дані; для DELETED-власника refresh і так 401 |
+| P2-17 | Реєстрація на TLD `.invalid` → 400 | `PublicAuthor.id` публічний: інакше можна заздалегідь зайняти `deleted-<id>@removed.invalid` жертви й зламати їй видалення на `@unique` email |
+| P2-18 | Неправильний пароль у `DELETE /users/me` → **403** `INVALID_PASSWORD`, не 401 | 401 фронт (2e) трактує як прострочений access → refresh + повтор, хоча сесія жива |
+| P2-19 | Пошта видаленого акаунта блокується для нової реєстрації: admin → безстроково, self → 30 днів; `register` → **403 `EMAIL_BLOCKED`**. У БД (`BlockedEmail`) лише HMAC-SHA256 канонічної адреси (`EMAIL_HASH_SECRET`), без FK на User | Забанений не повертається з тією ж поштою; self-delete не скидає санкції миттєвою перереєстрацією, але й не забирає пошту назавжди. Сирий email не зберігаємо (GDPR); окремий код — свідомий вибір (видно, що пошта заблокована) |
+| P2-20 | Канонізація для блоклиста: без `+tag`, для gmail/googlemail — без крапок | Інакше блок обходиться через `user+1@…` / `u.s.e.r@gmail.com`. Лише для блоклиста — акаунти зберігають адресу як є |
+| P2-21 | Ліміти запитів (`@nestjs/throttler`, пам'ять процесу) лише на auth-роутах, не глобально; два ліміти — на IP і на акаунт | Глобальний ліміт на IP душив би SSR (усі запити Next.js з одного IP). Ліміт лише на IP не зупиняє розподілений перебір одного акаунта |
 
 #### 2a — Identity core ✅ (2026-09-26)
 - [x] Видалити `apps/api/scripts/export-content.ts` + `db:export-content` (хвіст Фази 1)
@@ -1142,10 +1148,34 @@ Frontend: web `lib/api/http.ts` і admin `lib/api/http.ts` кидають `new E
 - Відоме обмеження (як і у v4): cooldown не атомарний — N паралельних коментарів проходять `assert` разом (до `burstThreshold − 1` = 4, далі спрацьовує burst). Якщо знадобиться — `assert` + `record` під тим самим advisory lock в одній транзакції
 - Для 2d: `UserService` / `UserController` — **не** в `UsersModule` (він листовий, його імпортує `SecurityModule` → був би цикл), а в модулі, що імпортує `UsersModule` + `SecurityModule` + `AuthSessionsModule`
 
-#### 2d — Видалення акаунта (розділ 7.5.1)
-- [ ] `UserService.deleteAccount`: анонімізація + `status = DELETED` + `deletedAt` + відкликати сесії — одна транзакція
-- [ ] `DELETE /users/me` (P2-15, чистить cookies), `DELETE /users/:id` (ADMIN, + `UserSanction(ACCOUNT_DELETED, issuedById)`), P2-14
-- [ ] Перевірка `curl`: логін неможливий, email звільнений (повторна реєстрація), сесії відкликані
+#### 2d — Видалення акаунта (розділ 7.5.1) ✅ (2026-09-26)
+- [x] `users/management/`: `UserManagementModule` (імпортує `UsersModule` + `SecurityModule` + `AuthSessionsModule`; підключено в `AppModule`), `UserService`, `UserController`, DTO `DeleteOwnAccountDto { password }` (1…256), `DeleteUserDto { note? }` (trim, ≤ 500, тіло опційне)
+- [x] `users/deleted-account.ts`: `deletedAccountEmail(id)` = `deleted-<id>@removed.invalid`, `DELETED_ACCOUNT_PASSWORD_HASH = ''` (`bcrypt.compare(x, '')` → `false` без винятку — перевірено), `DELETED_USER_DISPLAY_NAME`, `isReservedEmail` (P2-17, `AuthService.register`)
+- [x] `UserService.deleteAccount` (private) — одна транзакція: `UserRepository.markDeleted` (email / `passwordHash` / `status = DELETED` / `deletedAt` + профіль `'Deleted user'`, avatar/bio → null) → (лише admin) `UserSanction(ACCOUNT_DELETED, MANUAL, issuedById, note, startsAt = deletedAt)` → `AuthSessionRepository.deleteAllForUser` (P2-16). Пости/коментарі/лайки/санкції не чіпаємо
+- [x] Атомарність: коди помилок — з попереднього читання (`findCredentialsById` / `findAccessById`), а сам запис — `updateMany where { id, role: USER, status ≠ DELETED }`; `count = 0` → 409 (паралельне видалення встигло першим). Паралельне `lockAccount` чекає row lock і бачить DELETED → no-op
+- [x] `DELETE /users/me` (guard): ADMIN → 403 `ADMIN_ACCOUNT_NOT_DELETABLE` (P2-14, до перевірки пароля); неправильний пароль → 403 `INVALID_PASSWORD` (P2-18, cookies не чіпаємо); успіх → 200 + `clearAuthCookies` (access, refresh, legacy). Self-delete у `UserSanction` не пишеться
+- [x] `DELETE /users/:id` (ADMIN): 404 `USER_NOT_FOUND`, ADMIN-ціль → 403, уже DELETED → 409 `ACCOUNT_ALREADY_DELETED`; LOCKED видаляється; `{ message, userId }`. `Logger.log` лише з id (без email) — після commit
+- [x] Живі access-JWT видаленого юзера → 401 одразу (`JwtStrategy` читає статус з БД); refresh → 401 `INVALID_REFRESH_TOKEN` (сесії не знайдено)
+- [x] Перевірка — мінімальний Nest (`PrismaModule` + `AuthModule` + `UserManagementModule`) на dev-БД, скрипт `fetch` + Prisma, **56/56** ✅: реєстрація `…@removed.invalid` (і в іншому регістрі з пробілами) → 400; self: без cookies 401, без тіла / порожній пароль 400, неправильний 403 без `Set-Cookie` і сесія жива; успіх → анонімізовано, 0 сесій, 0 санкцій, другий пристрій (живий access) → 401, refresh → 401, старий і анонімний email → 401, повторна реєстрація тим самим email (у верхньому регістрі) → 201 з новим id і логіниться; admin: USER → 403, 404, себе / seed-адміна / `DELETE /me` адміном → 403, note > 500 → 400, санкція з обрізаною note і `issuedById`, повтор → 409 без дубля санкції, без тіла і з note із пробілів → `note = null`, LOCKED → DELETED; автор коментаря видаляється без FK-помилки, коментар на місці, `toPublicAuthor` → `{ name: 'Deleted user', avatarUrl: null, isDeleted: true }`; 6 паралельних admin DELETE → `200` + 5×`409`, 1 санкція; self + admin одночасно → рівно один 200. **Контрольний прогін без `status ≠ DELETED` у `markDeleted`** → self + admin дали обидва 200 (тест змістовний); 6 паралельних admin DELETE без запобіжника все одно пройшли — запити фактично серіалізувались, тож цей тест сам по собі слабкий. Тестових юзерів і тред видалено
+- [x] `tsc`: 45 → **45** (users 0, auth 0, security 0); `eslint` по змінених файлах чистий
+- [x] **Захист адрес анонімізації на рівні БД:** CHECK `User_reserved_email_check` (`prisma/sql/constraints.sql` + міграція `0002_user_reserved_email_check`, застосовано на dev): не-DELETED → `lower(email) NOT LIKE '%.invalid'`; DELETED → `email = 'deleted-' || id || '@removed.invalid'`. Закриває будь-який шлях створення (seed, майбутні адмін-створення / OAuth), не лише `register`, і гарантує «DELETED ⇒ email анонімізовано». Перевірено в транзакціях з `ROLLBACK`, 10/10: squatting `deleted-<id>@…`, `.INVALID` у верхньому регістрі, LOCKED з `.invalid`, DELETED з чужим id, `status → DELETED` без анонімізації, DELETED → ACTIVE з анонімною адресою — падають; звичайні адреси, `invalid@invalid.com` і коректна анонімізація — проходять. Повний сценарій 2d з обмеженням — знову 56/56
+- [x] `AuthService.login`: `credentials?.passwordHash || dummy` (було `??`) — порожній хеш видаленого акаунта теж іде через фіктивний bcrypt, час відповіді не відрізняється (P2-2)
+- [x] `apps/api/.prettierrc`: `"endOfLine": "crlf"` — як у `eslint.config.mjs`; раніше `prettier --write` переписував файли в LF, а ESLint вимагав CRLF
+- [x] `cookies.txt` (curl cookie jar з v4-JWT адміна) прибрано з індексу git; `cookies.txt` / `*.cookies` → `.gitignore`
+- [x] **Блок пошт видалених акаунтів** (P2-19, P2-20): `security/email-blocklist/` — `BlockedEmail` (міграція `0003_blocked_email`, застосовано на dev), `EmailBlocklistService` (`isBlocked`, `blockDeletedAccountEmail`), `canonicalizeEmail`. Запис — у транзакції видалення: справжня адреса читається **до** анонімізації (`UserRepository.findEmailById`), блок пишеться лише якщо `markDeleted` спрацював. Слабший блок не перезаписує сильніший (безстроковий > довший > коротший) — під `pg_advisory_xact_lock(hashtext(emailHash))`, бо два різні акаунти можуть мати одну канонічну адресу. `EMAIL_HASH_SECRET` (≥ 32) — без нього API не стартує; прострочені блоки чистить `SecurityCleanupCron`
+- [x] **Ліміти спроб** (P2-21): `security/throttling/` — `RequestThrottlingModule` (`ThrottlerModule.forRoot`, ліміти `ip` і `account`; `account` = id користувача або нормалізований email з тіла). Політики: login — 10/хв з IP + 10/15 хв на адресу; register — 5/10 хв з IP; refresh — 30/хв з IP; `DELETE /users/me` — 5/15 хв на користувача (`JwtAuthGuard` перед `ThrottlerGuard`). 429 `TOO_MANY_REQUESTS` + `Retry-After-ip|account` (додано в CORS `exposedHeaders`). `/auth/me`, logout — без лімітів
+- [x] **Helmet + no-store + trust proxy**: `app.setup.ts` (`configureHttpApp` — спільний для `main.ts` і тестового застосунку): `helmet` з CORP `same-site`, `TRUST_PROXY` з env (`true` заборонено — інакше IP підробляється через `X-Forwarded-For`); `Cache-Control: no-store` на `register`, `login`, `refresh`, `me`
+- [x] Перевірка (тестовий Nest з `configureHttpApp` + `RequestThrottlingModule`, dev-БД): ядро 2d **57/57** (повторна реєстрація → 403 `EMAIL_BLOCKED`, `BlockedEmail` = self / +30 д, у БД лише 64-hex хеш); безпека **37/37** — блоклист: admin → безстроково; той самий email у верхньому регістрі / з пробілами / з `+tag` → 403, інша адреса того ж домену → 201; gmail з крапками / `+tag` / `googlemail.com` → 403; admin-блок не послаблюється наступним self-delete; self → admin підвищує до безстрокового; після закінчення 30 днів реєстрація → 201; гонка self + admin → рівно один 200 і рівно 1 блок з причиною переможця. Ліміти: 11-та спроба логіну з IP → 429 + `Retry-After-ip`, інший IP не зачеплено; 10 невдалих спроб на акаунт з 10 різних IP і в різному регістрі → 11-та навіть з правильним паролем → 429, інший акаунт логіниться; register (навіть невалідні тіла — guard працює до `ValidationPipe`) 6-та → 429; refresh 31-ша → 429; 70 × `/auth/me` → усі 200; `DELETE /users/me`: 5 неправильних паролів з різних IP → 6-та (правильний пароль) → 429, акаунт не видалено. Заголовки: без `X-Powered-By`, є `nosniff`, HSTS, CSP, CORP `same-site`, `X-Frame-Options`; `no-store` на login / me; CORS preflight з localhost:3000 — дозволено, з чужого origin — ні. Негативні запуски: без `TRUST_PROXY` підроблений `X-Forwarded-For` не обходить ліміт (11-та → 429); `TRUST_PROXY=true` і порожній / короткий `EMAIL_HASH_SECRET` → застосунок не стартує. Тестові дані прибрано
+- [x] `tsc`: 45 → **45** (users, auth, security — 0); `eslint` по змінених файлах чистий
+- ⚠️ **Відкрите (security review 2d):**
+  - `cookies.txt` — у публічній історії git (прибрано з індексу, `.gitignore`). Рішення: не чистимо (тестовий адмін). На прод — **новий випадковий `JWT_SECRET`** (`openssl rand -base64 48`), не dev-фраза
+  - `JWT_REFRESH_SECRET` не використовується з 2b — прибрати з `.env` і `CLAUDE.md` (Фаза 6)
+  - Ліміти в пам'яті процесу: на проді з кількома інстансами — Redis-сховище для throttler; за reverse proxy — задати `TRUST_PROXY`
+  - `register` → `409 Email already in use` (і `403 EMAIL_BLOCKED`) розкривають, чи відома адреса (enumeration). Повністю закривається лише підтвердженням email (відповідь «перевірте пошту» в усіх випадках) — перед продом
+  - Admin-розблокування пошти (ввести адресу → видалити її `BlockedEmail`) — коли з'явиться адмінка користувачів
+  - Для 2e: 429 (`TOO_MANY_REQUESTS`) від `/auth/refresh` — **не** розлогінювати (повторити пізніше за `Retry-After-ip`); 403 `EMAIL_BLOCKED` / `INVALID_PASSWORD` — помилки форми
+  - Перевірено й **без проблем**: `email` / `passwordHash` не потрапляють у жодну публічну відповідь (v4-селекти авторів — лише `id, name, avatar`; `PUBLIC_AUTHOR_SELECT` — без email; лайки віддають лише лічильники й власну реакцію); логи 2d — лише id; помилки Prisma → 500 без деталей; `DELETE` з JSON — preflight, CORS пускає лише localhost:3000/3001, cookies `sameSite=lax` (CSRF закритий)
+- Свідомо не робимо: LOCKED-юзер не може видалити себе сам (`JwtStrategy` → 401) — лише через адміна; `RateLimitEvent` не видаляємо (лише `userId` + дія, cron прибирає за 24 год). Для 2e: 403 `INVALID_PASSWORD` показати як помилку форми, а не розлогінювати
 
 #### 2e — Frontend
 - [ ] `packages/types`: `PublicAuthor`, `User` (`avatarUrl`), `Post.author`/`Comment.author` → `PublicAuthor`
