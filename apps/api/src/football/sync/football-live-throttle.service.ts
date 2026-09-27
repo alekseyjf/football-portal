@@ -1,23 +1,42 @@
-import { Injectable } from '@nestjs/common';
-import { FOOTBALL_LIVE_THROTTLE_MS } from '../football.constants';
+import { Inject, Injectable } from '@nestjs/common';
+import { SyncScope, type SyncTrigger } from '@prisma/client';
+import {
+  LIVE_SYNC_MIN_INTERVAL_MS,
+  LIVE_SYNC_STALE_AFTER_MS,
+} from '../football.constants';
+import {
+  FOOTBALL_PROVIDER,
+  type FootballProvider,
+} from '../integration/football-provider.port';
+import { SyncRunRepository } from '../persistence/sync-run.repository';
 
 /**
- * Троттлінг LIVE-синку по `league.externalId`.
- * Реалізація в пам’яті процесу; при горизонтальному масштабуванні замінити на Redis / shared store.
+ * Троттлінг LIVE-синку на турнір через `SyncRun` (P5-11): спільний для всіх інстансів API
+ * і переживає рестарт (було — `Map` у пам'яті процесу).
  */
 @Injectable()
 export class FootballLiveThrottleService {
-  private readonly lastByCompetition = new Map<number, number>();
+  constructor(
+    @Inject(FOOTBALL_PROVIDER) private readonly provider: FootballProvider,
+    private readonly syncRuns: SyncRunRepository,
+  ) {}
 
-  /**
-   * @returns true якщо слот «зайнято» і sync не варто запускати
-   */
-  isThrottled(competitionExternalId: number, now = Date.now()): boolean {
-    const last = this.lastByCompetition.get(competitionExternalId) ?? 0;
-    return now - last < FOOTBALL_LIVE_THROTTLE_MS;
-  }
-
-  mark(competitionExternalId: number, now = Date.now()): void {
-    this.lastByCompetition.set(competitionExternalId, now);
+  /** id нового LIVE-запуску або `null`: турнір уже синкається чи синкався щойно. */
+  tryStartLiveRun(
+    competitionSlug: string,
+    trigger: SyncTrigger,
+  ): Promise<string | null> {
+    return this.syncRuns.tryStart(
+      {
+        provider: this.provider.provider,
+        scope: SyncScope.MATCHES_LIVE,
+        targetRef: competitionSlug,
+      },
+      {
+        trigger,
+        staleAfterMs: LIVE_SYNC_STALE_AFTER_MS,
+        minIntervalMs: LIVE_SYNC_MIN_INTERVAL_MS,
+      },
+    );
   }
 }

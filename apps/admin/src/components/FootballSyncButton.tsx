@@ -1,17 +1,15 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { watchSyncRuns } from '@/hooks/useSyncRuns';
 import { apiPost } from '@/lib/api/http';
-
-type SyncAccepted = {
-  status: 'accepted';
-  message?: string;
-  competitions: string[];
-};
+import type { FootballSyncAccepted } from '@/lib/api/types';
 
 export function FootballSyncButton() {
+  const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => apiPost<SyncAccepted>('/football/sync', {}),
+    mutationFn: () => apiPost<FootballSyncAccepted>('/football/sync', {}),
+    onSuccess: () => watchSyncRuns(queryClient),
   });
 
   return (
@@ -25,16 +23,14 @@ export function FootballSyncButton() {
         {mutation.isPending ? 'Запуск синку…' : 'Синк матчів і таблиці'}
       </button>
       <p className="text-xs text-gray-500 leading-relaxed">
-        API відповідає <strong className="text-gray-400">202</strong> одразу; імпорт
-        іде <strong>у фоні</strong> (багато запитів + пауза ~6.5 с між ними). Прогрес
-        і помилки — у <strong>терміналі Nest</strong>. Змагання:{' '}
-        <code className="text-gray-400">FOOTBALL_COMPETITION_IDS</code> (дефолт{' '}
-        <code className="text-gray-400">PL</code>).
+        Усі <strong className="text-gray-400">активні</strong> турніри по черзі, у
+        фоні (API відповідає <strong className="text-gray-400">202</strong> одразу;
+        ~4 запити до football-data на турнір, ≈ 30 с кожен). Хід і результат —
+        у журналі нижче.
       </p>
       {mutation.isSuccess && (
         <p className="text-xs text-green-400">
-          Прийнято: {mutation.data.competitions.join(', ')}. Дані з’являться в БД
-          після завершення фонового синку.
+          Прийнято: {mutation.data.competitions.join(', ')}.
         </p>
       )}
       {mutation.isError && (

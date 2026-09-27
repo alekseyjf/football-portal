@@ -2,31 +2,34 @@
 
 import { useTranslations } from 'next-intl';
 import { FootballMatchStrip } from './FootballMatchStrip';
-import type { FootballMatchRow, MatchStatusDto } from '@/lib/api/types';
+import { useFootballStageLabels } from '@/hooks/useFootballStageLabels';
+import type { FixturesRound, MatchStatusDto } from '@/lib/api/types';
 
 type RoundKindKey = 'upcoming' | 'past';
 
 type Props = {
   roundKindKey: RoundKindKey;
-  matchday: number | null;
-  matches: FootballMatchRow[];
+  round: FixturesRound;
   formatStatus: (status: MatchStatusDto) => string;
   formatMatchWhen: (iso: string) => string;
 };
 
 export function FootballRoundBlock({
   roundKindKey,
-  matchday,
-  matches,
+  round,
   formatStatus,
   formatMatchWhen,
 }: Props) {
   const tFootball = useTranslations('football');
+  const { stageRoundLabel } = useFootballStageLabels();
   const kind = tFootball(roundKindKey);
+  // Ліга — «Майбутній · Тур 6», як і раніше; кубок — стадія: «Загальний етап · Тур 2», «Фінал»
   const label =
-    matchday != null
-      ? tFootball('roundLabel', { kind, n: String(matchday) })
-      : tFootball('roundLabelNoDay', { kind });
+    round.stage !== 'REGULAR_SEASON'
+      ? stageRoundLabel(round.stage, round.matchday)
+      : round.matchday != null
+        ? tFootball('roundLabel', { kind, n: String(round.matchday) })
+        : tFootball('roundLabelNoDay', { kind });
 
   return (
     <div className="border border-neutral-800 bg-neutral-950/60">
@@ -36,7 +39,7 @@ export function FootballRoundBlock({
         </h4>
       </div>
       <div className="divide-y divide-neutral-800/50">
-        {matches.map((matchRow) => (
+        {round.matches.map((matchRow) => (
           <FootballMatchStrip
             key={matchRow.id}
             matchRow={matchRow}

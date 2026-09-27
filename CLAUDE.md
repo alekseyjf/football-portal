@@ -25,7 +25,7 @@ Key models:
 - `CommentThread` — рівно одна ціль (`postId?` | `matchId?`, CHECK), `isLocked`, `commentCount` (v5)
 - `Comment` — threadId, authorId, parentId?, rootId?, depth, content, replyCount, likeCount, pinnedAt, deletedAt (v5)
 - `PostLike` / `CommentLike` / `MatchLike` — YouTube-style likes (LIKE/DISLIKE, only LIKE shown publicly)
-- `League` / `Club` / `Match` / `LeagueTable` — football data with externalId for API sync
+- Football (v5): `Area` · `Competition` (`type` LEAGUE|CUP, `isActive`, `sortOrder`) · `Season` (`label` «2025/26» / «2026», рівно один `isCurrent`) · `SeasonClub` (M:N клуб ↔ сезон) · `Club` (`kind` CLUB|NATIONAL, `slug` не змінюється) · `Match` (`kickoffAt`, `stage`, `groupName`, half-time, пенальті, `winner`) · `Standing` (`stage`, `groupName` `''` = без групи, `type`). Id провайдера — лише в `*ExternalRef` (`payloadHash`), журнал / лок — `SyncRun`
 
 ## API Structure (NestJS)
 All routes prefixed with `/api/v1/`
@@ -71,21 +71,25 @@ All routes prefixed with `/api/v1/`
 - Кожна зміна — рядок `UserReactionActivity { targetType: ReactionTarget, reaction: LikeType | null }`
 - Транзакція перемикання **спершу блокує рядок цілі** (`FOR NO KEY UPDATE`): паралельні кліки одного юзера йдуть по черзі, ціль, прибрана purge-ем, → 404
 
-### Football — `src/football/` (етап 4.3 + підмодулі)
-- **Корінь:** `football.module.ts`, `football.controller.ts`, `football.constants.ts`, `football-matchday.util.ts`, `football-standings.util.ts`, `dto/*`
-- **`integration/`** — зовнішнє API: `football-data.client.ts`, `football.mapper.ts`; `FootballIntegrationModule`
-- **`persistence/`** — `FootballRepository`; `FootballPersistenceModule`
-- **`query/`** — `FootballQueryService` (GET з БД); `FootballQueryModule`
-- **`sync/`** — `FootballSyncService`, `football-live-throttle.service.ts`, `football.cron.ts`; `FootballSyncModule`
-- `GET …/dashboard` — таблиця + fixtures одним запитом (web)
-- `POST /football/sync` — **ADMIN**, **202** + фон; body `{ competitionIds?: string[] }`
-- `POST /football/live-touch`, cron — як у README
+### Football — `src/football/` (schema v5, Фаза 5a — `football-plan-intermediate.md` 5.1)
+- **Корінь:** `football.module.ts`, `football.controller.ts`, `football.constants.ts`, `football-match-status.ts` (`IN_PLAY` = LIVE + PAUSED, LIVE-вікно), `football-matchday.util.ts` (тури: `(stage, matchday)` у лізі / ліга-фазі / групах, плей-оф — уся стадія, `matchday: null`), `dto/*`
+- **`integration/`** — порт `football-provider.port.ts` (`FootballProvider`, DI-токен `FOOTBALL_PROVIDER`, нейтральні `Provider*`, `FootballProviderError`) + адаптер `football-data/` (`client` — **одна черга запитів на процес**, ≥ 6,5 с між стартами, 429 → `X-RequestCounter-Reset`; `mapper` — **єдине** місце, що знає формат football-data; `provider`). Синк `Fd*` не бачить
+- **`persistence/`** — `FootballRepository` (публічні читання), `FootballSyncRepository` (записи синку), `ExternalRefRepository` (batch resolve `*ExternalRef`), `SyncRunRepository` (журнал + лок)
+- **`sync/`** — `FootballSyncService` (повний синк турніру: **рівно 4 запити** — competition, teams, matches, standings — сезон фіксується з першого), `FootballLiveSyncService` (`live-touch` + LIVE-cron), `FootballLiveThrottleService` (інтервал через `SyncRun`), `FootballSyncWriter` (спільні кроки), `football.cron.ts` (повний — кожні 2 год; LIVE — 5 хв, якщо `FOOTBALL_LIVE_CRON_ENABLED=true`)
+- **`query/`** — `FootballQueryService` (усе в межах сезону: `?season=2025-26` / `2026`, інакше `isCurrent`), `football-response.ts`, `football-standings.util.ts` (головна таблиця для дашборду)
+- **Правила синку:** провайдерські поля пишуться лише при зміні `payloadHash` (дельта); editorial (`slug`, `type`, `isActive`, `sortOrder`) — ніколи; `Match` не видаляється, `likeCount` / `dislikeCount` синк не пише; спільні сутності без голого `upsert` (`Area`, `SeasonClub` — `createMany skipDuplicates`; клуб + ref — одна транзакція, P2002 → відкат і повторний resolve; P2002 вкладеного ref Prisma звітує як `modelName: "Club"`); матчі — чанки по 50 в порядку `matchId`; таблиця — `(stage, groupName, type)` атомарно під `Season FOR NO KEY UPDATE`
+- **Лок:** `SyncRun` `RUNNING` (partial unique) — один на provider + scope + турнір; `tryStart` під advisory-локом; застарілий `RUNNING` (повний > 10 хв, LIVE > 3 хв) → `FAILED STALE`
+- **football-data (перевірено на реальних відповідях):** `limit` / `offset` на матчах ігнорує; `fullTime` **містить** серію пенальті (маппер віднімає); `standings.group` для ліг — підпис («Matchday»), не група; standings EC 2024 → 404 (= «таблиці немає»), WC 2026 — одна таблиця `GROUP_STAGE` на 48 команд (групи — лише в `Match.groupName`); збірні не позначені — `NATIONAL` за турніром (WC, EC)
+- `GET /football/leagues` (лише `isActive`, `sortOrder`), `…/leagues/:slug` (будь-який — архів), `…/:slug/dashboard` (`{ league, season, standingsTable, standings, fixtures }`; `standingsTable` — `{ stage, groupName }` таблиці в `standings` або `null`), `…/:slug/standings` (`[{ stage, groupName, type, rows }]`), `…/:slug/clubs`, `…/:slug/matches?season&stage&page&limit`, `…/:slug/fixtures` (тури `{ stage, matchday, matches }`), `GET /football/matches/:id` (+ `league`, `season`). Коди: `LEAGUE_NOT_FOUND`, `SEASON_NOT_FOUND`, `MATCH_NOT_FOUND`
+- `POST /football/sync` — **ADMIN**, **202** + фон; body `{ competitionIds?: string[] }` — **наші slug-и** (без тіла — усі активні); невідомий → 400 `UNKNOWN_COMPETITION`, без ключа → 503 `FOOTBALL_PROVIDER_NOT_CONFIGURED`. `GET /football/sync-runs?limit=` — **ADMIN**
+- `POST /football/live-touch` — публічний, ліміт 10 / хв на IP; приймається для матчу в LIVE-вікні (гра йде або `SCHEDULED` у `[−3 год, +15 хв]`), LIVE-синк турніру — не частіше 60 с; лише оновлює наявні матчі, `FINISHED` → оновити таблицю
 
 ## Frontend Structure (apps/web/src/)
 - `app/layout.tsx` — Navbar, `QueryProviders`
-- `app/page.tsx` — RSC: prefetch постів + `leagueDashboardQueryOptions`; сітка: `FootballSidebar` + `HomeFeed`
-- `app/matches/[id]/` — матч; LIVE: `POST /football/live-touch` + refetch кожні 45 с
-- `components/football/FootballSidebar.tsx`, `hooks/useFootball.ts`
+- `app/page.tsx` — RSC: ліга сайдбару — `?league=` (`lib/football/league-param.ts`) або за замовчуванням (`resolveDefaultLeagueSlug`: env, якщо ліга активна, інакше перша за `sortOrder`); `fetchQuery` ліг + prefetch постів і дашборду; **один `HydrationBoundary` на всю сітку** (`FootballSidebar` + `HomeFeed`) — сайдбар у SSR з даними
+- `app/matches/[id]/` — матч; незавершений (не FINISHED / CANCELLED / AWARDED / POSTPONED) → `POST /football/live-touch` (LIVE-вікно перевіряє API); у грі (LIVE / PAUSED) — refetch кожні 45 с; серія пенальті — окремим рядком; стадія / тур / група в шапці; «На головну» → `/?league=<ліга матчу>`
+- `components/football/FootballSidebar.tsx` — перемикач `sidebar/FootballLeagueSwitcher.tsx` (групи «Ліги» / «Кубки» за `type`, посилання `?league=`), таблиця (заголовок за `standingsTable`), тури; `hooks/useSelectedLeague.ts` (`?league=` ↔ `history.pushState` — без серверного рендеру), `hooks/useFootballStageLabels.ts` (стадії / групи кубків), `hooks/useFootball.ts`, `hooks/useMatchStatusLabel.ts` (підпис статусу, `isMatchInPlay` / `isMatchTerminal`)
+- `components/layout/LocaleSwitcher.tsx` — зміна мови зберігає query (`?league=`)
 - `app/news/[slug]/page.tsx` — RSC: `generateMetadata` через `apiGet`; `prefetchQuery(postDetailQueryOptions)` + `HydrationBoundary`; `NewsPostView.tsx` (`useQuery`)
 - `app/news/[slug]/CommentSection.tsx` — `useComments` / `useCreateComment` / `useDeleteComment`
 - `hooks/usePosts.ts`, `usePostDetail.ts`, `useComments.ts`, `hooks/useAuth.ts` — `useAuthQuery` (`GET /auth/me`, ключ `['auth','me']`, 401 → `null`) + мутації логін/реєстрація/logout (пишуть у кеш `me`); `useAuthorDisplayName` — «Видалений користувач» за `author.isDeleted`
@@ -98,7 +102,7 @@ All routes prefixed with `/api/v1/`
 ## Admin Structure (apps/admin/src/)
 - `app/layout.tsx` — `QueryProviders`
 - `app/dashboard/layout.tsx` — `AdminShellBar` (навігація, публічний сайт з `NEXT_PUBLIC_PUBLIC_WEB_URL`, **Вийти** → `POST /auth/logout`)
-- `app/dashboard/page.tsx` — картка **Football data** + `FootballSyncButton` → `POST /football/sync`
+- `app/dashboard/page.tsx` — картка **Football data** + `FootballSyncButton` → `POST /football/sync`; **Журнал синків** — `SyncRunsTable` / `useSyncRuns` (`GET /football/sync-runs`, автооновлення, поки є `RUNNING`)
 - `lib/publicWebUrl.ts`, `hooks/useAdminLogout.ts`, `hooks/useAdminSessionExpiry.ts` (refresh відхилено → `/login`)
 - `app/login/AdminLoginForm.tsx` — `useAdminLogin` (mutation, `POST /auth/login/admin`)
 - `app/dashboard/posts/page.tsx` — клієнтська сторінка, `useAdminPosts`; посилання «View on site» через `NEXT_PUBLIC_PUBLIC_WEB_URL` (fallback `http://localhost:3000`)
@@ -130,7 +134,7 @@ JWT_REFRESH_SECRET=... (не використовується з Фази 2b —
 PORT=4000
 FOOTBALL_API_KEY=... (API Token з кабінету, НЕ id змагання)
 FOOTBALL_API_URL=https://api.football-data.org/v4
-FOOTBALL_COMPETITION_IDS=PL
+FOOTBALL_COMPETITION_IDS=PL (з Фази 5a API не читає — турніри з `Competition.isActive`; прибрати у Фазі 6)
 FOOTBALL_LIVE_CRON_ENABLED=false
 FOOTBALL_HTTP_LOG=true
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001 (обов'язковий; через кому, рівно origin — без шляху і `/`; на проді лише https)
@@ -142,7 +146,7 @@ TRUST_PROXY= (порожньо в dev; на проді ОБОВ'ЯЗКОВИЙ �
 ```
 NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
 NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG=PL
-# як у League.slug (код змагання, напр. PL)
+# як у Competition.slug (код змагання, напр. PL); немає / неактивна — перша активна за sortOrder
 ```
 ### apps/admin/.env.local (рекомендовано)
 ```
@@ -156,12 +160,13 @@ NEXT_PUBLIC_PUBLIC_WEB_URL=http://localhost:3000
 - **Етап 4.1:** Prisma схема v4.0 (у т.ч. `League` / `Club` / `Match` / `LeagueTable` з `externalId` для синку)
 - **Етап 4.2:** Post API + web + admin під translations, `lang`, коментарі з `matchId?` / `parentId?`
 - **Етап 4.3:** API + web сайдбар (таблиця, тури), сторінка `/matches/[id]`, адмін-кнопка синку; LIVE on-demand + опційний cron
+- **Фаза 5b:** перемикач ліг у сайдбарі (`?league=`, «Ліги» / «Кубки»), кубки — ліга-фаза / груповий етап, тури за стадіями
 - Web: TanStack Query + `http.ts`; головна та новина з prefetch/hydrate; коментарі та auth через mutations
 - Admin: TanStack Query; список постів і створення з `translations`; логін через mutation
 - Web: відновлення сесії після F5 (`GET /auth/me` + `useAuthQuery`); web + admin: refresh-on-401 (Фаза 2e). Admin `/auth/me` не викликає — сесію перевіряє API (401 → refresh → `/login`)
 
 **In progress / polish:**
-- Schema v5 (`football-plan-intermediate.md`): Фази 0–4 ✅, далі Фаза 5 (Football + Sync)
+- Schema v5 (`football-plan-intermediate.md`): Фази 0–4 ✅, 5a (Football + Sync на v5) ✅, 5b (перемикач ліг у сайдбарі, кубки) ✅, далі 6 (типи, документація) → 7 (перевірка)
 - Коментарі до матчів у UI (API готовий), DOMPurify
 
 **Next up:**

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,7 +9,14 @@ import {
   matchDetailQueryOptions,
   requestLiveTouch,
 } from '@/hooks/useFootball';
-import type { MatchDetail, MatchStatusDto } from '@/lib/api/types';
+import { useFootballStageLabels } from '@/hooks/useFootballStageLabels';
+import {
+  isMatchInPlay,
+  isMatchTerminal,
+  useMatchStatusLabel,
+} from '@/hooks/useMatchStatusLabel';
+import type { MatchDetail } from '@/lib/api/types';
+import { LEAGUE_QUERY_PARAM } from '@/lib/football/league-param';
 import { localeToBcp47 } from '@/lib/i18n/content-lang';
 import { LikeBar } from '@/components/features/LikeBar';
 
@@ -19,37 +26,35 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
   const locale = useLocale();
   const dateLocale = localeToBcp47(locale);
   const t = useTranslations('match');
-
-  const formatStatus = (status: MatchStatusDto) => {
-    const labels: Record<MatchStatusDto, string> = {
-      SCHEDULED: t('status.SCHEDULED'),
-      LIVE: t('status.LIVE'),
-      FINISHED: t('status.FINISHED'),
-      POSTPONED: t('status.POSTPONED'),
-      CANCELLED: t('status.CANCELLED'),
-    };
-    return labels[status] ?? status;
-  };
+  const formatStatus = useMatchStatusLabel();
+  const { stageRoundLabel, groupLabel } = useFootballStageLabels();
 
   const { data: match, isLoading, isError } = useQuery({
     ...matchDetailQueryOptions(matchId),
-    refetchInterval: (query) =>
-      (query.state.data as MatchDetail | undefined)?.status === 'LIVE'
-        ? 45_000
-        : false,
+    refetchInterval: (query) => {
+      const status = (query.state.data as MatchDetail | undefined)?.status;
+      return status && isMatchInPlay(status) ? 45_000 : false;
+    },
   });
 
+  // Незавершений матч: LIVE-вікно перевіряє API (P5-12) — так оновиться й матч, що вже
+  // почався, але в БД ще SCHEDULED
   useEffect(() => {
-    if (!match || match.status !== 'LIVE' || liveTouchSent.current) return;
+    if (!match || isMatchTerminal(match.status) || liveTouchSent.current) {
+      return;
+    }
     liveTouchSent.current = true;
-    void requestLiveTouch(matchId).then((response) => {
-      if (response.accepted) {
-         // Фоновий синк на API ~7–15 с; оновлюємо кеш після паузи
-        setTimeout(() => {
-          qc.invalidateQueries({ queryKey: footballKeys.match(matchId) });
-        }, 14_000);
-      }
-    });
+    requestLiveTouch(matchId)
+      .then((response) => {
+        if (response.accepted) {
+          // Фоновий синк на API ~7–15 с; оновлюємо кеш після паузи
+          setTimeout(() => {
+            qc.invalidateQueries({ queryKey: footballKeys.match(matchId) });
+          }, 14_000);
+        }
+      })
+      // 429 (ліміт на IP) чи мережа — сторінка лишається з даними з БД
+      .catch(() => undefined);
   }, [match, matchId, qc]);
 
   if (isLoading) {
@@ -64,16 +69,36 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
     );
   }
 
-  const live = match.status === 'LIVE';
+  const live = isMatchInPlay(match.status);
+  const hasPenalties =
+    match.homePenalties != null && match.awayPenalties != null;
   const score =
     match.homeScore != null && match.awayScore != null
       ? `${match.homeScore} : ${match.awayScore}`
       : '— : —';
+  // Ліга — «Тур 6»; кубок — стадія («Груповий етап · Тур 1», «Фінал»), а не `matchday`
+  // плей-оф (у EC фінал — `matchday` 7)
+  const roundContext =
+    match.stage !== 'REGULAR_SEASON'
+      ? stageRoundLabel(match.stage, match.matchday)
+      : match.matchday != null
+        ? t('matchday', { n: String(match.matchday) })
+        : null;
+  const headerContext = [
+    match.league.name,
+    match.season.label,
+    roundContext,
+    match.groupName ? groupLabel(match.groupName) : null,
+  ].filter((contextPart): contextPart is string => Boolean(contextPart));
 
   return (
     <article className="max-w-3xl mx-auto px-4 py-10">
+      {/* На головну — з лігою цього матчу в сайдбарі */}
       <Link
-        href="/"
+        href={{
+          pathname: '/',
+          query: { [LEAGUE_QUERY_PARAM]: match.league.slug },
+        }}
         className="text-sm text-neutral-500 hover:text-white transition-colors mb-8 inline-block"
       >
         {t('backHome')}
@@ -86,15 +111,12 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
         ].join(' ')}
       >
         <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-wider text-neutral-500 mb-4">
-          <span>{match.league.name}</span>
-          <span className="text-neutral-700">·</span>
-          <span>{match.league.season}</span>
-          {match.matchday != null && (
-            <>
-              <span className="text-neutral-700">·</span>
-              <span>{t('matchday', { n: String(match.matchday) })}</span>
-            </>
-          )}
+          {headerContext.map((contextPart, index) => (
+            <Fragment key={`${index}-${contextPart}`}>
+              {index > 0 && <span className="text-neutral-700">·</span>}
+              <span>{contextPart}</span>
+            </Fragment>
+          ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mb-8">
@@ -105,12 +127,12 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
                 : 'text-xs text-neutral-400 uppercase'
             }
           >
-            {live && match.minute != null
+            {match.status === 'LIVE' && match.minute != null
               ? `${match.minute}′ · ${formatStatus(match.status)}`
               : formatStatus(match.status)}
           </span>
           <time className="text-sm text-neutral-400">
-            {new Date(match.date).toLocaleString(dateLocale, {
+            {new Date(match.kickoffAt).toLocaleString(dateLocale, {
               dateStyle: 'full',
               timeStyle: 'short',
             })}
@@ -129,8 +151,18 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
             )}
           </div>
 
-          <div className="text-4xl sm:text-5xl font-black tabular-nums text-white text-center shrink-0">
-            {score}
+          <div className="shrink-0 text-center">
+            <div className="text-4xl sm:text-5xl font-black tabular-nums text-white">
+              {score}
+            </div>
+            {hasPenalties && (
+              <p className="mt-1 text-xs text-neutral-400 tabular-nums">
+                {t('penalties', {
+                  home: String(match.homePenalties),
+                  away: String(match.awayPenalties),
+                })}
+              </p>
+            )}
           </div>
 
           <div className="flex-1 text-center sm:text-left">

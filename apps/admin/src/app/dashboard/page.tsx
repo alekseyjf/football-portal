@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { FootballSyncButton } from '@/components/FootballSyncButton';
+import { SyncRunsTable } from '@/components/SyncRunsTable';
 import { getPublicWebUrl } from '@/lib/publicWebUrl';
 
 export default function DashboardPage() {
@@ -33,11 +34,17 @@ export default function DashboardPage() {
           <div className="text-3xl mb-3">⚽</div>
           <h2 className="text-lg font-semibold mb-1">Football data</h2>
           <p className="text-gray-400 text-sm mb-4">
-            Імпорт з football-data.org у PostgreSQL (ліга, матчі, таблиця).
+            Імпорт з football-data.org у PostgreSQL (сезони, клуби, матчі,
+            таблиці).
           </p>
           <FootballSyncButton />
         </div>
       </div>
+
+      <section className="mt-6 bg-gray-900 rounded-xl p-6 border border-gray-800">
+        <h2 className="text-lg font-semibold mb-4">Журнал синків</h2>
+        <SyncRunsTable />
+      </section>
     </main>
   );
 }

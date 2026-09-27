@@ -1,223 +1,222 @@
 import { Injectable } from '@nestjs/common';
-import { MatchStatus, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { IN_PLAY_MATCH_STATUSES } from '../football-match-status';
 
-const clubPublicSelect = {
+const CLUB_PUBLIC_SELECT = {
   id: true,
-  name: true,
   slug: true,
+  name: true,
   shortName: true,
-  logo: true,
-} as const;
+  tla: true,
+  crestUrl: true,
+} satisfies Prisma.ClubSelect;
 
-const leaguePublicSelect = {
-  id: true,
+const AREA_PUBLIC_SELECT = {
+  code: true,
   name: true,
-  slug: true,
-  country: true,
-  season: true,
-  logoUrl: true,
-} as const;
+  flagUrl: true,
+} satisfies Prisma.AreaSelect;
 
-const matchListSelect = {
+const SEASON_PUBLIC_SELECT = {
   id: true,
-  date: true,
+  label: true,
+  isCurrent: true,
+  currentMatchday: true,
+  startDate: true,
+  endDate: true,
+} satisfies Prisma.SeasonSelect;
+
+const COMPETITION_PUBLIC_SELECT = {
+  id: true,
+  slug: true,
+  name: true,
+  type: true,
+  emblemUrl: true,
+  area: { select: AREA_PUBLIC_SELECT },
+  seasons: {
+    where: { isCurrent: true },
+    select: SEASON_PUBLIC_SELECT,
+    take: 1,
+  },
+} satisfies Prisma.CompetitionSelect;
+
+const MATCH_ROW_SELECT = {
+  id: true,
+  kickoffAt: true,
   status: true,
   minute: true,
   matchday: true,
+  stage: true,
+  groupName: true,
   homeScore: true,
   awayScore: true,
-  homeClub: { select: clubPublicSelect },
-  awayClub: { select: clubPublicSelect },
-} as const;
+  homeClub: { select: CLUB_PUBLIC_SELECT },
+  awayClub: { select: CLUB_PUBLIC_SELECT },
+} satisfies Prisma.MatchSelect;
 
+const MATCH_DETAIL_SELECT = {
+  ...MATCH_ROW_SELECT,
+  homeScoreHalfTime: true,
+  awayScoreHalfTime: true,
+  homePenalties: true,
+  awayPenalties: true,
+  winner: true,
+  venueName: true,
+  competition: {
+    select: { id: true, slug: true, name: true, type: true, emblemUrl: true },
+  },
+  season: { select: { label: true, isCurrent: true } },
+} satisfies Prisma.MatchSelect;
+
+const STANDING_ROW_SELECT = {
+  stage: true,
+  groupName: true,
+  type: true,
+  position: true,
+  played: true,
+  won: true,
+  drawn: true,
+  lost: true,
+  points: true,
+  goalsFor: true,
+  goalsAgainst: true,
+  goalDiff: true,
+  form: true,
+  club: { select: CLUB_PUBLIC_SELECT },
+} satisfies Prisma.StandingSelect;
+
+export type CompetitionRecord = Prisma.CompetitionGetPayload<{
+  select: typeof COMPETITION_PUBLIC_SELECT;
+}>;
+export type SeasonRecord = Prisma.SeasonGetPayload<{
+  select: typeof SEASON_PUBLIC_SELECT;
+}>;
+export type MatchRowRecord = Prisma.MatchGetPayload<{
+  select: typeof MATCH_ROW_SELECT;
+}>;
+export type MatchDetailRecord = Prisma.MatchGetPayload<{
+  select: typeof MATCH_DETAIL_SELECT;
+}>;
+export type StandingRowRecord = Prisma.StandingGetPayload<{
+  select: typeof STANDING_ROW_SELECT;
+}>;
+
+/** Скільки матчів у «найближчих» / «минулих» турах сайдбару. */
+const FIXTURES_TAKE = 80;
+
+/** Публічні читання футболу — лише з БД, завжди в межах сезону (P5-16). */
 @Injectable()
 export class FootballRepository {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async upsertLeague(data: {
-    externalId: number;
-    name: string;
-    slug: string;
-    country: string;
-    season: string;
-    logoUrl: string | null;
-  }) {
-    return this.prisma.league.upsert({
-      where: { externalId: data.externalId },
-      create: data,
-      update: {
-        name: data.name,
-        // slug не змінюємо при синку — щоб ручні правки (напр. PL) не перезаписувались
-        country: data.country,
-        season: data.season,
-        logoUrl: data.logoUrl,
-      },
-      select: { id: true, externalId: true, slug: true },
+  /** Для перемикача ліг: лише `isActive`, за `sortOrder` (6.4, P5-15). */
+  findActiveCompetitions(): Promise<CompetitionRecord[]> {
+    return this.prisma.competition.findMany({
+      where: { isActive: true },
+      select: COMPETITION_PUBLIC_SELECT,
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
   }
 
-  async upsertClub(data: {
-    externalId: number;
-    name: string;
-    slug: string;
-    shortName: string | null;
-    logo: string | null;
-    founded: number | null;
-    venue: string | null;
-    leagueId: string;
-  }) {
-    return this.prisma.club.upsert({
-      where: { externalId: data.externalId },
-      create: data,
-      update: {
-        name: data.name,
-        slug: data.slug,
-        shortName: data.shortName,
-        logo: data.logo,
-        founded: data.founded,
-        venue: data.venue,
-        leagueId: data.leagueId,
-      },
-      select: { id: true, externalId: true },
-    });
-  }
-
-  async upsertMatch(data: {
-    externalId: number;
-    leagueId: string;
-    homeClubId: string;
-    awayClubId: string;
-    date: Date;
-    status: MatchStatus;
-    minute: number | null;
-    matchday: number | null;
-    homeScore: number | null;
-    awayScore: number | null;
-  }) {
-    return this.prisma.match.upsert({
-      where: { externalId: data.externalId },
-      create: data,
-      update: {
-        leagueId: data.leagueId,
-        homeClubId: data.homeClubId,
-        awayClubId: data.awayClubId,
-        date: data.date,
-        status: data.status,
-        minute: data.minute,
-        matchday: data.matchday,
-        homeScore: data.homeScore,
-        awayScore: data.awayScore,
-      },
-      select: { id: true },
-    });
-  }
-
-  async findLeagues() {
-    return this.prisma.league.findMany({
-      select: leaguePublicSelect,
-      orderBy: { name: 'asc' },
-    });
-  }
-
-  async findLeagueBySlug(slug: string) {
-    return this.prisma.league.findUnique({
+  /** Будь-який турнір за slug — і неактивний (архів, P5-15). */
+  findCompetitionBySlug(slug: string): Promise<CompetitionRecord | null> {
+    return this.prisma.competition.findUnique({
       where: { slug },
-      select: leaguePublicSelect,
+      select: COMPETITION_PUBLIC_SELECT,
     });
   }
 
-  async findMatchesByLeague(leagueId: string, page: number, limit: number) {
-    const skip = (page - 1) * limit;
+  findSeasonByLabel(
+    competitionId: string,
+    label: string,
+  ): Promise<SeasonRecord | null> {
+    return this.prisma.season.findUnique({
+      where: { competitionId_label: { competitionId, label } },
+      select: SEASON_PUBLIC_SELECT,
+    });
+  }
+
+  /** Усі таблиці сезону, згруповані порядком `(stage, groupName, type, position)`. */
+  findStandingRows(seasonId: string): Promise<StandingRowRecord[]> {
+    return this.prisma.standing.findMany({
+      where: { seasonId },
+      select: STANDING_ROW_SELECT,
+      orderBy: [
+        { stage: 'asc' },
+        { groupName: 'asc' },
+        { type: 'asc' },
+        { position: 'asc' },
+      ],
+    });
+  }
+
+  async findSeasonClubs(seasonId: string) {
+    const participants = await this.prisma.seasonClub.findMany({
+      where: { seasonId },
+      select: { club: { select: { ...CLUB_PUBLIC_SELECT, kind: true } } },
+      orderBy: { club: { name: 'asc' } },
+    });
+    return participants.map((participant) => participant.club);
+  }
+
+  async findSeasonMatches(
+    seasonId: string,
+    stage: string | undefined,
+    page: number,
+    limit: number,
+  ): Promise<{ matches: MatchRowRecord[]; total: number }> {
+    const where: Prisma.MatchWhereInput = { seasonId, stage };
     const [matches, total] = await Promise.all([
       this.prisma.match.findMany({
-        where: { leagueId },
-        select: matchListSelect,
-        orderBy: { date: 'desc' },
-        skip,
+        where,
+        select: MATCH_ROW_SELECT,
+        orderBy: [{ kickoffAt: 'desc' }, { id: 'asc' }],
+        skip: (page - 1) * limit,
         take: limit,
       }),
-      this.prisma.match.count({ where: { leagueId } }),
+      this.prisma.match.count({ where }),
     ]);
     return { matches, total };
   }
 
-  async findMatchById(id: string) {
-    return this.prisma.match.findFirst({
-      where: { id },
-      select: {
-        ...matchListSelect,
-        league: { select: leaguePublicSelect },
-      },
-    });
-  }
-
-  async findMatchLiveContext(id: string) {
-    return this.prisma.match.findFirst({
-      where: { id },
-      select: {
-        status: true,
-        league: { select: { externalId: true } },
-      },
-    });
-  }
-
-  /** Майбутні матчі (від початку UTC-дня або LIVE) — для сайдбару. */
-  async findUpcomingMatchesByLeague(leagueId: string, take = 80) {
-    const startUtc = new Date();
-    startUtc.setUTCHours(0, 0, 0, 0);
+  /** Від початку UTC-дня або ті, що йдуть зараз (`LIVE` / `PAUSED`) — для сайдбару. */
+  findUpcomingMatches(
+    seasonId: string,
+    dayStart: Date,
+  ): Promise<MatchRowRecord[]> {
     return this.prisma.match.findMany({
       where: {
-        leagueId,
-        OR: [{ date: { gte: startUtc } }, { status: 'LIVE' }],
+        seasonId,
+        OR: [
+          { kickoffAt: { gte: dayStart } },
+          { status: { in: [...IN_PLAY_MATCH_STATUSES] } },
+        ],
       },
-      select: matchListSelect,
-      orderBy: [{ matchday: 'asc' }, { date: 'asc' }],
-      take,
+      select: MATCH_ROW_SELECT,
+      orderBy: [{ matchday: 'asc' }, { kickoffAt: 'asc' }, { id: 'asc' }],
+      take: FIXTURES_TAKE,
     });
   }
 
-  /** Минулі матчі (до початку UTC-дня, без LIVE) — для сайдбару. */
-  async findPastMatchesByLeague(leagueId: string, take = 80) {
-    const startUtc = new Date();
-    startUtc.setUTCHours(0, 0, 0, 0);
+  /** До початку UTC-дня, крім тих, що йдуть зараз. */
+  findPastMatches(seasonId: string, dayStart: Date): Promise<MatchRowRecord[]> {
     return this.prisma.match.findMany({
       where: {
-        leagueId,
-        AND: [{ date: { lt: startUtc } }, { status: { not: 'LIVE' } }],
+        seasonId,
+        kickoffAt: { lt: dayStart },
+        status: { notIn: [...IN_PLAY_MATCH_STATUSES] },
       },
-      select: matchListSelect,
-      orderBy: [{ matchday: 'desc' }, { date: 'desc' }],
-      take,
+      select: MATCH_ROW_SELECT,
+      orderBy: [{ matchday: 'desc' }, { kickoffAt: 'desc' }, { id: 'asc' }],
+      take: FIXTURES_TAKE,
     });
   }
 
-  async findStandingsByLeague(leagueId: string) {
-    return this.prisma.leagueTable.findMany({
-      where: { leagueId },
-      select: {
-        position: true,
-        played: true,
-        won: true,
-        drawn: true,
-        lost: true,
-        points: true,
-        goalsFor: true,
-        goalsAgainst: true,
-        goalDiff: true,
-        club: { select: clubPublicSelect },
-      },
-      orderBy: { position: 'asc' },
+  findMatchById(id: string): Promise<MatchDetailRecord | null> {
+    return this.prisma.match.findUnique({
+      where: { id },
+      select: MATCH_DETAIL_SELECT,
     });
-  }
-
-  async replaceLeagueStandings(
-    leagueId: string,
-    rows: Prisma.LeagueTableCreateManyInput[],
-  ) {
-    await this.prisma.$transaction([
-      this.prisma.leagueTable.deleteMany({ where: { leagueId } }),
-      this.prisma.leagueTable.createMany({ data: rows }),
-    ]);
   }
 }

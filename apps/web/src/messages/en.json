@@ -50,13 +50,17 @@
     "noMatchday": "No round",
     "upcoming": "Upcoming",
     "past": "Past",
-    "liveNote": "Status updates from our database; when you open the page we request fresh LIVE data from football-data once (no more than every 90s per competition), then auto-refresh every 45s.",
+    "liveNote": "Status updates from our database; when you open the page we request fresh LIVE data from football-data once (no more than every 60s per competition), then auto-refresh every 45s.",
+    "penalties": "Penalties {home}:{away}",
     "status": {
       "SCHEDULED": "Scheduled",
       "LIVE": "Live",
+      "PAUSED": "HT",
       "FINISHED": "Finished",
       "POSTPONED": "Postponed",
-      "CANCELLED": "Cancelled"
+      "SUSPENDED": "Suspended",
+      "CANCELLED": "Cancelled",
+      "AWARDED": "Awarded"
     }
   },
   "football": {
@@ -71,7 +75,7 @@
     "pastRounds": "Past rounds",
     "loadingFixtures": "Loading fixtures…",
     "fixturesError": "Could not load fixtures.",
-    "noUpcoming": "No scheduled matches in the selected league.",
+    "noUpcoming": "No scheduled matches in this competition.",
     "noPast": "No finished matches in the database yet.",
     "upcoming": "Upcoming",
     "past": "Past",
@@ -81,7 +85,29 @@
     "colTeam": "Team",
     "colPlayed": "P",
     "colGd": "GF:GA",
-    "colPoints": "Pts"
+    "colPoints": "Pts",
+    "switcherLabel": "Competitions",
+    "leaguesGroup": "Leagues",
+    "cupsGroup": "Cups",
+    "leaguesLoading": "Loading competitions…",
+    "leaguesError": "Could not load the list of competitions.",
+    "leagueNotFound": "Competition “{slug}” not found — choose another one above.",
+    "seasonLabel": "Season {label}",
+    "tableUnavailable": "No table for this season.",
+    "stageRoundLabel": "{stage} · Matchday {n}",
+    "groupLabel": "Group {group}",
+    "stage": {
+      "REGULAR_SEASON": "Regular season",
+      "LEAGUE_STAGE": "League phase",
+      "GROUP_STAGE": "Group stage",
+      "PLAYOFFS": "Knockout play-offs",
+      "LAST_32": "Round of 32",
+      "LAST_16": "Round of 16",
+      "QUARTER_FINALS": "Quarter-finals",
+      "SEMI_FINALS": "Semi-finals",
+      "THIRD_PLACE": "Third-place play-off",
+      "FINAL": "Final"
+    }
   },
   "comments": {
     "sectionTitle": "Comments",

@@ -1,15 +1,22 @@
-import { Transform } from 'class-transformer';
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
-/** У body можна передати коди (PL, CL) або рядкові числа ("2021") — як у URL v4. */
+/**
+ * Тіло `POST /football/sync`. `competitionIds` — **наші slug-и** турнірів (`PL`, `CL`), не id
+ * провайдера (P5-13); без поля — усі активні.
+ */
 export class SyncFootballDto {
   @IsOptional()
   @IsArray()
-  @Transform(({ value }) =>
-    Array.isArray(value)
-      ? value.map((v: unknown) => String(v).trim()).filter(Boolean)
-      : value,
-  )
+  @ArrayMaxSize(50)
   @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(32, { each: true })
   competitionIds?: string[];
 }
