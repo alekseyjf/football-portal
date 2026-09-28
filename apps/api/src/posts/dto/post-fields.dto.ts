@@ -5,7 +5,6 @@ import {
   ArrayUnique,
   IsArray,
   IsEnum,
-  IsISO8601,
   IsOptional,
   IsString,
   Length,
@@ -21,6 +20,7 @@ import {
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
 } from '@football-portal/validation';
+import { IsIsoDateTimeWithZone } from '../../common/validation/iso-date-time.decorator';
 import { TrimString } from '../../common/validation/trim-string.transform';
 import {
   IsMediaUrl,
@@ -32,12 +32,6 @@ export const POST_TRANSLATIONS_MAX = 10;
 
 /** Формат `Language.code` (`en`, `ua`); чи мова активна — перевіряє сервіс (P3-3). */
 const LANGUAGE_CODE_PATTERN = /^[a-z]{2,8}$/;
-
-/**
- * Дата з явною часовою зоною (`Z` або `±hh:mm`): `2026-10-01T10:00` без зони сервер
- * прочитав би у своїй зоні — запланований пост вийшов би не тоді.
- */
-const ISO_DATE_WITH_ZONE_PATTERN = /(Z|[+-]\d{2}:\d{2})$/;
 
 /** Максимальна довжина id (cuid) у масивах зв'язків. */
 const RELATION_ID_MAX_LENGTH = 64;
@@ -85,10 +79,7 @@ export class PostFieldsDto {
 
   /** `null` — те саме, що не передано (сервіс не перетворює його на `new Date(null)` = 1970) */
   @IsOptional()
-  @IsISO8601({ strict: true, strictSeparator: true })
-  @Matches(ISO_DATE_WITH_ZONE_PATTERN, {
-    message: 'publishedAt must include a time zone (Z or ±hh:mm)',
-  })
+  @IsIsoDateTimeWithZone('publishedAt')
   publishedAt?: string | null;
 
   @IsOptional()

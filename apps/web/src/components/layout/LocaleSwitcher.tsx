@@ -34,8 +34,15 @@ export function LocaleSwitcher() {
               : 'text-gray-400 hover:text-white',
           ].join(' ')}
           aria-current={loc === locale ? 'true' : undefined}
+          aria-label={t(loc)}
         >
-          {t(loc)}
+          {/* До 1024 px — код мови (`EN` / `UA`): з повними назвами навбар не влазить */}
+          <span className="lg:hidden" aria-hidden>
+            {loc.toUpperCase()}
+          </span>
+          <span className="hidden lg:inline" aria-hidden>
+            {t(loc)}
+          </span>
         </button>
       ))}
     </div>

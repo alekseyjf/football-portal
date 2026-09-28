@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
 import { useAuthStore } from '@/store/auth.store';
@@ -60,16 +60,21 @@ type Props = {
 
 export function LikeBar({ targetType, targetId, compact, className }: Props) {
   const user = useAuthStore((state) => state.user);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
   const router = useRouter();
   const locale = useLocale();
   const t = useTranslations('likes');
   const { data, isLoading } = useLikeStats(targetType, targetId);
   const { mutate: toggleLike, isPending } = useToggleLike();
-  const [blockCode, setBlockCode] = useState<string | null>(null);
-
-  useEffect(() => {
-    setBlockCode(null);
-  }, [targetType, targetId]);
+  // Код блокування прив'язаний до цілі: інша ціль (той самий екземпляр компонента) — без
+  // повідомлення, і без скидання стану в effect
+  const targetKey = `${targetType}:${targetId}`;
+  const [blockState, setBlockState] = useState<{
+    targetKey: string;
+    code: string;
+  } | null>(null);
+  const blockCode =
+    blockState?.targetKey === targetKey ? blockState.code : null;
 
   const likesCount = data?.likesCount ?? 0;
   const myReaction = data?.myReaction ?? null;
@@ -87,15 +92,17 @@ export function LikeBar({ targetType, targetId, compact, className }: Props) {
         onError: (error) => {
           const code = error instanceof Error ? error.message : '';
           if (code === 'LIKES_SUSPENDED' || code === 'ACCOUNT_LOCKED') {
-            setBlockCode(code);
+            setBlockState({ targetKey, code });
           }
         },
       },
     );
   };
 
+  // Поки сесія відновлюється (`GET /auth/me`), `user` ще `null` — клік відправив би
+  // залогіненого на сторінку входу
   const controlsDisabled =
-    Boolean(blockCode) || isLoading || isPending;
+    Boolean(blockCode) || isLoading || isPending || isAuthLoading;
 
   const likePad = compact ? 'pl-1.5 pr-0.5 py-0.5' : 'pl-2 pr-0.5 py-1';
   const dislikePad = compact ? 'px-1 py-0.5' : 'px-2 py-1.5';

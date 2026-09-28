@@ -5,6 +5,7 @@ import type {
   LeagueDashboardResponse,
   LeagueFixturesResponse,
   MatchDetail,
+  MatchesInRangeResponse,
   StandingTable,
 } from '@/lib/api/types';
 
@@ -15,6 +16,9 @@ export const footballKeys = {
   standings: (slug: string) => ['football', 'standings', slug] as const,
   fixtures: (slug: string) => ['football', 'fixtures', slug] as const,
   match: (id: string) => ['football', 'match', id] as const,
+  /** `leagueSlug: null` — усі активні турніри */
+  matchesInRange: (from: string, to: string, leagueSlug: string | null) =>
+    ['football', 'matches-in-range', from, to, leagueSlug] as const,
 };
 
 /** Активні турніри для перемикача: змінюються лише з адмінки / синку — кеш довший. */
@@ -57,11 +61,35 @@ export function fixturesQueryOptions(leagueSlug: string) {
   });
 }
 
+/**
+ * Матчі за інтервалом (сторінка матчів дня): межі — миттєвості, пораховані в поясі користувача
+ * (`zonedDayRange`), тож ключ однаковий на сервері (prefetch) і клієнті.
+ */
+export function matchesInRangeQueryOptions(
+  from: string,
+  to: string,
+  leagueSlug: string | null,
+) {
+  const searchParams = new URLSearchParams({ from, to });
+  if (leagueSlug) searchParams.set('league', leagueSlug);
+  return queryOptions({
+    queryKey: footballKeys.matchesInRange(from, to, leagueSlug),
+    queryFn: () =>
+      apiGet<MatchesInRangeResponse>(`/football/matches?${searchParams}`),
+    staleTime: 60_000,
+  });
+}
+
+export function fetchMatchDetail(matchId: string) {
+  return apiGet<MatchDetail>(
+    `/football/matches/${encodeURIComponent(matchId)}`,
+  );
+}
+
 export function matchDetailQueryOptions(matchId: string) {
   return queryOptions({
     queryKey: footballKeys.match(matchId),
-    queryFn: () =>
-      apiGet<MatchDetail>(`/football/matches/${encodeURIComponent(matchId)}`),
+    queryFn: () => fetchMatchDetail(matchId),
   });
 }
 

@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { Geist } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { Navbar } from '@/components/layout/Navbar';
 import { QueryProviders } from '@/providers/QueryProvider';
+import { TimeZoneSync } from '@/providers/TimeZoneSync';
 import { isAppLocale, routing } from '@/i18n/routing';
+import { geist } from '../fonts';
 import '../globals.css';
-
-const geist = Geist({ subsets: ['latin'] });
 
 type Props = {
   children: React.ReactNode;
@@ -50,7 +49,9 @@ export default async function LocaleLayout({ children, params }: Props) {
   return (
     <html lang={locale} className={geist.className}>
       <body>
+        {/* `timeZone` провайдер бере з `i18n/request.ts` (успадкування з сервера) */}
         <NextIntlClientProvider messages={messages}>
+          <TimeZoneSync />
           <QueryProviders>
             <div className="min-h-screen bg-gray-950 text-white">
               <Navbar />

@@ -1,21 +1,22 @@
 'use client';
 
+import Image from 'next/image';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   contentLangToBcp47,
   contentLanguageName,
-  localeToBcp47,
 } from '@/lib/i18n/content-lang';
 import { postsQueryOptions } from '@/hooks/usePosts';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
+import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 
 export function HomeFeed() {
   const contentLang = useApiContentLang();
   const locale = useLocale();
-  const dateLocale = localeToBcp47(locale);
+  const formatDate = useDateTimeFormat();
   const t = useTranslations('feed');
   const authorDisplayName = useAuthorDisplayName();
 
@@ -59,16 +60,23 @@ export function HomeFeed() {
                 className="block bg-gray-900 rounded-xl overflow-hidden hover:bg-gray-800 transition-colors"
               >
                 {post.coverImageUrl && (
-                  <img
-                    src={post.coverImageUrl}
-                    alt={post.title}
-                    className="w-full h-48 object-cover"
-                  />
+                  // `unoptimized`: обкладинка — довільний https-хост із адмінки; оптимізація
+                  // Next = серверний fetch чужого URL (SSRF, див. API `url-field.decorators.ts`)
+                  <div className="relative w-full h-48">
+                    <Image
+                      src={post.coverImageUrl}
+                      alt={post.title}
+                      fill
+                      unoptimized
+                      sizes="(min-width: 768px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  </div>
                 )}
                 <div className="p-5">
                   <div className="flex items-center gap-2 text-xs mb-2">
                     <time dateTime={post.publishedAt} className="text-green-400">
-                      {new Date(post.publishedAt).toLocaleDateString(dateLocale)}
+                      {formatDate(post.publishedAt)}
                     </time>
                     {fallbackNotice && (
                       <span

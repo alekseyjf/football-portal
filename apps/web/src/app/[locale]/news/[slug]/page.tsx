@@ -27,7 +27,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: post.title,
       description: post.excerpt,
     };
-  } catch {
+  } catch (error) {
+    // 404 — сторінка покаже загальну `app/not-found.tsx`; заголовок вкладки — той самий
+    if (isApiError(error) && error.status === 404) {
+      const tNotFound = await getTranslations({ locale, namespace: 'notFound' });
+      return { title: tNotFound('title') };
+    }
     return { title: tNews('loadError') };
   }
 }

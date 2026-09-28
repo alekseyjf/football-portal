@@ -7,12 +7,11 @@ import {
   commentFormSchema,
   type CommentFormValues,
 } from '@football-portal/validation/forms';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { useComments, useCreateComment } from '@/hooks/useComments';
 import { useCommentErrorMessage } from '@/hooks/useCommentErrorMessage';
-import { localeToBcp47 } from '@/lib/i18n/content-lang';
 import {
   CommentThreadNode,
   countCommentsInTree,
@@ -24,8 +23,7 @@ interface Props {
 
 export function CommentSection({ postId }: Props) {
   const user = useAuthStore((state) => state.user);
-  const locale = useLocale();
-  const dateLocale = localeToBcp47(locale);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
   const t = useTranslations('comments');
   const { data: comments = [], isLoading } = useComments(postId);
   const { mutate: createComment, isPending } = useCreateComment(postId);
@@ -65,7 +63,10 @@ export function CommentSection({ postId }: Props) {
         </span>
       </h2>
 
-      {user ? (
+      {isAuthLoading ? (
+        // Сесія ще відновлюється (`GET /auth/me`) — не блимати запрошенням «увійдіть»
+        <div className="mb-8 h-14" aria-hidden />
+      ) : user ? (
         <form onSubmit={handleSubmit(onSubmit)} className="mb-8">
           <textarea
             {...register('content')}
@@ -138,7 +139,6 @@ export function CommentSection({ postId }: Props) {
               depth={0}
               userId={user?.id}
               userRole={user?.role}
-              dateLocale={dateLocale}
             />
           ))}
         </div>
