@@ -22,7 +22,10 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
     }
   }
 
-  handleRequest<TUser>(error: Error | undefined, user: TUser): TUser | undefined {
+  handleRequest<TUser>(
+    error: Error | undefined,
+    user: TUser,
+  ): TUser | undefined {
     if (error || !user) return undefined;
     return user;
   }

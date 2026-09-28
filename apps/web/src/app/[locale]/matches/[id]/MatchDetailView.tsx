@@ -1,8 +1,9 @@
 'use client';
 
 import { Fragment, useEffect, useRef } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTimeZone, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
+import { DEFAULT_TIME_ZONE } from '@/i18n/time-zone';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   footballKeys,
@@ -16,18 +17,20 @@ import {
   useMatchStatusLabel,
 } from '@/hooks/useMatchStatusLabel';
 import type { MatchDetail } from '@/lib/api/types';
+import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { LEAGUE_QUERY_PARAM } from '@/lib/football/league-param';
-import { localeToBcp47 } from '@/lib/i18n/content-lang';
+import { matchesPageHref } from '@/lib/football/matches-page';
+import { dayKeyInTimeZone } from '@/lib/i18n/zoned-date';
 import { LikeBar } from '@/components/features/LikeBar';
 
 export function MatchDetailView({ matchId }: { matchId: string }) {
   const qc = useQueryClient();
   const liveTouchSent = useRef(false);
-  const locale = useLocale();
-  const dateLocale = localeToBcp47(locale);
+  const formatDateTime = useDateTimeFormat();
   const t = useTranslations('match');
   const formatStatus = useMatchStatusLabel();
-  const { stageRoundLabel, groupLabel } = useFootballStageLabels();
+  const { roundLabel, groupLabel } = useFootballStageLabels();
+  const timeZone = useTimeZone() ?? DEFAULT_TIME_ZONE;
 
   const { data: match, isLoading, isError } = useQuery({
     ...matchDetailQueryOptions(matchId),
@@ -76,33 +79,40 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
     match.homeScore != null && match.awayScore != null
       ? `${match.homeScore} : ${match.awayScore}`
       : '— : —';
-  // Ліга — «Тур 6»; кубок — стадія («Груповий етап · Тур 1», «Фінал»), а не `matchday`
-  // плей-оф (у EC фінал — `matchday` 7)
-  const roundContext =
-    match.stage !== 'REGULAR_SEASON'
-      ? stageRoundLabel(match.stage, match.matchday)
-      : match.matchday != null
-        ? t('matchday', { n: String(match.matchday) })
-        : null;
   const headerContext = [
     match.league.name,
     match.season.label,
-    roundContext,
+    roundLabel(match.stage, match.matchday),
     match.groupName ? groupLabel(match.groupName) : null,
   ].filter((contextPart): contextPart is string => Boolean(contextPart));
+  // День матчу в поясі користувача — той самий, під яким матч у списку `/matches`
+  const kickoffDayKey = dayKeyInTimeZone(new Date(match.kickoffAt), timeZone);
 
   return (
     <article className="max-w-3xl mx-auto px-4 py-10">
-      {/* На головну — з лігою цього матчу в сайдбарі */}
-      <Link
-        href={{
-          pathname: '/',
-          query: { [LEAGUE_QUERY_PARAM]: match.league.slug },
-        }}
-        className="text-sm text-neutral-500 hover:text-white transition-colors mb-8 inline-block"
-      >
-        {t('backHome')}
-      </Link>
+      <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        {/* На головну — з лігою цього матчу в сайдбарі */}
+        <Link
+          href={{
+            pathname: '/',
+            query: { [LEAGUE_QUERY_PARAM]: match.league.slug },
+          }}
+          className="text-neutral-500 hover:text-white transition-colors"
+        >
+          {t('backHome')}
+        </Link>
+        <Link
+          href={matchesPageHref(kickoffDayKey, null)}
+          className="text-neutral-500 hover:text-white transition-colors"
+        >
+          {t('dayMatches', {
+            date: formatDateTime(match.kickoffAt, {
+              day: 'numeric',
+              month: 'long',
+            }),
+          })}
+        </Link>
+      </div>
 
       <div
         className={[
@@ -131,8 +141,8 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
               ? `${match.minute}′ · ${formatStatus(match.status)}`
               : formatStatus(match.status)}
           </span>
-          <time className="text-sm text-neutral-400">
-            {new Date(match.kickoffAt).toLocaleString(dateLocale, {
+          <time dateTime={match.kickoffAt} className="text-sm text-neutral-400">
+            {formatDateTime(match.kickoffAt, {
               dateStyle: 'full',
               timeStyle: 'short',
             })}

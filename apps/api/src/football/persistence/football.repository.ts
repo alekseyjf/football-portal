@@ -55,6 +55,11 @@ const MATCH_ROW_SELECT = {
   awayClub: { select: CLUB_PUBLIC_SELECT },
 } satisfies Prisma.MatchSelect;
 
+/** Турнір матчу у відповідях (`league`): деталь матчу, списки матчів за датою. */
+const MATCH_COMPETITION_SELECT = {
+  select: { id: true, slug: true, name: true, type: true, emblemUrl: true },
+} satisfies Prisma.CompetitionDefaultArgs;
+
 const MATCH_DETAIL_SELECT = {
   ...MATCH_ROW_SELECT,
   homeScoreHalfTime: true,
@@ -63,10 +68,13 @@ const MATCH_DETAIL_SELECT = {
   awayPenalties: true,
   winner: true,
   venueName: true,
-  competition: {
-    select: { id: true, slug: true, name: true, type: true, emblemUrl: true },
-  },
+  competition: MATCH_COMPETITION_SELECT,
   season: { select: { label: true, isCurrent: true } },
+} satisfies Prisma.MatchSelect;
+
+const MATCH_LIST_SELECT = {
+  ...MATCH_ROW_SELECT,
+  competition: MATCH_COMPETITION_SELECT,
 } satisfies Prisma.MatchSelect;
 
 const STANDING_ROW_SELECT = {
@@ -97,6 +105,9 @@ export type MatchRowRecord = Prisma.MatchGetPayload<{
 }>;
 export type MatchDetailRecord = Prisma.MatchGetPayload<{
   select: typeof MATCH_DETAIL_SELECT;
+}>;
+export type MatchListRecord = Prisma.MatchGetPayload<{
+  select: typeof MATCH_LIST_SELECT;
 }>;
 export type StandingRowRecord = Prisma.StandingGetPayload<{
   select: typeof STANDING_ROW_SELECT;
@@ -210,6 +221,29 @@ export class FootballRepository {
       select: MATCH_ROW_SELECT,
       orderBy: [{ matchday: 'desc' }, { kickoffAt: 'desc' }, { id: 'asc' }],
       take: FIXTURES_TAKE,
+    });
+  }
+
+  /**
+   * Матчі за часом початку `[from, to)` у всіх турнірах (індекс `[kickoffAt]`). Без slug-ів —
+   * лише активні турніри (як перемикач, P5-15); явні slug-и — будь-які, і вимкнені (архів).
+   */
+  findMatchesInRange(
+    from: Date,
+    to: Date,
+    competitionSlugs: string[] | null,
+    maxRows: number,
+  ): Promise<MatchListRecord[]> {
+    return this.prisma.match.findMany({
+      where: {
+        kickoffAt: { gte: from, lt: to },
+        competition: competitionSlugs
+          ? { slug: { in: competitionSlugs } }
+          : { isActive: true },
+      },
+      select: MATCH_LIST_SELECT,
+      orderBy: [{ kickoffAt: 'asc' }, { id: 'asc' }],
+      take: maxRows,
     });
   }
 

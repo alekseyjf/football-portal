@@ -6,6 +6,7 @@
   "nav": {
     "brand": "Football Portal",
     "news": "News",
+    "matches": "Matches",
     "leagues": "Leagues",
     "clubs": "Clubs",
     "adminPanel": "Admin Panel",
@@ -46,6 +47,7 @@
     "loading": "Loading match…",
     "notFound": "Match not found or network error.",
     "backHome": "← Back to home",
+    "dayMatches": "All matches on {date}",
     "matchday": "Round {n}",
     "noMatchday": "No round",
     "upcoming": "Upcoming",
@@ -157,5 +159,26 @@
   },
   "users": {
     "deletedUser": "Deleted user"
+  },
+  "matches": {
+    "title": "Matches",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "goToToday": "Go to today",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
+    "leagueFilterLabel": "Competition",
+    "allLeagues": "All",
+    "loading": "Loading matches…",
+    "loadError": "Could not load matches.",
+    "retry": "Try again",
+    "empty": "No matches on this day.",
+    "leagueLink": "Table and rounds: {league}"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you are looking for does not exist or has been moved.",
+    "backHome": "Back to home"
   }
 }

@@ -259,6 +259,12 @@ export interface LeagueDashboardResponse {
 
 export type MatchWinnerDto = 'HOME' | 'AWAY' | 'DRAW';
 
+/** Турнір матчу (`league`) у деталі матчу й списках матчів за датою. */
+export type FootballMatchLeague = Pick<
+  FootballLeagueMeta,
+  'id' | 'slug' | 'name' | 'type' | 'emblemUrl'
+>;
+
 /** GET /football/matches/:id. Рахунок — без серії пенальті (вона окремо). */
 export interface MatchDetail extends FootballMatchRow {
   homeScoreHalfTime: number | null;
@@ -267,8 +273,21 @@ export interface MatchDetail extends FootballMatchRow {
   awayPenalties: number | null;
   winner: MatchWinnerDto | null;
   venueName: string | null;
-  league: Pick<FootballLeagueMeta, 'id' | 'slug' | 'name' | 'type' | 'emblemUrl'>;
+  league: FootballMatchLeague;
   season: Pick<FootballSeason, 'label' | 'isCurrent'>;
+}
+
+/** Матч у списку за датою: рядок + його турнір. */
+export interface FootballMatchListItem extends FootballMatchRow {
+  league: FootballMatchLeague;
+}
+
+/**
+ * GET /football/matches?from=<ISO>&to=<ISO>[&league=PL,CL] — за часом початку. Межі — миттєвості:
+ * «день» web рахує в поясі користувача. Без `league` — лише активні турніри.
+ */
+export interface MatchesInRangeResponse {
+  matches: FootballMatchListItem[];
 }
 
 // ─── Football: синк (адмінка) ───

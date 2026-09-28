@@ -19,6 +19,8 @@ dist
 out
 build
 *.tsbuildinfo
+# Next.js генерує його сам (`next dev` / `next build` пишуть різні шляхи) — docs радять ігнорувати
+next-env.d.ts
 
 # Tests
 coverage

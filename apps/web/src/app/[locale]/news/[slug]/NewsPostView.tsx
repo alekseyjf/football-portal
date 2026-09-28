@@ -1,22 +1,23 @@
 'use client';
 
+import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import {
   contentLangToBcp47,
   contentLanguageName,
-  localeToBcp47,
 } from '@/lib/i18n/content-lang';
 import { postDetailQueryOptions } from '@/hooks/usePostDetail';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
+import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { LikeBar } from '@/components/features/LikeBar';
 import { CommentSection } from './CommentSection';
 
 export function NewsPostView({ slug }: { slug: string }) {
   const contentLang = useApiContentLang();
   const locale = useLocale();
-  const dateLocale = localeToBcp47(locale);
+  const formatDate = useDateTimeFormat();
   const t = useTranslations('news');
   const authorDisplayName = useAuthorDisplayName();
 
@@ -57,11 +58,18 @@ export function NewsPostView({ slug }: { slug: string }) {
 
       <article lang={contentLangToBcp47(post.resolvedLanguage)}>
         {post.coverImageUrl && (
-          <img
-            src={post.coverImageUrl}
-            alt={post.title}
-            className="w-full h-64 object-cover rounded-2xl mb-6"
-          />
+          // `unoptimized` — як у стрічці (довільний хост, без серверного fetch); `eager` — LCP
+          <div className="relative w-full h-64 mb-6 overflow-hidden rounded-2xl">
+            <Image
+              src={post.coverImageUrl}
+              alt={post.title}
+              fill
+              unoptimized
+              loading="eager"
+              sizes="(min-width: 768px) 768px, 100vw"
+              className="object-cover"
+            />
+          </div>
         )}
 
         <div className="mb-6">
@@ -72,7 +80,7 @@ export function NewsPostView({ slug }: { slug: string }) {
             </span>
             <span>·</span>
             <time dateTime={post.publishedAt}>
-              {new Date(post.publishedAt).toLocaleDateString(dateLocale, {
+              {formatDate(post.publishedAt, {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',

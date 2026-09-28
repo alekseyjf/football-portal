@@ -15,3 +15,10 @@ export function leagueSlugFromParam(
   const firstValue = Array.isArray(paramValue) ? paramValue[0] : paramValue;
   return firstValue?.trim() || null;
 }
+
+/** Формат slug-а турніру (`PL`, `BL1`), як приймає `GET /football/matches?league=`. */
+const LEAGUE_SLUG_PATTERN = /^[A-Za-z0-9-]{1,32}$/;
+
+export function isLeagueSlug(value: string): boolean {
+  return LEAGUE_SLUG_PATTERN.test(value);
+}

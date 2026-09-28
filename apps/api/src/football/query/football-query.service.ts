@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { groupMatchesIntoRounds } from '../football-matchday.util';
 import {
   FootballRepository,
@@ -6,8 +10,14 @@ import {
   type SeasonRecord,
 } from '../persistence/football.repository';
 import {
+  leagueSlugsFromParam,
+  MATCH_RANGE_MAX_ROWS,
+  parseMatchRange,
+} from './football-match-range';
+import {
   toPublicLeague,
   toPublicMatchDetail,
+  toPublicMatchListItem,
   toPublicSeason,
   toPublicStandingTables,
 } from './football-response';
@@ -19,6 +29,12 @@ export type LeagueMatchesQuery = {
   stage?: string;
   page: number;
   limit: number;
+};
+
+export type MatchesRangeQuery = {
+  from: string;
+  to: string;
+  league?: string;
 };
 
 function startOfUtcDay(now: Date): Date {
@@ -115,6 +131,22 @@ export class FootballQueryService {
     const match = await this.footballRepository.findMatchById(id);
     if (!match) throw new NotFoundException('MATCH_NOT_FOUND');
     return toPublicMatchDetail(match);
+  }
+
+  /**
+   * Матчі за інтервалом у всіх турнірах — список дня, календар (🧭 п. 3 плану). Межі — миттєвості
+   * від клієнта: «день» він рахує у своєму поясі. Без `league` — лише активні турніри.
+   */
+  async getMatchesInRange(rangeQuery: MatchesRangeQuery) {
+    const range = parseMatchRange(rangeQuery.from, rangeQuery.to);
+    if (!range.isValid) throw new BadRequestException(range.errorCode);
+    const matches = await this.footballRepository.findMatchesInRange(
+      range.from,
+      range.to,
+      leagueSlugsFromParam(rangeQuery.league),
+      MATCH_RANGE_MAX_ROWS,
+    );
+    return { matches: matches.map(toPublicMatchListItem) };
   }
 
   private async buildFixtures(season: SeasonRecord | null) {

@@ -30,6 +30,7 @@ function humanizeProviderCode(code: string): string {
 /** Підписи стадій і груп турніру: «Ліга-фаза», «1/8 фіналу», «Група A». */
 export function useFootballStageLabels() {
   const tFootball = useTranslations('football');
+  const tMatch = useTranslations('match');
 
   const stageLabel = (stage: string): string =>
     isTranslatedStage(stage)
@@ -56,5 +57,16 @@ export function useFootballStageLabels() {
         })
       : stageLabel(stage);
 
-  return { stageLabel, groupLabel, stageRoundLabel };
+  /**
+   * Тур матчу: ліга — «Тур 6»; кубок — стадія («Груповий етап · Тур 1», «Фінал»), а не `matchday`
+   * плей-оф (у EC фінал — `matchday` 7). Ліга без туру — `null`.
+   */
+  const roundLabel = (stage: string, matchday: number | null): string | null =>
+    stage !== 'REGULAR_SEASON'
+      ? stageRoundLabel(stage, matchday)
+      : matchday != null
+        ? tMatch('matchday', { n: String(matchday) })
+        : null;
+
+  return { stageLabel, groupLabel, stageRoundLabel, roundLabel };
 }

@@ -6,6 +6,7 @@
   "nav": {
     "brand": "Футбольний портал",
     "news": "Новини",
+    "matches": "Матчі",
     "leagues": "Ліги",
     "clubs": "Клуби",
     "adminPanel": "Адмінка",
@@ -46,6 +47,7 @@
     "loading": "Завантаження матчу…",
     "notFound": "Матч не знайдено або помилка мережі.",
     "backHome": "← На головну",
+    "dayMatches": "Усі матчі {date}",
     "matchday": "Тур {n}",
     "noMatchday": "Без туру",
     "upcoming": "Майбутній",
@@ -157,5 +159,26 @@
   },
   "users": {
     "deletedUser": "Видалений користувач"
+  },
+  "matches": {
+    "title": "Матчі",
+    "today": "Сьогодні",
+    "yesterday": "Вчора",
+    "tomorrow": "Завтра",
+    "goToToday": "Перейти на сьогодні",
+    "previousDay": "Попередній день",
+    "nextDay": "Наступний день",
+    "leagueFilterLabel": "Змагання",
+    "allLeagues": "Усі",
+    "loading": "Завантаження матчів…",
+    "loadError": "Не вдалося завантажити матчі.",
+    "retry": "Спробувати ще",
+    "empty": "Цього дня матчів немає.",
+    "leagueLink": "Таблиця й тури: {league}"
+  },
+  "notFound": {
+    "title": "Сторінку не знайдено",
+    "description": "Такої сторінки немає або її перенесли.",
+    "backHome": "На головну"
   }
 }

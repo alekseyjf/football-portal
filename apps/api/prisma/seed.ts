@@ -1,5 +1,5 @@
 /**
- * Seed schema v5 (football-plan-intermediate.md, Фаза 1).
+ * Seed schema v5 (docs/archive/football-plan-intermediate.md, Фаза 1).
  *
  * Що створює:
  *   1. Мови: en (default), ua

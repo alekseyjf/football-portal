@@ -12,6 +12,7 @@ import type { Comment } from '@/lib/api/types';
 import { useCreateComment, useDeleteComment } from '@/hooks/useComments';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
 import { useCommentErrorMessage } from '@/hooks/useCommentErrorMessage';
+import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { LikeBar } from '@/components/features/LikeBar';
 
 function ReplyForm({
@@ -98,7 +99,6 @@ type Props = {
   depth: number;
   userId?: string;
   userRole?: string;
-  dateLocale: string;
 };
 
 export function CommentThreadNode({
@@ -107,13 +107,13 @@ export function CommentThreadNode({
   depth,
   userId,
   userRole,
-  dateLocale,
 }: Props) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [repliesCollapsed, setRepliesCollapsed] = useState(false);
   const t = useTranslations('comments');
   const { mutate: deleteComment } = useDeleteComment(postId);
   const authorDisplayName = useAuthorDisplayName();
+  const formatDate = useDateTimeFormat();
 
   const canDelete = userId && (userId === comment.author.id || userRole === 'ADMIN');
   const replies = comment.replies ?? [];
@@ -163,7 +163,7 @@ export function CommentThreadNode({
                 {authorName}
               </span>
               <span className="text-xs text-gray-500 shrink-0">
-                {new Date(comment.createdAt).toLocaleDateString(dateLocale)}
+                {formatDate(comment.createdAt)}
               </span>
             </div>
 
@@ -224,7 +224,6 @@ export function CommentThreadNode({
                     depth={depth + 1}
                     userId={userId}
                     userRole={userRole}
-                    dateLocale={dateLocale}
                   />
                 ))}
               </div>

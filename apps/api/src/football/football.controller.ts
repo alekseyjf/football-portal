@@ -16,6 +16,7 @@ import { Roles } from '../auth/guards/roles.decorator';
 import { LiveTouchThrottle } from '../security/throttling/request-throttling';
 import { LeagueMatchesQueryDto } from './dto/league-matches-query.dto';
 import { LiveTouchDto } from './dto/live-touch.dto';
+import { MatchesRangeQueryDto } from './dto/matches-range-query.dto';
 import { SeasonQueryDto } from './dto/season-query.dto';
 import { SyncFootballDto } from './dto/sync-football.dto';
 import { SyncRunsQueryDto } from './dto/sync-runs-query.dto';
@@ -80,6 +81,12 @@ export class FootballController {
   @Get('leagues/:slug')
   leagueBySlug(@Param('slug') slug: string) {
     return this.query.getLeagueBySlug(slug);
+  }
+
+  /** Матчі за інтервалом `?from=&to=` (ISO з поясом, ≤ 31 доби) і опційно `?league=PL,CL`. */
+  @Get('matches')
+  matchesInRange(@Query() rangeQuery: MatchesRangeQueryDto) {
+    return this.query.getMatchesInRange(rangeQuery);
   }
 
   @Get('matches/:id')

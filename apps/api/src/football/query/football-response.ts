@@ -1,6 +1,7 @@
 import type {
   CompetitionRecord,
   MatchDetailRecord,
+  MatchListRecord,
   SeasonRecord,
   StandingRowRecord,
 } from '../persistence/football.repository';
@@ -83,6 +84,12 @@ export function toPublicStandingTables(
 
 /** `GET /football/matches/:id`: `competition` → `league` — як у решті публічного API. */
 export function toPublicMatchDetail(match: MatchDetailRecord) {
+  const { competition, ...matchFields } = match;
+  return { ...matchFields, league: competition };
+}
+
+/** `GET /football/matches?from=&to=`: рядок матчу + його турнір (`league`), як у деталі. */
+export function toPublicMatchListItem(match: MatchListRecord) {
   const { competition, ...matchFields } = match;
   return { ...matchFields, league: competition };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { FootballLeagueSwitcher } from '@/components/football/sidebar/FootballLeagueSwitcher';
 import { FootballSidebarNoLeague } from '@/components/football/sidebar/FootballSidebarNoLeague';
@@ -10,10 +10,10 @@ import {
   leagueDashboardQueryOptions,
   leaguesQueryOptions,
 } from '@/hooks/useFootball';
+import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { useMatchStatusLabel } from '@/hooks/useMatchStatusLabel';
 import { useSelectedLeague } from '@/hooks/useSelectedLeague';
 import { isApiError } from '@/lib/api/http';
-import { localeToBcp47 } from '@/lib/i18n/content-lang';
 
 type Props = {
   /** Ліга без `?league=`: env або перша активна (визначає сервер, `resolveDefaultLeagueSlug`) */
@@ -21,22 +21,19 @@ type Props = {
 };
 
 export function FootballSidebar({ defaultLeagueSlug }: Props) {
-  const locale = useLocale();
-  const dateLocale = localeToBcp47(locale);
+  const formatDateTime = useDateTimeFormat();
   const tFootball = useTranslations('football');
   const formatStatus = useMatchStatusLabel();
   const { leagueSlug, leagueHref, selectLeague } =
     useSelectedLeague(defaultLeagueSlug);
 
-  const formatMatchWhen = (iso: string): string => {
-    const dateValue = new Date(iso);
-    return dateValue.toLocaleString(dateLocale, {
+  const formatMatchWhen = (iso: string): string =>
+    formatDateTime(iso, {
       day: '2-digit',
       month: 'short',
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
 
   const leagues = useQuery(leaguesQueryOptions());
   const dashboard = useQuery({

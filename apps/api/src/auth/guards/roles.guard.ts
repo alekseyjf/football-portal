@@ -16,7 +16,10 @@ export class RolesGuard implements CanActivate {
 
     if (!requiredRoles) return true;
 
-    const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.includes(user.role);
+    // `req.user` ставить JwtAuthGuard (стоїть раніше); без нього — 403, а не 500 на `undefined.role`
+    const { user } = context
+      .switchToHttp()
+      .getRequest<{ user?: { role: Role } }>();
+    return user !== undefined && requiredRoles.includes(user.role);
   }
 }
