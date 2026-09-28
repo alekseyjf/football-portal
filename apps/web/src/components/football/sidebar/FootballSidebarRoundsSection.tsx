@@ -2,12 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { FootballRoundBlock } from './FootballRoundBlock';
-import type { FootballMatchRow, MatchStatusDto } from '@/lib/api/types';
-
-export type FixtureRoundGroup = {
-  matchday: number | null;
-  matches: FootballMatchRow[];
-};
+import type { FixturesRound, MatchStatusDto } from '@/lib/api/types';
 
 type SectionHeadingKey = 'upcomingRounds' | 'pastRounds';
 type EmptyMessageKey = 'noUpcoming' | 'noPast';
@@ -17,7 +12,7 @@ type Props = {
   sectionHeadingKey: SectionHeadingKey;
   emptyMessageKey: EmptyMessageKey;
   roundKindKey: RoundKindKey;
-  rounds: FixtureRoundGroup[];
+  rounds: FixturesRound[];
   formatStatus: (status: MatchStatusDto) => string;
   formatMatchWhen: (iso: string) => string;
   isLoading: boolean;
@@ -57,12 +52,11 @@ export function FootballSidebarRoundsSection({
           </p>
         )}
         {!isLoading &&
-          rounds.map((round, index) => (
+          rounds.map((round) => (
             <FootballRoundBlock
-              key={`${roundListKeyPrefix}-${index}-${round.matches[0]?.id ?? ''}`}
+              key={`${roundListKeyPrefix}-${round.stage}-${round.matchday ?? 'stage'}`}
               roundKindKey={roundKindKey}
-              matchday={round.matchday}
-              matches={round.matches}
+              round={round}
               formatStatus={formatStatus}
               formatMatchWhen={formatMatchWhen}
             />

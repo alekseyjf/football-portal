@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -9,21 +8,27 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/guards/roles.decorator';
-import { readConfiguredCompetitionIds } from './football.constants';
+import { LiveTouchThrottle } from '../security/throttling/request-throttling';
+import { LeagueMatchesQueryDto } from './dto/league-matches-query.dto';
 import { LiveTouchDto } from './dto/live-touch.dto';
+import { SeasonQueryDto } from './dto/season-query.dto';
 import { SyncFootballDto } from './dto/sync-football.dto';
+import { SyncRunsQueryDto } from './dto/sync-runs-query.dto';
 import { FootballQueryService } from './query/football-query.service';
+import { FootballLiveSyncService } from './sync/football-live-sync.service';
 import { FootballSyncService } from './sync/football-sync.service';
 
 @Controller('football')
 export class FootballController {
   constructor(
     private readonly query: FootballQueryService,
-    private readonly syncService: FootballSyncService,
+    private readonly fullSync: FootballSyncService,
+    private readonly liveSync: FootballLiveSyncService,
   ) {}
 
   @Get('leagues')
@@ -34,26 +39,42 @@ export class FootballController {
   @Get('leagues/:slug/matches')
   leagueMatches(
     @Param('slug') slug: string,
-    @Query('page') page = '1',
-    @Query('limit') limit = '20',
+    @Query() matchesQuery: LeagueMatchesQueryDto,
   ) {
-    return this.query.getLeagueMatches(slug, +page, +limit);
+    return this.query.getLeagueMatches(slug, matchesQuery);
   }
 
   @Get('leagues/:slug/standings')
-  leagueStandings(@Param('slug') slug: string) {
-    return this.query.getLeagueStandings(slug);
+  leagueStandings(
+    @Param('slug') slug: string,
+    @Query() seasonQuery: SeasonQueryDto,
+  ) {
+    return this.query.getLeagueStandings(slug, seasonQuery.season);
+  }
+
+  @Get('leagues/:slug/clubs')
+  leagueClubs(
+    @Param('slug') slug: string,
+    @Query() seasonQuery: SeasonQueryDto,
+  ) {
+    return this.query.getLeagueClubs(slug, seasonQuery.season);
   }
 
   @Get('leagues/:slug/fixtures')
-  leagueFixtures(@Param('slug') slug: string) {
-    return this.query.getLeagueFixtures(slug);
+  leagueFixtures(
+    @Param('slug') slug: string,
+    @Query() seasonQuery: SeasonQueryDto,
+  ) {
+    return this.query.getLeagueFixtures(slug, seasonQuery.season);
   }
 
   /** Один запит: таблиця + тури (для сайдбару). */
   @Get('leagues/:slug/dashboard')
-  leagueDashboard(@Param('slug') slug: string) {
-    return this.query.getLeagueDashboard(slug);
+  leagueDashboard(
+    @Param('slug') slug: string,
+    @Query() seasonQuery: SeasonQueryDto,
+  ) {
+    return this.query.getLeagueDashboard(slug, seasonQuery.season);
   }
 
   @Get('leagues/:slug')
@@ -67,30 +88,28 @@ export class FootballController {
   }
 
   @Post('live-touch')
+  @UseGuards(ThrottlerGuard)
+  @LiveTouchThrottle()
   liveTouch(@Body() dto: LiveTouchDto) {
-    return this.syncService.requestLiveSyncForMatch(dto.matchId);
+    return this.liveSync.requestLiveSyncForMatch(dto.matchId);
   }
 
-  /**
-   * Фоновий повний синк (без очікування завершення — зручно для адмінки / проксі).
-   */
+  /** 202 одразу: синк — у фоні, хід і результат — `GET /football/sync-runs`. */
   @Post('sync')
   @HttpCode(202)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  sync(@Body() dto: SyncFootballDto) {
-    const refs = dto.competitionIds?.length
-      ? dto.competitionIds
-      : readConfiguredCompetitionIds();
-    if (!refs.length) {
-      throw new BadRequestException('Немає competition id для синку');
-    }
-    this.syncService.enqueueFullSync(refs);
-    return {
-      status: 'accepted' as const,
-      message:
-        'Синхронізацію запущено у фоні. Прогрес дивіться в логах API; дані з’являться в БД після завершення.',
-      competitions: refs,
-    };
+  async sync(@Body() dto: SyncFootballDto) {
+    const competitions = await this.fullSync.requestFullSync(
+      dto.competitionIds,
+    );
+    return { status: 'accepted' as const, competitions };
+  }
+
+  @Get('sync-runs')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  syncRuns(@Query() syncRunsQuery: SyncRunsQueryDto) {
+    return this.fullSync.getRecentRuns(syncRunsQuery.limit);
   }
 }

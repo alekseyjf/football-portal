@@ -13,10 +13,12 @@ export function FootballStandingsTable({ rows }: Props) {
   if (!rows.length) return null;
 
   return (
-    <div className="overflow-x-auto border border-neutral-800 bg-neutral-950/60">
+    // Ліга (18–20 рядків) влазить повністю; ліга-фаза ЛЧ (36) і груповий етап ЧС (48) —
+    // зі скролом, шапка лишається видимою
+    <div className="max-h-[40rem] overflow-auto border border-neutral-800 bg-neutral-950/60">
       <table className="w-full text-left text-[11px] text-neutral-300">
-        <thead>
-          <tr className="border-b border-neutral-800 bg-black/70 text-[10px] uppercase tracking-wider text-neutral-500">
+        <thead className="sticky top-0 z-10">
+          <tr className="border-b border-neutral-800 bg-black text-[10px] uppercase tracking-wider text-neutral-500">
             <th className="px-2 py-2 w-6">{tFootball('colPosition')}</th>
             <th className="px-2 py-2">{tFootball('colTeam')}</th>
             <th className="px-1 py-2 text-center">{tFootball('colPlayed')}</th>

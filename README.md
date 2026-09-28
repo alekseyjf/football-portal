@@ -101,26 +101,26 @@ pnpm --filter @football-portal/api dev
 - **Football-модуль** (`apps/api/src/football/`):
   - дані з [football-data.org](https://www.football-data.org/) v4 **лише під час синхронізації**;
   - **читання для клієнтів** — з **PostgreSQL** (Prisma), без прямих викликів зовнішнього API з кожного GET;
-  - **upsert** ліг, клубів, матчів; таблиця **`LeagueTable`** перезаписується цілком після успішного парсингу standings;
-  - поле **`Match.matchday`** — номер туру з API для групування «майбутні / минулі тури» у UI;
-  - **slug ліги** у БД: код змагання у верхньому регістрі (**PL**, **CL** тощо); при **оновленні** існуючої ліги **slug більше не перезаписується** (щоб не зламати ручні правки);
-  - **cron:** повний синк матчів + таблиці кожні **2 години** (якщо задано `FOOTBALL_API_KEY`);
-  - **LIVE-cron** за замовчуванням **вимкнено**; оновлення LIVE при відкритті сторінки матчу через **`POST /football/live-touch`** (з троттлінгом на змагання);
-  - у **режимі розробки** (`NODE_ENV=development`) або при **`FOOTBALL_HTTP_LOG=true`** у консоль API логуються **усі HTTP-запити** до football-data (URL, статус відповіді).
-  - **Шари:** `FootballQueryService` (GET), `FootballSyncService` (синк/LIVE), `FootballDataClient` (axios), `FootballLiveThrottleService`; утиліти без Nest у `football-*-util.ts`.
-  - **`POST /football/sync`** повертає **202** і виконує імпорт **у фоні** (див. логи Nest).
+  - турніри (`Competition`) і сезони (`Season`) — окремо: клуб бере участь у сезоні турніру (`SeasonClub`), тож Arsenal одночасно в PL і CL; матчі й таблиці прив'язані до сезону, минулі сезони лишаються;
+  - синкаються турніри з **`Competition.isActive`** (seed створює 9); id провайдера — лише в `*ExternalRef`, **дельта** за `payloadHash` (без змін — жодного запису);
+  - **cron:** повний синк активних турнірів кожні **2 години** (якщо задано `FOOTBALL_API_KEY`): рівно **4 запити** на турнір;
+  - **LIVE-cron** за замовчуванням **вимкнено**; оновлення при відкритті сторінки незавершеного матчу через **`POST /football/live-touch`** (не частіше 60 с на турнір);
+  - кожен запуск — рядок **`SyncRun`** (лок + журнал): другий синк того ж турніру не стартує, хід видно в адмінці;
+  - у **режимі розробки** (`NODE_ENV=development`) або при **`FOOTBALL_HTTP_LOG=true`** у консоль API логуються **усі HTTP-запити** до football-data (URL, статус, скільки запитів лишилось на хвилину).
+  - **Шари:** `integration/` (порт `FootballProvider` + адаптер football-data), `persistence/`, `sync/` (`FootballSyncService`, `FootballLiveSyncService`, cron), `query/` (`FootballQueryService`).
+  - **`POST /football/sync`** повертає **202** і виконує імпорт **у фоні** (журнал — `GET /football/sync-runs`, адмінка).
 
 ### Web (Next.js)
 
-- Головна: **двоколонковий layout** — зліва сайдбар (**таблиця ліги**, **майбутні / минулі тури**), справа банер + стрічка новин (`HomeFeed`).
-- Дані футболу: **`GET /football/leagues/:slug/dashboard`** одним запитом; **prefetch** `leagueDashboardQueryOptions` + пости.
-- Сторінка **`/matches/[id]`** — деталі матчу; для **LIVE** викликається `live-touch` і періодичний refetch з БД.
-- Типи та хуки: `apps/web/src/lib/api/types.ts`, `hooks/useFootball.ts`, компонент **`components/football/FootballSidebar.tsx`**.
+- Головна: **двоколонковий layout** — зліва сайдбар (**перемикач турнірів** «Ліги» / «Кубки», **таблиця** ліги / ліга-фази / групового етапу, **майбутні / минулі тури**; у кубках тури — за стадіями: «1/8 фіналу», «Фінал»), справа банер + стрічка новин (`HomeFeed`).
+- Дані футболу: **`GET /football/leagues`** (перемикач) + **`GET /football/leagues/:slug/dashboard`** одним запитом; обрана ліга — у **`?league=`** (SSR + prefetch; перемикання на клієнті без перезавантаження, «Назад» працює).
+- Сторінка **`/matches/[id]`** — деталі матчу; для незавершеного матчу викликається `live-touch`, під час гри (LIVE / перерва) — refetch з БД кожні 45 с.
+- Типи та хуки: `apps/web/src/lib/api/types.ts`, `hooks/useFootball.ts`, `hooks/useSelectedLeague.ts`, компоненти **`components/football/FootballSidebar.tsx`**, `sidebar/FootballLeagueSwitcher.tsx`.
 
 ### Admin (Next.js)
 
 - Логін, дашборд, пости (список, створення з перекладами EN + опційно UA).
-- Картка **Football data** → `POST /football/sync` (**202**, синк у фоні; прогрес у терміналі API).
+- Картка **Football data** → `POST /football/sync` (**202**, синк у фоні) + **журнал синків** (статус, тривалість, що записано, помилка).
 - Верхня панель **`AdminShellBar`**: посилання на дашборд, пости, **публічний сайт** (URL з `NEXT_PUBLIC_PUBLIC_WEB_URL`), кнопка **Вийти** → `POST /auth/logout` + очищення клієнтського кешу запитів.
 
 ---
@@ -129,30 +129,35 @@ pnpm --filter @football-portal/api dev
 
 ### Ідея «джерело правди»
 
-1. **Зовнішнє API** (football-data) викликається **тільки** з **`FootballSyncService`** через **`FootballDataClient`** (axios).
+1. **Зовнішнє API** (football-data) викликається **тільки** з `sync/` через порт **`FootballProvider`** (адаптер `integration/football-data/`); усі запити процесу йдуть **однією чергою** (≥ 6,5 с між ними, free tier — 10 / хв).
 2. Публічні ендпоінти **`GET /football/...`** читають **тільки Prisma** — зручно для фронту (один origin через API, без CORS до football-data з браузера).
-3. Маппінг відповідей зовнішнього API → наші enum/поля зосереджений у **`football.mapper.ts`** (щоб зміни в API не розмазувалися по всьому сервісу).
+3. Формат football-data знає **лише** `football-data.mapper.ts`; синк працює з нейтральними типами. Особливості провайдера (перевірено на реальних відповідях): пагінацію матчів ігнорує, `fullTime` містить серію пенальті (маппер віднімає), для EC 2024 таблиці немає (404).
 
 ### Типовий потік «перший запуск»
 
 1. У **`apps/api/.env`** виставити **`FOOTBALL_API_KEY`** — це **API Token** з кабінету football-data, **не** числовий id змагання і не код **PL**.
-2. **`FOOTBALL_COMPETITION_IDS`** — через кому: коди (**PL**, **CL**) або числові id; обидва варіанти валідні в URL `/v4/competitions/{ref}/...`.
-3. Залогінитись в **адмінці** → **Синк**; API одразу відповідає **202**, а імпорт іде **у фоні** — зачекай **багато хвилин** і дивись **логи Nest** (пауза **~6.5 с** між запитами).
-4. Перевірити **`GET /api/v1/football/leagues`** — подивитись реальний **`slug`** ліги в БД.
-5. У **`apps/web/.env.local`** виставити **`NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG`** **точно** як **`League.slug`** (наприклад **`PL`**), інакше сайдбар отримає 404 по standings/fixtures.
+2. Турніри вже в БД після `db:seed` (9 шт., `Competition.isActive`); вимкнути турнір — `isActive = false` (зникне з перемикача, сторінки лишаться).
+3. Залогінитись в **адмінці** → **Синк**; API одразу відповідає **202**, імпорт іде **у фоні** (~30 с на турнір, 9 турнірів ≈ 4–5 хв) — хід видно в **журналі синків** на дашборді.
+4. Перевірити **`GET /api/v1/football/leagues`** — лише активні турніри, з `currentSeason`.
+5. У **`apps/web/.env.local`** за бажанням виставити **`NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG`** як **`Competition.slug`** (наприклад **`PL`**) — ліга сайдбару без `?league=`; якщо не задано або ліга неактивна — перша активна за `sortOrder`.
 
 ### Важливі ендпоінти Football
 
 | Метод | Шлях | Хто | Призначення |
 |--------|------|-----|-------------|
-| GET | `/football/leagues` | публічно | Список ліг з БД |
-| GET | `/football/leagues/:slug` | публічно | Мета ліги |
-| GET | `/football/leagues/:slug/standings` | публічно | Турнірна таблиця з БД |
-| GET | `/football/leagues/:slug/fixtures` | публічно | Майбутні / минулі тури (згруповані по `matchday`) |
-| GET | `/football/leagues/:slug/dashboard` | публічно | Таблиця + тури **одним** запитом (рекомендовано для UI) |
-| GET | `/football/matches/:id` | публічно | Матч + ліга |
-| POST | `/football/live-touch` | публічно | Тіло `{ "matchId": "..." }` — тригер LIVE-синку (якщо матч LIVE) |
-| POST | `/football/sync` | **ADMIN** | **202** — повний імпорт **у фоні**; тіло опційно `{ "competitionIds": ["PL"] }` |
+| GET | `/football/leagues` | публічно | Активні турніри (`type`, `area`, `emblemUrl`, `currentSeason`) — для перемикача |
+| GET | `/football/leagues/:slug` | публічно | Мета турніру (і неактивного) |
+| GET | `/football/leagues/:slug/standings?season=` | публічно | Таблиці сезону: `[{ stage, groupName, type, rows }]` |
+| GET | `/football/leagues/:slug/clubs?season=` | публічно | Клуби сезону (через `SeasonClub`) |
+| GET | `/football/leagues/:slug/matches?season=&stage=&page=&limit=` | публічно | Матчі сезону, для кубків — фільтр за стадією |
+| GET | `/football/leagues/:slug/fixtures?season=` | публічно | Майбутні / минулі тури `{ stage, matchday, matches }` (плей-оф — уся стадія, `matchday: null`) |
+| GET | `/football/leagues/:slug/dashboard?season=` | публічно | `{ league, season, standingsTable, standings, fixtures }` **одним** запитом (для UI) |
+| GET | `/football/matches/:id` | публічно | Матч + ліга + сезон, half-time, пенальті, переможець |
+| POST | `/football/live-touch` | публічно (10 / хв на IP) | `{ "matchId": "..." }` — LIVE-синк турніру, якщо матч іде або от-от почнеться |
+| POST | `/football/sync` | **ADMIN** | **202** — повний імпорт **у фоні**; тіло опційно `{ "competitionIds": ["PL"] }` (slug-и; без тіла — усі активні) |
+| GET | `/football/sync-runs?limit=` | **ADMIN** | Журнал синків (`SyncRun`) |
+
+`season` — `2025-26` (сезон через рік) або `2026`; без нього — поточний сезон.
 
 ### Змінні середовища (football)
 
@@ -162,8 +167,7 @@ pnpm --filter @football-portal/api dev
 |--------|-------------|
 | `FOOTBALL_API_KEY` | **Токен** з football-data.org |
 | `FOOTBALL_API_URL` | За замовчуванням `https://api.football-data.org/v4` |
-| `FOOTBALL_COMPETITION_IDS` | Напр. `PL` або `2021` або `PL,CL` |
-| `FOOTBALL_LIVE_CRON_ENABLED` | `true` — кожні 5 хв плановий LIVE-синк; інакше лише on-demand |
+| `FOOTBALL_LIVE_CRON_ENABLED` | `true` — кожні 5 хв LIVE-синк турнірів, де зараз є матч; інакше лише on-demand |
 | `FOOTBALL_HTTP_LOG` | `true` — логувати кожен запит до football-data (у dev це й так увімкнено) |
 
 **`apps/web/.env.local`**
@@ -171,7 +175,7 @@ pnpm --filter @football-portal/api dev
 | Змінна | Призначення |
 |--------|-------------|
 | `NEXT_PUBLIC_API_URL` | База API, напр. `http://localhost:4000/api/v1` |
-| `NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG` | Slug ліги в БД для сайдбару на головній |
+| `NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG` | Ліга сайдбару без `?league=` (немає / неактивна — перша активна за `sortOrder`) |
 
 **`apps/admin/.env.local`**
 
@@ -182,9 +186,8 @@ pnpm --filter @football-portal/api dev
 
 ### Чому таблиця (standings) може бути порожня
 
-- На **безкоштовному** тарифі football-data **частина ресурсів** (зокрема standings для деяких ліг) може повертати **порожній** масив при **HTTP 200** — це обмеження провайдера, не баг Prisma.
-- У коді додано **`?season=YYYY`** до запиту standings (рік з `currentSeason` змагання) і fallback на **першу непорожню** групу standings, якщо тип **TOTAL** порожній.
-- У логах API після синку шукай рядки **`[football standings]`** — там видно, скільки груп і рядків прийшло з API і скільки записано в БД.
+- На **безкоштовному** тарифі football-data **частина ресурсів** може бути недоступна: напр. standings **EC 2024** → **HTTP 404**. Синк тоді завершується `SUCCEEDED` з `standingsUnavailable: true` (журнал синків), наявна таблиця не стирається.
+- Таблиця замінюється лише для тих `(stage, group, type)`, які повернув провайдер; `stats.standingsRows` у журналі — скільки рядків записано.
 
 ---
 
@@ -193,20 +196,21 @@ pnpm --filter @football-portal/api dev
 | Що | Де |
 |----|-----|
 | Football: маршрути | `apps/api/src/football/football.controller.ts` |
-| Football: **читання** з БД | `apps/api/src/football/football-query.service.ts` |
-| Football: **синк / LIVE** | `apps/api/src/football/football-sync.service.ts` |
-| Football: HTTP до football-data | `apps/api/src/football/football-data.client.ts` |
-| Football: троттлінг LIVE | `apps/api/src/football/football-live-throttle.service.ts` |
-| Football: константи / env ids | `apps/api/src/football/football.constants.ts` |
-| Football: утиліти (тури, standings) | `football-matchday.util.ts`, `football-standings.util.ts` |
-| Football: Prisma | `apps/api/src/football/football.repository.ts` |
-| Football: mapper | `apps/api/src/football/football.mapper.ts` |
-| Football: cron | `apps/api/src/football/football.cron.ts` |
+| Football: **читання** з БД | `apps/api/src/football/query/football-query.service.ts` (+ `football-response.ts`, `football-standings.util.ts`) |
+| Football: **повний синк** | `apps/api/src/football/sync/football-sync.service.ts` + `football-sync.writer.ts` |
+| Football: **LIVE** (`live-touch`, LIVE-cron) | `apps/api/src/football/sync/football-live-sync.service.ts`, `football-live-throttle.service.ts` |
+| Football: порт провайдера | `apps/api/src/football/integration/football-provider.port.ts` |
+| Football: football-data (HTTP-черга, mapper) | `apps/api/src/football/integration/football-data/` |
+| Football: константи, LIVE-вікно | `apps/api/src/football/football.constants.ts`, `football-match-status.ts` |
+| Football: утиліти (тури) | `apps/api/src/football/football-matchday.util.ts` |
+| Football: Prisma | `apps/api/src/football/persistence/` (читання, записи синку, `*ExternalRef`, `SyncRun`) |
+| Football: cron | `apps/api/src/football/sync/football.cron.ts` |
 | Схема БД | `apps/api/prisma/schema.prisma` |
 | Сайдбар на головній | `apps/web/src/components/football/FootballSidebar.tsx` |
 | Хуки / query keys футболу | `apps/web/src/hooks/useFootball.ts` (`leagueDashboardQueryOptions`) |
 | Slug ліги для SSR | `apps/web/src/app/resolveDefaultLeagueSlug.ts` |
 | Синк з адмінки | `apps/admin/src/components/FootballSyncButton.tsx` |
+| Журнал синків в адмінці | `apps/admin/src/components/SyncRunsTable.tsx`, `hooks/useSyncRuns.ts` |
 | Панель адміна | `apps/admin/src/components/AdminShellBar.tsx`, `app/dashboard/layout.tsx` |
 
 ---

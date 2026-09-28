@@ -1,6 +1,8 @@
 'use client';
 
 import { Link } from '@/i18n/navigation';
+import { useFootballStageLabels } from '@/hooks/useFootballStageLabels';
+import { isMatchInPlay } from '@/hooks/useMatchStatusLabel';
 import type { FootballMatchRow, MatchStatusDto } from '@/lib/api/types';
 
 type Props = {
@@ -14,7 +16,8 @@ export function FootballMatchStrip({
   formatStatus,
   formatMatchWhen,
 }: Props) {
-  const live = matchRow.status === 'LIVE';
+  const { groupLabel } = useFootballStageLabels();
+  const live = isMatchInPlay(matchRow.status);
   const score =
     matchRow.homeScore != null && matchRow.awayScore != null
       ? `${matchRow.homeScore} : ${matchRow.awayScore}`
@@ -30,13 +33,17 @@ export function FootballMatchStrip({
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-neutral-500">
-        <span>{formatMatchWhen(matchRow.date)}</span>
+        <span>
+          {formatMatchWhen(matchRow.kickoffAt)}
+          {/* Груповий етап кубка: у турі — матчі всіх груп (ЧС — 12) */}
+          {matchRow.groupName && ` · ${groupLabel(matchRow.groupName)}`}
+        </span>
         <span
           className={
             live ? 'text-red-400 font-semibold' : 'text-neutral-500'
           }
         >
-          {live && matchRow.minute != null
+          {matchRow.status === 'LIVE' && matchRow.minute != null
             ? `${matchRow.minute}′`
             : formatStatus(matchRow.status)}
         </span>

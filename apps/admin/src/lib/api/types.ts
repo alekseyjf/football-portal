@@ -1,6 +1,19 @@
-import type { PostStatus, PublicAuthor, User } from '@football-portal/types';
+import type {
+  PostStatus,
+  PublicAuthor,
+  SyncRunRow,
+  SyncRunStats,
+  User,
+} from '@football-portal/types';
 
-export type { PostStatus };
+export type { PostStatus, SyncRunRow, SyncRunStats };
+
+/** Відповідь `POST /football/sync` (202): синк іде у фоні, хід — у `GET /football/sync-runs`. */
+export interface FootballSyncAccepted {
+  status: 'accepted';
+  /** Slug-и турнірів, поставлених у чергу */
+  competitions: string[];
+}
 
 /** Рядок списку GET /posts/admin/all (і відповідь POST / PUT /posts). */
 export interface AdminPostRow {

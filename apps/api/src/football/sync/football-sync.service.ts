@@ -1,304 +1,289 @@
-import { Injectable, Logger } from '@nestjs/common';
 import {
-  FOOTBALL_API_DELAY_MS,
-  FOOTBALL_MATCH_PAGES_MAX,
-  pauseMilliseconds,
-  readConfiguredCompetitionIds,
-} from '../football.constants';
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { SyncScope, SyncStatus, SyncTrigger } from '@prisma/client';
+import { FULL_SYNC_STALE_AFTER_MS } from '../football.constants';
 import {
-  clubSlugFromFd,
-  FdCompetition,
-  FdMatch,
-  FdMatchesResponse,
-  FdStandingsResponse,
-  FdTeamsResponse,
-  leagueSlugFromFd,
-  mapMatchStatus,
-  seasonLabelFromFd,
-} from '../integration/football.mapper';
-import { FootballDataClient } from '../integration/football-data.client';
-import { FootballRepository } from '../persistence/football.repository';
+  FOOTBALL_PROVIDER,
+  FootballProviderError,
+  type FootballProvider,
+  type ProviderClubRef,
+  type ProviderSeason,
+} from '../integration/football-provider.port';
 import {
-  buildLeagueTableCreateRows,
-  pickStandingsTableRows,
-} from '../football-standings.util';
-import { FootballLiveThrottleService } from './football-live-throttle.service';
+  FootballSyncRepository,
+  type SyncTargetCompetition,
+} from '../persistence/football-sync.repository';
+import {
+  SyncRunRepository,
+  type SyncRunRow,
+} from '../persistence/sync-run.repository';
+import {
+  createSyncStats,
+  describeSyncError,
+  hasPartialFailures,
+  type SyncStats,
+} from './football-sync-stats';
+import { FootballSyncWriter } from './football-sync.writer';
+
+export type FullSyncOutcome =
+  | { status: SyncStatus; runId: string }
+  | { status: 'ALREADY_RUNNING' };
+
+function assertSameSeason(
+  responseSeasonExternalId: string,
+  season: ProviderSeason,
+  resourceName: string,
+): void {
+  if (responseSeasonExternalId !== season.externalId) {
+    throw new FootballProviderError(
+      'INVALID_RESPONSE',
+      `${resourceName}: сезон ${responseSeasonExternalId} замість ${season.externalId} — провайдер перемкнув сезон посеред синку`,
+    );
+  }
+}
 
 /**
- * Синхронізація з football-data.org та LIVE-оновлення.
+ * Повний синк турніру (6.2): Area → Competition → Season → Clubs + SeasonClub → Matches →
+ * Standings. Рівно 4 запити до провайдера (P5-3). Один запуск на турнір — лок `SyncRun`.
  */
 @Injectable()
 export class FootballSyncService {
   private readonly log = new Logger(FootballSyncService.name);
 
   constructor(
-    private readonly repo: FootballRepository,
-    private readonly http: FootballDataClient,
-    private readonly liveThrottle: FootballLiveThrottleService,
+    @Inject(FOOTBALL_PROVIDER) private readonly provider: FootballProvider,
+    private readonly syncRepository: FootballSyncRepository,
+    private readonly syncRuns: SyncRunRepository,
+    private readonly writer: FootballSyncWriter,
   ) {}
 
-  getConfiguredCompetitionIds(): string[] {
-    return readConfiguredCompetitionIds();
+  /**
+   * `POST /football/sync`: турніри перевіряються одразу (400 / 503), синк — у фоні послідовно,
+   * відповідь 202 не чекає. Хід і результат — у `SyncRun` (адмінка).
+   */
+  async requestFullSync(competitionSlugs?: string[]): Promise<string[]> {
+    if (!this.provider.isConfigured()) {
+      throw new ServiceUnavailableException('FOOTBALL_PROVIDER_NOT_CONFIGURED');
+    }
+    const competitions = await this.resolveSyncTargets(competitionSlugs);
+    void this.syncCompetitionsSequentially(
+      competitions,
+      SyncTrigger.ADMIN,
+    ).catch((error: unknown) => {
+      this.log.error(`Фоновий синк: ${describeSyncError(error)}`);
+    });
+    return competitions.map((competition) => competition.slug);
+  }
+
+  /** Журнал для адмінки (6.2 п. 7). */
+  getRecentRuns(limit: number): Promise<SyncRunRow[]> {
+    return this.syncRuns.findRecent(limit);
+  }
+
+  /** Cron: усі активні турніри (D7). */
+  async syncActiveCompetitions(trigger: SyncTrigger): Promise<void> {
+    if (!this.provider.isConfigured()) return;
+    await this.syncCompetitionsSequentially(
+      await this.resolveSyncTargets(),
+      trigger,
+    );
+  }
+
+  /** Послідовно (6.2 п. 10): провайдер і так обслуговує запити однією чергою. */
+  async syncCompetitionsSequentially(
+    competitions: SyncTargetCompetition[],
+    trigger: SyncTrigger,
+  ): Promise<void> {
+    for (const competition of competitions) {
+      await this.syncCompetition(competition, trigger);
+    }
+  }
+
+  /** Не кидає: помилка — у `SyncRun.errorMessage`, наступний турнір синкається далі. */
+  async syncCompetition(
+    competition: SyncTargetCompetition,
+    trigger: SyncTrigger,
+  ): Promise<FullSyncOutcome> {
+    const runId = await this.syncRuns.tryStart(
+      {
+        provider: this.provider.provider,
+        scope: SyncScope.COMPETITION_FULL,
+        targetRef: competition.slug,
+      },
+      { trigger, staleAfterMs: FULL_SYNC_STALE_AFTER_MS },
+    );
+    if (!runId) {
+      this.log.log(`Синк ${competition.slug} уже йде — пропущено`);
+      return { status: 'ALREADY_RUNNING' };
+    }
+
+    const stats = createSyncStats();
+    let status: SyncStatus = SyncStatus.FAILED;
+    let errorMessage: string | undefined;
+    try {
+      status = await this.runFullSync(competition, stats);
+    } catch (error) {
+      errorMessage = describeSyncError(error);
+      this.log.warn(`Синк ${competition.slug}: ${errorMessage}`);
+    }
+    try {
+      await this.syncRuns.finish(runId, status, stats, errorMessage);
+    } catch (error) {
+      // Не закритий запуск зніме `tryStart` як застарілий (P5-10)
+      this.log.error(
+        `SyncRun ${runId} не закрито: ${describeSyncError(error)}`,
+      );
+    }
+    this.log.log(
+      `Синк ${competition.slug}: ${status} (${JSON.stringify(stats)})`,
+    );
+    return { status, runId };
+  }
+
+  private async runFullSync(
+    competition: SyncTargetCompetition,
+    stats: SyncStats,
+  ): Promise<SyncStatus> {
+    const syncedAt = new Date();
+    const competitionExternalId = competition.externalId;
+
+    stats.apiCalls += 1;
+    const providerCompetition = await this.provider.fetchCompetition(
+      competitionExternalId,
+    );
+    await this.writer.applyCompetition(
+      competition.id,
+      providerCompetition,
+      syncedAt,
+    );
+    const providerSeason = providerCompetition.currentSeason;
+    if (!providerSeason) {
+      throw new FootballProviderError(
+        'INVALID_RESPONSE',
+        `${competition.slug}: провайдер не повернув поточний сезон`,
+      );
+    }
+    const seasonId = await this.writer.applyCurrentSeason(
+      competition.id,
+      providerSeason,
+      stats,
+      syncedAt,
+    );
+
+    stats.apiCalls += 1;
+    const seasonClubs = await this.provider.fetchSeasonClubs(
+      competitionExternalId,
+      providerSeason,
+    );
+    assertSameSeason(seasonClubs.seasonExternalId, providerSeason, 'teams');
+    const clubIdByExternalId = await this.writer.applySeasonClubs(
+      seasonClubs.clubs,
+      stats,
+      syncedAt,
+    );
+    if (seasonClubs.clubs.length > 0) {
+      await this.syncRepository.replaceSeasonClubs(seasonId, [
+        ...new Set(
+          seasonClubs.clubs.map(
+            (club) => clubIdByExternalId.get(club.externalId)!,
+          ),
+        ),
+      ]);
+    }
+    stats.seasonClubs = seasonClubs.clubs.length;
+
+    stats.apiCalls += 1;
+    const providerMatches = await this.provider.fetchSeasonMatches(
+      competitionExternalId,
+      providerSeason,
+    );
+    for (const providerMatch of providerMatches) {
+      assertSameSeason(
+        providerMatch.seasonExternalId,
+        providerSeason,
+        'matches',
+      );
+    }
+    await this.writer.ensureClubsExist(
+      providerMatches.flatMap((providerMatch) =>
+        [providerMatch.homeClub, providerMatch.awayClub].filter(
+          (clubRef): clubRef is ProviderClubRef => clubRef !== null,
+        ),
+      ),
+      providerCompetition.participantKind,
+      clubIdByExternalId,
+      stats,
+      syncedAt,
+    );
+    await this.writer.applyMatches(
+      providerMatches,
+      clubIdByExternalId,
+      { competitionId: competition.id, seasonId },
+      stats,
+      syncedAt,
+    );
+
+    stats.apiCalls += 1;
+    const standings = await this.provider.fetchSeasonStandings(
+      competitionExternalId,
+      providerSeason,
+    );
+    if (!standings) {
+      stats.standingsUnavailable = true;
+    } else {
+      assertSameSeason(standings.seasonExternalId, providerSeason, 'standings');
+      await this.writer.ensureClubsExist(
+        standings.tables.flatMap((table) =>
+          table.rows.map((standingRow) => standingRow.club),
+        ),
+        providerCompetition.participantKind,
+        clubIdByExternalId,
+        stats,
+        syncedAt,
+      );
+      await this.writer.applyStandings(
+        seasonId,
+        standings.tables,
+        clubIdByExternalId,
+        stats,
+      );
+    }
+
+    return hasPartialFailures(stats)
+      ? SyncStatus.PARTIAL
+      : SyncStatus.SUCCEEDED;
   }
 
   /**
-   * HTTP 202: одразу відповідаємо клієнту, синк іде у фоні (без черги — див. README).
+   * Без `slugs` — активні турніри з посиланням на провайдера (D7, 6.2 п. 9); зі `slugs` —
+   * рівно вони, невідомий або без посилання → 400 `UNKNOWN_COMPETITION` (P5-13).
    */
-  enqueueFullSync(competitionRefs: string[]): void {
-    void this.runSequentialSync(competitionRefs).catch((error: unknown) => {
-      this.log.error(`Фоновий синк football завершився помилкою: ${error}`);
-    });
-  }
-
-  /** Для cron і внутрішніх викликів — чекаємо завершення. */
-  async runSequentialSync(competitionRefs: string[]): Promise<void> {
-    for (const ref of competitionRefs) {
-      await this.syncSingleCompetition(ref);
-    }
-  }
-
-  async syncSingleCompetition(competitionRef: string): Promise<{ ok: true }> {
-    this.http.assertApiKeyConfigured();
-    const encodedCompetitionRef = encodeURIComponent(competitionRef);
-    const competition = await this.http.getJson<FdCompetition>(
-      `/competitions/${encodedCompetitionRef}`,
+  private async resolveSyncTargets(
+    competitionSlugs?: string[],
+  ): Promise<SyncTargetCompetition[]> {
+    const requestedSlugs = competitionSlugs?.length
+      ? [...new Set(competitionSlugs)]
+      : undefined;
+    const competitions = await this.syncRepository.findCompetitionsForSync(
+      this.provider.provider,
+      requestedSlugs,
     );
-    await pauseMilliseconds(FOOTBALL_API_DELAY_MS);
-
-    const country = competition.area?.name ?? '—';
-    const season = seasonLabelFromFd(competition);
-    const slug = leagueSlugFromFd(competition);
-    const leagueRow = await this.repo.upsertLeague({
-      externalId: competition.id,
-      name: competition.name,
-      slug,
-      country,
-      season,
-      logoUrl: competition.emblem ?? null,
-    });
-
-    const teamsResponse = await this.http.getJson<FdTeamsResponse>(
-      `/competitions/${encodedCompetitionRef}/teams`,
+    const syncableCompetitions = competitions.flatMap((competition) =>
+      competition.externalId
+        ? [{ ...competition, externalId: competition.externalId }]
+        : [],
     );
-    await pauseMilliseconds(FOOTBALL_API_DELAY_MS);
-
-    const teams = teamsResponse.teams ?? [];
-    const clubIdByExternalTeamId = new Map<number, string>();
-
-    for (const team of teams) {
-      const upsertedClub = await this.repo.upsertClub({
-        externalId: team.id,
-        name: team.name,
-        slug: clubSlugFromFd(team),
-        shortName: team.shortName ?? team.tla ?? null,
-        logo: team.crest ?? null,
-        founded: team.founded ?? null,
-        venue: team.venue ?? null,
-        leagueId: leagueRow.id,
-      });
-      clubIdByExternalTeamId.set(team.id, upsertedClub.id);
+    if (
+      requestedSlugs &&
+      syncableCompetitions.length !== requestedSlugs.length
+    ) {
+      throw new BadRequestException('UNKNOWN_COMPETITION');
     }
-
-    const seasonYear = competition.currentSeason?.startDate?.slice(0, 4);
-    const matchesPath = seasonYear
-      ? `/competitions/${encodedCompetitionRef}/matches?season=${seasonYear}`
-      : `/competitions/${encodedCompetitionRef}/matches`;
-
-    let offset = 0;
-    const limit = 50;
-    for (let page = 0; page < FOOTBALL_MATCH_PAGES_MAX; page += 1) {
-      const sep = matchesPath.includes('?') ? '&' : '?';
-      const pagePath = `${matchesPath}${sep}limit=${limit}&offset=${offset}`;
-      const matchesResponse = await this.http.getJson<FdMatchesResponse>(pagePath);
-      await pauseMilliseconds(FOOTBALL_API_DELAY_MS);
-
-      const batch = matchesResponse.matches ?? [];
-      for (const matchFromApi of batch) {
-        await this.persistMatch(
-          matchFromApi,
-          leagueRow.id,
-          clubIdByExternalTeamId,
-        );
-      }
-      if (batch.length < limit) break;
-      offset += limit;
-    }
-
-    const standingsPath = seasonYear
-      ? `/competitions/${encodedCompetitionRef}/standings?season=${seasonYear}`
-      : `/competitions/${encodedCompetitionRef}/standings`;
-    const standingsResponse = await this.http.getJson<FdStandingsResponse>(
-      standingsPath,
-    );
-    await pauseMilliseconds(FOOTBALL_API_DELAY_MS);
-
-    const standingGroups = standingsResponse.standings ?? [];
-    this.log.log(
-      `[football standings] ${standingsPath} → груп: ${standingGroups.length} ` +
-        (standingGroups.length
-          ? `(${standingGroups
-              .map(
-                (group) =>
-                  `${group.type ?? '?'}:${group.table?.length ?? 0}`,
-              )
-              .join(', ')})`
-          : '(порожньо)'),
-    );
-
-    const { rows: totalTable, pickedType, usedFallback } =
-      pickStandingsTableRows(standingGroups);
-    if (usedFallback) {
-      this.log.warn(
-        `[football standings] TOTAL порожній, використано type=${pickedType ?? 'n/a'}`,
-      );
-    }
-
-    const { rows: standingRows, skippedNoClub } = buildLeagueTableCreateRows(
-      leagueRow.id,
-      totalTable,
-      clubIdByExternalTeamId,
-    );
-
-    if (standingRows.length > 0) {
-      await this.repo.replaceLeagueStandings(leagueRow.id, standingRows);
-      this.log.log(
-        `[football standings] збережено рядків: ${standingRows.length}` +
-          (skippedNoClub ? ` (пропущено без clubId: ${skippedNoClub})` : ''),
-      );
-    } else {
-      this.log.warn(
-        `[football standings] у БД не записано жодного рядка (рядків у відповіді: ${totalTable.length}, без clubId: ${skippedNoClub}).`,
-      );
-    }
-
-    return { ok: true };
-  }
-
-  private async persistMatch(
-    matchFromApi: FdMatch,
-    leagueId: string,
-    clubIdByExternalTeamId: Map<number, string>,
-  ) {
-    let homeClubId = clubIdByExternalTeamId.get(matchFromApi.homeTeam.id);
-    let awayClubId = clubIdByExternalTeamId.get(matchFromApi.awayTeam.id);
-    if (!homeClubId) {
-      const upsertedClub = await this.repo.upsertClub({
-        externalId: matchFromApi.homeTeam.id,
-        name: matchFromApi.homeTeam.name,
-        slug: clubSlugFromFd({
-          id: matchFromApi.homeTeam.id,
-          name: matchFromApi.homeTeam.name,
-        }),
-        shortName: null,
-        logo: matchFromApi.homeTeam.crest ?? null,
-        founded: null,
-        venue: null,
-        leagueId,
-      });
-      homeClubId = upsertedClub.id;
-      clubIdByExternalTeamId.set(matchFromApi.homeTeam.id, homeClubId);
-    }
-    if (!awayClubId) {
-      const upsertedClub = await this.repo.upsertClub({
-        externalId: matchFromApi.awayTeam.id,
-        name: matchFromApi.awayTeam.name,
-        slug: clubSlugFromFd({
-          id: matchFromApi.awayTeam.id,
-          name: matchFromApi.awayTeam.name,
-        }),
-        shortName: null,
-        logo: matchFromApi.awayTeam.crest ?? null,
-        founded: null,
-        venue: null,
-        leagueId,
-      });
-      awayClubId = upsertedClub.id;
-      clubIdByExternalTeamId.set(matchFromApi.awayTeam.id, awayClubId);
-    }
-
-    const fullTimeScore = matchFromApi.score?.fullTime;
-    const homeScore =
-      fullTimeScore?.home === null || fullTimeScore?.home === undefined
-        ? null
-        : fullTimeScore.home;
-    const awayScore =
-      fullTimeScore?.away === null || fullTimeScore?.away === undefined
-        ? null
-        : fullTimeScore.away;
-
-    await this.repo.upsertMatch({
-      externalId: matchFromApi.id,
-      leagueId,
-      homeClubId,
-      awayClubId,
-      date: new Date(matchFromApi.utcDate),
-      status: mapMatchStatus(matchFromApi.status),
-      minute: matchFromApi.minute ?? null,
-      matchday: matchFromApi.matchday ?? null,
-      homeScore,
-      awayScore,
-    });
-  }
-
-  async syncLiveForCompetition(ref: string | number): Promise<void> {
-    if (!this.http.hasApiKey()) return;
-
-    const encodedCompetitionRef = encodeURIComponent(String(ref));
-    const competition = await this.http.getJson<FdCompetition>(
-      `/competitions/${encodedCompetitionRef}`,
-    );
-    await pauseMilliseconds(FOOTBALL_API_DELAY_MS);
-
-    const leagueRecord = await this.repo.findLeagueBySlug(
-      leagueSlugFromFd(competition),
-    );
-    if (!leagueRecord) return;
-
-    const liveMatchesResponse = await this.http.getJson<FdMatchesResponse>(
-      `/competitions/${encodedCompetitionRef}/matches?status=LIVE`,
-    );
-    await pauseMilliseconds(FOOTBALL_API_DELAY_MS);
-
-    const clubIdByExternalTeamId = new Map<number, string>();
-    for (const matchFromApi of liveMatchesResponse.matches ?? []) {
-      await this.persistMatch(
-        matchFromApi,
-        leagueRecord.id,
-        clubIdByExternalTeamId,
-      );
-    }
-  }
-
-  async requestLiveSyncForMatch(matchId: string): Promise<{
-    accepted: boolean;
-    skipped?: 'not_found' | 'not_live' | 'throttled' | 'no_api_key';
-  }> {
-    if (!this.http.hasApiKey()) {
-      return { accepted: false, skipped: 'no_api_key' };
-    }
-    const matchLiveContext = await this.repo.findMatchLiveContext(matchId);
-    if (!matchLiveContext) return { accepted: false, skipped: 'not_found' };
-    if (matchLiveContext.status !== 'LIVE') {
-      return { accepted: false, skipped: 'not_live' };
-    }
-    const competitionExternalId = matchLiveContext.league.externalId;
-    const now = Date.now();
-    if (this.liveThrottle.isThrottled(competitionExternalId, now)) {
-      return { accepted: false, skipped: 'throttled' };
-    }
-    this.liveThrottle.mark(competitionExternalId, now);
-    void this.syncLiveForCompetition(competitionExternalId).catch(
-      (error: unknown) => {
-        this.log.warn(`on-demand LIVE sync failed: ${error}`);
-      },
-    );
-    return { accepted: true };
-  }
-
-  async syncLiveMatchesOnly(): Promise<void> {
-    if (!this.http.hasApiKey()) return;
-    for (const ref of readConfiguredCompetitionIds()) {
-      await this.syncLiveForCompetition(ref);
-    }
+    return syncableCompetitions;
   }
 }

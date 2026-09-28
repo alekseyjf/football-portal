@@ -1,12 +1,17 @@
 import { Module } from '@nestjs/common';
-import { FootballDataClient } from './football-data.client';
+import { FootballDataClient } from './football-data/football-data.client';
+import { FootballDataProvider } from './football-data/football-data.provider';
+import { FOOTBALL_PROVIDER } from './football-provider.port';
 
 /**
- * Зовнішнє API (football-data.org): HTTP-клієнт. Маппер — чисті функції з football.mapper.ts.
- * При зміні провайдера додати паралельний клієнт або замінити реалізацію тут.
+ * Зовнішній постачальник даних за DI-токеном `FOOTBALL_PROVIDER` (розділ 6.1).
+ * Інший провайдер = інший адаптер тут; синк і репозиторії не змінюються.
  */
 @Module({
-  providers: [FootballDataClient],
-  exports: [FootballDataClient],
+  providers: [
+    FootballDataClient,
+    { provide: FOOTBALL_PROVIDER, useClass: FootballDataProvider },
+  ],
+  exports: [FOOTBALL_PROVIDER],
 })
 export class FootballIntegrationModule {}

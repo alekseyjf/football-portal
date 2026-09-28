@@ -5,7 +5,7 @@ import type {
   LeagueDashboardResponse,
   LeagueFixturesResponse,
   MatchDetail,
-  StandingRow,
+  StandingTable,
 } from '@/lib/api/types';
 
 export const footballKeys = {
@@ -17,10 +17,12 @@ export const footballKeys = {
   match: (id: string) => ['football', 'match', id] as const,
 };
 
+/** Активні турніри для перемикача: змінюються лише з адмінки / синку — кеш довший. */
 export function leaguesQueryOptions() {
   return queryOptions({
     queryKey: footballKeys.leagues,
     queryFn: () => apiGet<FootballLeagueMeta[]>('/football/leagues'),
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -39,7 +41,7 @@ export function standingsQueryOptions(leagueSlug: string) {
   return queryOptions({
     queryKey: footballKeys.standings(leagueSlug),
     queryFn: () =>
-      apiGet<StandingRow[]>(
+      apiGet<StandingTable[]>(
         `/football/leagues/${encodeURIComponent(leagueSlug)}/standings`,
       ),
   });

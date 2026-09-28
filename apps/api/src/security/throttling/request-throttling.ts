@@ -85,6 +85,16 @@ export const RefreshThrottle = () =>
   );
 
 /**
+ * `POST /football/live-touch` — публічний і смикає зовнішнє API (квота провайдера, P5-12).
+ * Сам LIVE-синк ще й троттлиться на турнір через `SyncRun`; цей ліміт — від флуду з одного IP.
+ */
+export const LiveTouchThrottle = () =>
+  applyDecorators(
+    Throttle({ [IP_THROTTLER]: { limit: 10, ttl: minutes(1) } }),
+    SkipThrottle({ [ACCOUNT_THROTTLER]: true }),
+  );
+
+/**
  * Дії з підтвердженням пароля (`DELETE /users/me`): інакше це оракул для перебору пароля
  * з украденим access-cookie. Ключ — id користувача, IP не важливий.
  */

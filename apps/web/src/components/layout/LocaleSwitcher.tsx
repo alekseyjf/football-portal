@@ -21,7 +21,11 @@ export function LocaleSwitcher() {
           key={loc}
           type="button"
           onClick={() => {
-            router.replace(pathname, { locale: loc });
+            // Query лишається: `?league=CL` на головній не скидається на лігу за замовчуванням.
+            // Читаємо в момент кліку, а не `useSearchParams`: Navbar є і на статичних сторінках
+            router.replace(`${pathname}${window.location.search}`, {
+              locale: loc,
+            });
           }}
           className={[
             'rounded-md px-2.5 py-1 font-medium transition-colors',
