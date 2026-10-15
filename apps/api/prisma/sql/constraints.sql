@@ -2,7 +2,7 @@
 -- Ручні обмеження, які Prisma не виражає в schema.prisma
 -- (docs/archive/football-plan-intermediate.md, розділ 5.1)
 --
--- ⚠️ Prisma про них не знає. При КОЖНОМУ squash (football-plan-new.md, «Prisma та міграції») цей файл треба
+-- ⚠️ Prisma про них не знає. При КОЖНОМУ squash (docs/decisions/v5-foundation.md, розділ 11 і «Prisma та міграції») цей файл треба
 -- дописати в кінець нової baseline-міграції (prisma/migrations/0001_init/migration.sql).
 -- ⚠️ Кожну нову міграцію генерувати з `--create-only` і перевіряти, що в SQL
 -- немає DROP INDEX / DROP CONSTRAINT для об'єктів нижче.

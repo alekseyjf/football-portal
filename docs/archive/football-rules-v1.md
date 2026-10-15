@@ -1,3 +1,5 @@
+> 🗄️ **АРХІВ (з 2026-10-08) — не використовувати.** Перший план і правила (v1.0, 2025). Актуальні правила — [`docs/rules/`](../rules/), план — [`docs/football-plan.md`](../football-plan.md).
+
 # ⚽ Football Portal — Project Plan & Rules
 
 > **Версія:** 1.0  

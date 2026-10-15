@@ -13,7 +13,7 @@ import { MatchListRow } from './MatchListRow';
 
 /**
  * Турнір у списку матчів дня: емблема, назва (→ таблиця й тури в сайдбарі головної, поки немає
- * сторінки ліги, етап 7.1), спільний тур, матчі.
+ * сторінки ліги — M2.2 плану), спільний тур, матчі.
  */
 export function MatchesLeagueGroup({ group }: { group: LeagueMatchGroup }) {
   const t = useTranslations('matches');

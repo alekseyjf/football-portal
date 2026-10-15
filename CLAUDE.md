@@ -17,7 +17,7 @@
 - Пароль: новий ≥ 8 і ≤ 72 **байти** UTF-8 (межа bcrypt; `PASSWORD_MAX_BYTES`, API — `@MaxUtf8Bytes`, межі — `packages/validation`); логін — без мінімуму (старі акаунти)
 
 ## Database (Prisma schema v5)
-Джерело правди — `apps/api/prisma/schema.prisma` + `prisma/sql/constraints.sql` (CHECK і partial unique, яких Prisma не виражає: одна ціль треду, різні клуби матчу, дата в опублікованого поста, одна default-мова, один `isCurrent` сезон, один `RUNNING` синк, формат анонімізованого email). Рішення D1–D20 — основний план, Частина 2 (повні формулювання — `docs/archive/football-plan-intermediate.md`, розділ 2). Міграції — `0001_init` … `0004`; squash — перед релізом (етап 14).
+Джерело правди — `apps/api/prisma/schema.prisma` + `prisma/sql/constraints.sql` (CHECK і partial unique, яких Prisma не виражає: одна ціль треду, різні клуби матчу, дата в опублікованого поста, одна default-мова, один `isCurrent` сезон, один `RUNNING` синк, формат анонімізованого email). Рішення D1–D20 — `docs/decisions/v5-foundation.md` (усі рішення — `docs/decisions/`). Міграції — `0001_init` … `0004`; squash — перед першим прод-деплоєм (M3.1).
 - **Identity:** `User` — лише ідентичність: email (always lowercase), `passwordHash` (bcrypt), `role`, `status` (ACTIVE | LOCKED | DELETED), `lockedAt`, `deletedAt`; `UserProfile` 1:1 — `displayName`, `avatarUrl`, `bio`; `AuthSession` — refresh-сесії (`familyId`, `tokenHash`, `expiresAt`, `revokedAt`)
 - **Moderation:** `UserSanction` (історія санкцій), `RateLimitEvent` (cooldown / burst), `BlockedEmail` (HMAC пошти видаленого акаунта)
 - **Content:** `Language` (`isDefault` = en) · `Post` — slug, `status` (DRAFT | SCHEDULED | PUBLISHED | ARCHIVED), `publishedAt`, `coverImageUrl`, videoUrl, sourceUrl, authorId, `likeCount` / `dislikeCount`, deletedAt (soft delete) · `PostTranslation` — `(postId, languageCode)`, title, excerpt, content · `Tag` / `TagTranslation` / `PostTag` · `PostCompetition`, `PostClub` (новини турніру / клубу)
@@ -79,7 +79,7 @@ All routes prefixed with `/api/v1/`
 - `throttling/request-throttling.ts` — ліміти на IP / акаунт лише на окремих роутах (login, register, refresh, `DELETE /users/me`, `live-touch`); сховище — пам'ять процесу
 - `email-blocklist/`, `security-cleanup.cron.ts` (щогодини: прострочені `AuthSession` > 7 д, `RateLimitEvent` > 24 год, `BlockedEmail`)
 
-### Football — `src/football/` (schema v5, Фаза 5a — `docs/archive/football-plan-intermediate.md` 5.1)
+### Football — `src/football/` (schema v5; рішення — `docs/decisions/v5-football.md`)
 - **Корінь:** `football.module.ts`, `football.controller.ts`, `football.constants.ts`, `football-match-status.ts` (`IN_PLAY` = LIVE + PAUSED, LIVE-вікно), `football-matchday.util.ts` (тури: `(stage, matchday)` у лізі / ліга-фазі / групах, плей-оф — уся стадія, `matchday: null`), `dto/*`
 - **`integration/`** — порт `football-provider.port.ts` (`FootballProvider`, DI-токен `FOOTBALL_PROVIDER`, нейтральні `Provider*`, `FootballProviderError`) + адаптер `football-data/` (`client` — **одна черга запитів на процес**, ≥ 6,5 с між стартами, 429 → `X-RequestCounter-Reset`; `mapper` — **єдине** місце, що знає формат football-data; `provider`). Синк `Fd*` не бачить
 - **`persistence/`** — `FootballRepository` (публічні читання), `FootballSyncRepository` (записи синку), `ExternalRefRepository` (batch resolve `*ExternalRef`), `SyncRunRepository` (журнал + лок)
@@ -126,18 +126,16 @@ All routes prefixed with `/api/v1/`
 - `lib/query/queryClient.ts`, `providers/QueryProvider.tsx`
 - `store/auth.store.ts`
 
-## Architecture Rules
-1. **Controller** — routing only, no logic
-2. **Service** — business logic (use cases), descriptive method names
-3. **Repository** — Prisma queries only, always use `select` not `include`
-4. **Mapper** — external API transformation only (football module)
-5. **DTO** — class-validator decorators on all inputs
-6. **Soft delete** — Post and Comment use `deletedAt`, never hard delete. Єдиний виняток — ADMIN purge коментаря (`DELETE /comments/:id/purge`, `…/purge-thread`, D20: legal / GDPR)
-7. **Email** — always `toLowerCase().trim()` before saving
-8. **i18n** — content in PostTranslation, always pass `lang` param to queries
-9. **Likes** — separate tables (PostLike/CommentLike/MatchLike), DISLIKE stored but not shown publicly
-10. **Security** — DOMPurify on frontend, Helmet + CORS + ValidationPipe on backend
-11. **Іменування** — у бізнес-коді та утилітах уникати одно- та дволітерних імен змінних/параметрів; мінімум **3 символи**, окрім загальноприйнятих: `id`, `url`, `err` у дуже вузькому контексті, `tx` (клієнт транзакції Prisma), індекси циклу `i`/`j` лише якщо немає семантики. Для зовнішніх DTO допускається префікс **`Fd`** (football-data.org) у типах мапера. Назви мають відображати **роль значення** (`matchFromApi`, `encodedCompetitionRef`, `clubIdByExternalTeamId`), а не форму (`map`, `row`). Детальніше: `.cursor/rules/naming-readability.mdc`.
+## Rules (обовʼязкові)
+Повні правила з прикладами — `docs/rules/` (нові позначені ⭐). Підключені нижче, тож діють у кожній сесії:
+
+@docs/rules/clean-code.md
+@docs/rules/backend.md
+@docs/rules/frontend.md
+@docs/rules/security.md
+@docs/rules/code-style.md
+@docs/rules/process.md
+@docs/rules/content.md
 
 ## Environment Variables
 ### apps/api/.env
@@ -170,20 +168,10 @@ NEXT_PUBLIC_PUBLIC_WEB_URL=http://localhost:3000
 ```
 
 ## Current Status
-Плани: `football-plan-new.md` — основний (етапи, чекбокси, бэклог; **«🧭 Рішення перед етапом 7»** — архітектурні рішення для етапів 7–8, 14); `docs/archive/football-plan-intermediate.md` — **архів** проміжного плану schema v5 (рішення D1–D20, P5-*, P5b-*, журнал перевірок).
+Документація — `docs/` (карта — `docs/README.md`): **план** — `docs/football-plan.md` (віхи M1–M4, етапи з чекбоксами, Definition of Done, повний чекліст зробленого), **рішення** — `docs/decisions/` (D1–D20, P2-* … P5b-*, R*, «🧭 п. N» — з тими самими ID, що в коментарях коду; нові — D21+), **правила** — `docs/rules/`, архітектура — `docs/architecture.md`, відкладене / ідеї / питання — `docs/backlog.md`, `docs/ideas.md`, `docs/open-questions.md`; старі плани — `docs/archive/` (історія, не план). Позначки в плані: 👤 рішення власника · ⭐ рекомендація · ❓ уточнити перед виконанням · ⚠️ розбіжність з кодом.
 
-**Completed:**
-- Monorepo, NestJS API, web (next-intl `en` | `ua`), admin; TanStack Query + єдиний `http.ts` у web і admin
-- **Schema v5** (проміжний план, Фази 0–7 ✅, 2026-09-27): baseline-міграція + `constraints.sql`; auth на refresh-сесіях (`sid`, ротація, 30 д), модерація, видалення акаунта (анонімізація); пости зі статусами, мови з БД і fallback; треди коментарів (soft delete гілкою, purge); лайки з журналом реакцій; football — порт провайдера, `*ExternalRef`, сезони, `SyncRun` (журнал + лок), дельта-синк рівно 4 запити на турнір
-- Web: головна (стрічка + сайдбар ліги з SSR, перемикач ліг `?league=`, кубки), новина з коментарями й лайками, `/matches/[id]` (LIVE-touch, лайки), відновлення сесії після F5, refresh-on-401
-- Admin: пости (Draft / Publish now / Schedule), синк + журнал `SyncRun`
-- Хвости v5 (2026-09-28): часовий пояс дат (без hydration mismatch), невідомий матч → 404, навбар 320…1280 px, ESLint web / API — 0
-- Одна загальна 404 (раніше — «Missing <html> and <body>» у dev); сторінка матчів дня `/matches` + `GET /football/matches?from&to`, пункт «Матчі» в навбарі, назва матчу у вкладці (2026-09-28; Chrome 27/27 + прод 8/8, jest 118/118)
-- Перевірка: API unit (jest) 109/109; наскрізний прогін застосунку 59/59, E2E перемикача 49/49, хвости — Chrome 19/19
+**Зроблено:** M0 — схема v5 і все на ній (auth, модерація, контент, коментарі, лайки, football-синк, web, admin) — повний чекліст у плані, розділ 11.
 
-**Next up** (основний план):
-- Етап 7.0, старт — e2e-набір на окремій БД + CI, контракт типів API ↔ web (`packages/types` → `dist`)
-- Етап 7 — football-сторінки альфи (`leagues/*`, `clubs/*`, `calendar`; `matches` — ✅ матчі дня) + агреговані ендпоінти + кеш TTL; групові таблиці ЧС і сітка плей-оф; бургер-меню
-- Етап 8.2 — коментарі на сторінці матчу (API готовий; спільний `CommentSection`, лайки коментарів пачкою, пагінація)
-- Перед публічним продом: CSRF, підтвердження пошти (13.5), домени web / API на одному сайті (cookies), Sentry + `/health`, squash міграцій
-- Вручну: прибрати з локального `apps/api/.env` `JWT_REFRESH_SECRET` і `FOOTBALL_COMPETITION_IDS` (не читаються)
+**Зараз — M1 «Тестовий реліз»**, по черзі: M1.1 документація (правила підключено нижче; власник дочитує `docs/rules/`) → M1.2 мова `uk` скрізь → M1.3 інфраструктурний мінімум (ESLint адмінки, `/health`, `@CurrentUser()`, strict TS, Swagger + `openapi-typescript`) → M1.4–M1.6 новини (API, адмінка, web: URL `{slug}-{номер}`, Markdown, джерела, теги, фільтри) → M1.7 коментарі як на YouTube → M1.8 SEO-база → M1.9 UI-мінімум → M1.10 CI → M1.11 тестовий деплой (закритий, `noindex`).
+
+**Процес:** гілка на етап → PR у `master`; коміти робить власник — AI в кінці етапу пропонує назву (Conventional Commits) і підсумок та оновлює план.
