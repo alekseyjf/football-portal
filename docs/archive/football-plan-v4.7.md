@@ -1,3 +1,5 @@
+> 🗄️ **АРХІВ (з 2026-10-08) — не використовувати як план.** Актуальний план — [`docs/football-plan.md`](../football-plan.md), рішення — [`docs/decisions/`](../decisions/README.md). Тут стан на v4.7 (частково ще схема v4); відповідність старих номерів етапів новим — [`archive/README.md`](README.md).
+
 # ⚽ Football Portal — Master Plan & Rules
 
 > **Версія плану:** 4.7 (схема БД v5 — увесь код на ній; локалі лише `en`/`ua`; Accept-Language ISO `uk*` → `ua` у proxy; football — підмодулі Nest + порт провайдера)

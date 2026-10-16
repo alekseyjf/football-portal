@@ -1,3 +1,5 @@
+> 🗄️ **АРХІВ (з 2026-10-08).** Раніше `apps/api/docs/csrf-samesite-checklist.md`. Зроблене й рішення, що лишилось, — [`docs/open-questions.md`](../open-questions.md), OQ-6.
+
 # CSRF та cookies (чеклист перед продом)
 
 Короткий список, щоб не загубити при підготовці до продакшену.

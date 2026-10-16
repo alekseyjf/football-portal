@@ -9,7 +9,7 @@ export async function Navbar() {
   return (
     <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-2 sm:gap-4">
-        {/* Вузький екран (< 640 px) — лише ⚽: з назвою правий блок виходив за екран (бургер — етап 7.1) */}
+        {/* Вузький екран (< 640 px) — лише ⚽: з назвою правий блок виходив за екран (бургер — M1.9 плану) */}
         <Link
           href="/"
           aria-label={t('brand')}
@@ -26,7 +26,7 @@ export async function Navbar() {
           <Link href="/matches" className="hover:text-white transition-colors">
             {t('matches')}
           </Link>
-          {/* Сторінок ліг / клубів ще немає (етап 7.1 / 7.2) → 404. Prefetch 404-маршруту в Chrome
+          {/* Сторінок ліг / клубів ще немає (M2.2 / M2.4 плану; до того посилання ховаємо — M1.9) → 404. Prefetch 404-маршруту в Chrome
               лишається «незавершеним» (клієнт Next не дочитує тіло) на кожній сторінці —
               `prefetch={false}` прибрати разом із появою сторінок */}
           <Link
