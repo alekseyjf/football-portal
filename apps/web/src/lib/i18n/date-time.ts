@@ -8,7 +8,7 @@ const FORMATTER_CACHE_LIMIT = 200;
  * Дата / час для UI — лише через цю функцію (у клієнтських компонентах — `useDateTimeFormat`).
  * Пояс — завжди явний, з конфігу next-intl: `toLocaleString` без `timeZone` бере пояс процесу,
  * і SSR (UTC на сервері) розходиться з браузером (Київ) → hydration mismatch.
- * Мова — BCP47 (`ua` → `uk-UA`, `en` → `en-GB`), як і раніше.
+ * Мова — BCP47 з регіоном (`uk` → `uk-UA`, `en` → `en-GB`).
  *
  * @param options без полів дати / часу — числова дата (як `toLocaleDateString()`)
  */

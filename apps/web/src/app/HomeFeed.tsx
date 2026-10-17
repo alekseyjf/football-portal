@@ -4,10 +4,7 @@ import Image from 'next/image';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useQuery } from '@tanstack/react-query';
-import {
-  contentLangToBcp47,
-  contentLanguageName,
-} from '@/lib/i18n/content-lang';
+import { contentLanguageName } from '@/lib/i18n/content-lang';
 import { postsQueryOptions } from '@/hooks/usePosts';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
@@ -88,7 +85,7 @@ export function HomeFeed() {
                       </span>
                     )}
                   </div>
-                  <div lang={contentLangToBcp47(post.resolvedLanguage)}>
+                  <div lang={post.resolvedLanguage}>
                     <h3 className="font-bold text-lg mb-2 line-clamp-2">
                       {post.title}
                     </h3>

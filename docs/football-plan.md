@@ -1,7 +1,7 @@
 # ⚽ 12Yards — план розвитку
 
 > **Версія:** 5.0 · 2026-10-08 — перший план після переходу на схему v5. Попередні: [`archive/football-plan-v4.7.md`](archive/football-plan-v4.7.md), [`archive/football-plan-intermediate.md`](archive/football-plan-intermediate.md).
-> **Зараз:** M1 «Тестовий реліз» → **M1.1 Документація** (власник перечитує `rules/`) → далі **M1.2**.
+> **Зараз:** M1 «Тестовий реліз» → **M1.2 Мова `uk`** ✅ (чекає PR) · M1.1 — власник перечитує `rules/` · далі **M1.3**.
 > **Карта документації:** [`docs/README.md`](README.md) · рішення — [`decisions/`](decisions/README.md) · відкладене — [`backlog.md`](backlog.md) · ідеї — [`ideas.md`](ideas.md) · питання — [`open-questions.md`](open-questions.md).
 
 ## Як читати план
@@ -86,21 +86,31 @@
 
 **Готово, коли:** правила перечитано й підключено в `CLAUDE.md`; у репо немає посилань на `football-plan-new.md`.
 
-### M1.2 Мова `uk` скрізь
+### M1.2 Мова `uk` скрізь ✅
 
 **Мета:** один код української мови в URL, БД, API, перекладах, `<html lang>` і `hreflang` ([D22](decisions/D22-ukrainian-language-code.md)).
 
-- [ ] 👤 БД: `Language.code` `ua` → `uk` — міграцією даних (первинний ключ + зовнішні ключі `PostTranslation`, `TagTranslation`), seed.
+- [x] 👤 БД: `Language.code` `ua` → `uk` — міграцією даних (первинний ключ + зовнішні ключі `PostTranslation`, `TagTranslation`), seed.
+  - [x] Міграція `0005_language_code_uk`: один `UPDATE` — FK перекладів мають `ON UPDATE CASCADE`; seed — `uk`.
+  - [x] ⭐ Seed читає старий експорт `content.json` (`ua`) і перекладає код у `uk` — *чому:* файл експорту — історичний, правити його вручну = ризик зіпсувати єдину копію контенту.
+  - [x] Застосовано до dev-БД 2026-10-16 (`prisma migrate deploy`; перед цим Supabase-проєкт був призупинений — безкоштовний рівень, власник відновив): мови `en`, `uk`, 3 UK-переклади переїхали; повторний `db:seed` на старому експорті — без змін.
   - ⭐ *Чому міграцією:* dev-БД стане БД тест-сервера — зміна має бути відтворюваною, а не ручною правкою.
-- [ ] 👤 API, `packages/types`, `packages/validation`: `?lang=uk`, `ApiContentLanguage = 'en' | 'uk'`.
-- [ ] 👤 Web: локалі `en`, `uk` (`i18n/routing.ts`), `messages/uk.json`, `<html lang="en">` / `<html lang="uk">`; прибрати `normalizeAcceptLanguageForAppLocales` (браузер і так шле `uk`); для `Intl` — `uk-UA`.
-- [ ] ⭐ Тимчасовий редирект `/ua/*` → `/uk/*` (308) у `proxy.ts` — *чому:* зміна URL без редиректу ламає закладки й посилання; прибрати перед продом.
-- [ ] 👤 Адмінка: переклад UK (`languageCode: 'uk'`).
-- [ ] 👤 Напис мови в інтерфейсі (перемикач, адмінка) — «Укр»; код усередині — `uk`.
-- [ ] `CLAUDE.md`, `architecture.md`.
+- [x] 👤 API, `packages/types`, `packages/validation`: `?lang=uk`, `ApiContentLanguage = 'en' | 'uk'` (у `validation` кодів мов не було).
+- [x] 👤 Web: локалі `en`, `uk` (`i18n/routing.ts`), `messages/uk.json`, `<html lang="en">` / `<html lang="uk">`; прибрати `normalizeAcceptLanguageForAppLocales` (браузер і так шле `uk`); для `Intl` — `uk-UA`. `contentLangToBcp47` прибрано — код мови контенту тепер і є BCP 47.
+- [x] ⭐ Тимчасовий редирект `/ua/*` → `/uk/*` (308) у `proxy.ts`, query зберігається — *чому:* зміна URL без редиректу ламає закладки й посилання; прибрати перед продом (пункт у M3.1).
+- [x] 👤 Адмінка: переклад UK (`languageCode: 'uk'`, поля форми `titleUk` …).
+- [x] 👤 Напис мови в інтерфейсі (перемикач, адмінка) — «Укр»; код усередині — `uk`. Перемикач: до 1024 px — `Eng` / `Укр` (`locale.short.*`, як в адмінці), ширше — повні назви; адмінка — `Eng` / `Укр` (`languageShortLabel`, 👤 правка власника).
+- [x] `CLAUDE.md`, README, `rules/frontend.md` (Rule 6); в `architecture.md` кодів мов немає.
 
 **Тести:** e2e — `GET /posts?lang=uk` віддає UK-переклад, `?lang=ua` → default (невідома мова); web — `/uk` має `<html lang="uk">`, `/ua/news/x` → 308 на `/uk/news/x`.
-**Готово, коли:** у коді немає `'ua'` як коду мови (крім редиректу); у БД мови `en`, `uk`.
+- [x] Unit `language.service.spec`: `uk` → `uk`, `ua` → default.
+- [x] ⭐ Unit web — Vitest підключено тут, а не в M1.3 — *чому:* баг → спершу тест, що його відтворює ([clean-code, п. 21](rules/clean-code.md)); інструмент уже обрано в [D30](decisions/D30-testing-and-local-env.md). `proxy.test.ts` — `/ua…` → 308 на `/uk…` з query, межі (`/uaxyz`, `/en/ua`), `Accept-Language: uk-UA` → `/uk`, стара cookie `NEXT_LOCALE=ua`; `messages/messages.test.ts` — у кожній мові ті самі ключі, що в `en.json` (типи next-intl перевіряють лише `en.json`). Запуск: `pnpm --filter @football-portal/web test -- proxy`.
+- [x] ⚠️ Знайдено й виправлено: `/UA/…` (великими) → 404 — next-intl приймає локаль у будь-якому регістрі (`/EN` → `/en`), а редирект був чутливий до регістру; тепер `/i`. Тест падав до виправлення.
+- [x] API перевірено наживо: `?lang=uk` → UK-переклади (`resolvedLanguage: uk`, `availableLanguages: [en, uk]`), `?lang=ua` → EN.
+- [x] Web перевірено вручну (dev, curl): `/uk` і `/uk/news/…` — UK-заголовки без позначки «Переклад недоступний»; `/ua`, `/ua/news/x?league=CL`, `/ua/matches?date=…` → 308 на `/uk/…` з query; `Accept-Language: uk-UA` → `/uk`; `<html lang="uk">` / `"en"`; перемикач `Eng` / `Укр`.
+- [ ] e2e API `?lang=uk` / `?lang=ua` — з каркасом e2e (M1.3); `<html lang>` — у смоук-сценарій тест-сервера (M1.11).
+
+**Готово, коли:** у коді немає `'ua'` як коду мови (крім редиректу й читання старого експорту в seed); у БД мови `en`, `uk`.
 
 ### M1.3 Інфраструктурний мінімум
 
@@ -121,7 +131,8 @@
 - [ ] ⭐ Каркас e2e API (`apps/api/test/`): застосунок з `configureHttpApp`, окрема БД, фейковий football-провайдер, хелпери логіну з cookies; перший тест — `/health` ([D30](decisions/D30-testing-and-local-env.md)).
   - *Чому:* у Фазах 2–5 сотні перевірок писались тимчасовими скриптами й видалялись; постійний набір ловить регресії.
   - ❓ Локальна БД для e2e (OQ-5).
-- [ ] ⭐ Vitest у web; перші тести — межі дня в поясі (`zoned-date`), уже перевірені тимчасовим `node --test`.
+- [ ] ⭐ Vitest у web — підключено в M1.2 (`vitest.config.mts`, `pnpm --filter @football-portal/web test`); лишилось — тести меж дня в поясі (`zoned-date`), уже перевірені тимчасовим `node --test`.
+- [ ] ⭐ `minimumReleaseAge` у `pnpm-workspace.yaml` (напр. 7 днів, термінові патчі — через `minimumReleaseAgeExclude`) — *чому:* свіжі релізи npm — головний канал атак через залежності (зламану версію зазвичай знімають за години–дні), а dev-залежності виконуються на машині з `.env`. У M1.2 Vitest уже встановлено так разово (`--config.minimumReleaseAge=20160`): `vite` 8.3.2 замість 8.3.4 восьмиденної давності.
 - [ ] ⭐ `main.ts`: лог старту з фактичним портом (зараз захардкоджено 4000).
 
 **Тести:** e2e `/health` (БД доступна / ні); unit — схема env.
@@ -397,6 +408,7 @@
 ### M3.1 Домен і прод-інфраструктура
 - [ ] 👤 Домен 12yards.com; ❓ топологія (OQ-9): ⭐ піддомени `api.` / `admin.` власного домену — cookies same-site; API доступне іншим клієнтам (напр. мобільному застосунку).
 - [ ] 👤 Прод-БД — нова, чиста, у США (👤 10.2, 10.9); ⭐ API в тому ж регіоні, що й БД — *чому:* кожен запит API → БД через океан додає ~100 мс.
+- [ ] ⭐ Прибрати тимчасовий редирект `/ua/*` → `/uk/*` з `proxy.ts` ([D22](decisions/D22-ukrainian-language-code.md)).
 - [ ] ⭐ Squash міграцій перед першим прод-деплоєм ([`decisions/v5-foundation.md`](decisions/v5-foundation.md), розділ 11).
 - [ ] ⭐ Платні плани там, де безкоштовні не тягнуть прод — OQ-22.
 
@@ -495,7 +507,6 @@
 
 | Сутність / зміна | Де | Як ляже |
 |---|---|---|
-| `Language.code` `ua` → `uk` | M1.2 | Міграція даних (PK + FK перекладів) |
 | `Post.number`, `PostTranslation.slug` | M1.4.1 | Нові колонки + backfill |
 | `Post.coverImageAlt`, `Post.coverImageCredit` | M1.4.4 | Nullable-колонки |
 | `PostSource { postId, url, name, sortOrder }` | M1.4.5 | Нова таблиця; `Post.sourceUrl` → перенос і видалення |

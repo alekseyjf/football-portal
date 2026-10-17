@@ -31,6 +31,13 @@ export interface AdminPostRow {
   translations: { languageCode: string; title: string }[];
 }
 
+/** Підпис мови в інтерфейсі: код усередині — `uk`, напис — «Укр» (D22). */
+const LANGUAGE_SHORT_LABELS: Record<string, string> = { en: 'Eng', uk: 'Укр' };
+
+export function languageShortLabel(languageCode: string): string {
+  return LANGUAGE_SHORT_LABELS[languageCode] ?? languageCode.toUpperCase();
+}
+
 export function adminPostTitle(
   post: AdminPostRow,
   languageCode: string = 'en',

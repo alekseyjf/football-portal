@@ -6,6 +6,7 @@ import {
   adminAuthorName,
   adminPostStatusLabel,
   adminPostTitle,
+  languageShortLabel,
   type AdminPostRow,
 } from '@/lib/api/types';
 import { getPublicWebUrl } from '@/lib/publicWebUrl';
@@ -84,11 +85,9 @@ export default function PostsPage() {
                   <h3 className="font-medium truncate">{adminPostTitle(post)}</h3>
                   <p className="text-sm text-gray-400 mt-0.5">
                     {adminPostDateLine(post)} · {adminAuthorName(post.author)} ·{' '}
-                    <span className="uppercase">
-                      {post.translations
-                        .map((translation) => translation.languageCode)
-                        .join(' / ')}
-                    </span>
+                    {post.translations
+                      .map((translation) => languageShortLabel(translation.languageCode))
+                      .join(' / ')}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">

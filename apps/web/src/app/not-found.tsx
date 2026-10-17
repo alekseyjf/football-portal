@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Єдина 404 застосунку: `notFound()` сторінок (новина, матч), невідомі шляхи (`/ua/leagues`,
+ * Єдина 404 застосунку: `notFound()` сторінок (новина, матч), невідомі шляхи (`/uk/leagues`,
  * поки сторінок етапу 7 немає) і шляхи поза локаллю. Кореневий layout повертає лише `children`
  * (`html` / `body` — у `[locale]/layout.tsx`), тож документ тут свій — інакше Next:
  * «Missing <html> and <body> tags in the root layout». Мова — з next-intl (запит пройшов

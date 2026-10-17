@@ -24,10 +24,10 @@ const PUBLICATION_OPTIONS = [
 type PublicationChoice = (typeof PUBLICATION_OPTIONS)[number]['value'];
 
 /** Українські поля: або всі порожні, або всі валідні за тими ж межами, що й англійські. */
-const UA_FIELD_SCHEMAS = {
-  titleUa: postTitleSchema,
-  excerptUa: postExcerptSchema,
-  contentUa: postContentSchema,
+const UK_FIELD_SCHEMAS = {
+  titleUk: postTitleSchema,
+  excerptUk: postExcerptSchema,
+  contentUk: postContentSchema,
 } as const;
 
 const schema = z
@@ -36,9 +36,9 @@ const schema = z
     titleEn: postTitleSchema,
     excerptEn: postExcerptSchema,
     contentEn: postContentSchema,
-    titleUa: z.string(),
-    excerptUa: z.string(),
-    contentUa: z.string(),
+    titleUk: z.string(),
+    excerptUk: z.string(),
+    contentUk: z.string(),
     // Лише https — як `@IsMediaUrl()` у DTO API
     coverImageUrl: mediaUrlSchema.optional().or(z.literal('')),
     publication: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']),
@@ -46,13 +46,13 @@ const schema = z
     scheduledAt: z.string(),
   })
   .superRefine((values, ctx) => {
-    const uaFieldNames = Object.keys(UA_FIELD_SCHEMAS) as Array<
-      keyof typeof UA_FIELD_SCHEMAS
+    const ukFieldNames = Object.keys(UK_FIELD_SCHEMAS) as Array<
+      keyof typeof UK_FIELD_SCHEMAS
     >;
-    const hasAnyUa = uaFieldNames.some((fieldName) => values[fieldName].trim());
-    if (hasAnyUa) {
-      for (const fieldName of uaFieldNames) {
-        const fieldResult = UA_FIELD_SCHEMAS[fieldName].safeParse(values[fieldName]);
+    const hasAnyUk = ukFieldNames.some((fieldName) => values[fieldName].trim());
+    if (hasAnyUk) {
+      for (const fieldName of ukFieldNames) {
+        const fieldResult = UK_FIELD_SCHEMAS[fieldName].safeParse(values[fieldName]);
         if (!fieldResult.success) {
           ctx.addIssue({
             code: 'custom',
@@ -131,9 +131,9 @@ export function CreatePostForm() {
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      titleUa: '',
-      excerptUa: '',
-      contentUa: '',
+      titleUk: '',
+      excerptUk: '',
+      contentUk: '',
       coverImageUrl: '',
       publication: 'DRAFT',
       scheduledAt: '',
@@ -153,12 +153,12 @@ export function CreatePostForm() {
         content: data.contentEn,
       },
     ];
-    if (data.titleUa.trim()) {
+    if (data.titleUk.trim()) {
       translations.push({
-        languageCode: 'ua',
-        title: data.titleUa.trim(),
-        excerpt: data.excerptUa.trim(),
-        content: data.contentUa.trim(),
+        languageCode: 'uk',
+        title: data.titleUk.trim(),
+        excerpt: data.excerptUk.trim(),
+        content: data.contentUk.trim(),
       });
     }
 
@@ -217,18 +217,18 @@ export function CreatePostForm() {
         </h2>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-300">Title</label>
-          <input {...register('titleUa')} className={inputClass(!!errors.titleUa)} />
-          {errors.titleUa && <p className="text-red-400 text-xs">{errors.titleUa.message}</p>}
+          <input {...register('titleUk')} className={inputClass(!!errors.titleUk)} />
+          {errors.titleUk && <p className="text-red-400 text-xs">{errors.titleUk.message}</p>}
         </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-300">Excerpt</label>
-          <textarea {...register('excerptUa')} rows={2} className={inputClass(!!errors.excerptUa)} />
-          {errors.excerptUa && <p className="text-red-400 text-xs">{errors.excerptUa.message}</p>}
+          <textarea {...register('excerptUk')} rows={2} className={inputClass(!!errors.excerptUk)} />
+          {errors.excerptUk && <p className="text-red-400 text-xs">{errors.excerptUk.message}</p>}
         </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-300">Content</label>
-          <textarea {...register('contentUa')} rows={6} className={inputClass(!!errors.contentUa)} />
-          {errors.contentUa && <p className="text-red-400 text-xs">{errors.contentUa.message}</p>}
+          <textarea {...register('contentUk')} rows={6} className={inputClass(!!errors.contentUk)} />
+          {errors.contentUk && <p className="text-red-400 text-xs">{errors.contentUk.message}</p>}
         </div>
       </div>
 

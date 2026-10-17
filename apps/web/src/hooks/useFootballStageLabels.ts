@@ -1,7 +1,7 @@
 import { useTranslations } from 'next-intl';
 import { MATCHDAY_STAGES } from '@/lib/api/types';
 
-/** Стадії з перекладом у `football.stage.*` (ключі мають бути в en.json / ua.json). */
+/** Стадії з перекладом у `football.stage.*` (ключі мають бути в en.json / uk.json). */
 const TRANSLATED_STAGES = [
   'REGULAR_SEASON',
   'LEAGUE_STAGE',

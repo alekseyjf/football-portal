@@ -2,7 +2,7 @@
  * Seed schema v5 (docs/archive/football-plan-intermediate.md, Фаза 1).
  *
  * Що створює:
- *   1. Мови: en (default), ua
+ *   1. Мови: en (default), uk
  *   2. Адмінів і пости з prisma/seed-data/content.json (експорт Фази 0);
  *      якщо файлу немає — одного адміна з SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
  *   3. 9 турнірів як Competition + CompetitionExternalRef (FOOTBALL_DATA)
@@ -42,8 +42,11 @@ interface LanguageSeed {
 
 const LANGUAGES: LanguageSeed[] = [
   { code: 'en', name: 'English', isDefault: true, sortOrder: 1 },
-  { code: 'ua', name: 'Українська', isDefault: false, sortOrder: 2 },
+  { code: 'uk', name: 'Українська', isDefault: false, sortOrder: 2 },
 ];
+
+/** Експорт Фази 0 (formatVersion 1) писав українську як `ua` — до D22. */
+const LEGACY_LANGUAGE_CODES: Record<string, string> = { ua: 'uk' };
 
 interface CompetitionSeed {
   slug: string;
@@ -199,7 +202,22 @@ function readContentExport(): ContentExport | null {
         `(expected ${SUPPORTED_CONTENT_FORMAT_VERSION})`,
     );
   }
-  return contentExport;
+  return withCurrentLanguageCodes(contentExport);
+}
+
+function withCurrentLanguageCodes(contentExport: ContentExport): ContentExport {
+  return {
+    ...contentExport,
+    posts: contentExport.posts.map((post) => ({
+      ...post,
+      translations: post.translations.map((translation) => ({
+        ...translation,
+        languageCode:
+          LEGACY_LANGUAGE_CODES[translation.languageCode] ??
+          translation.languageCode,
+      })),
+    })),
+  };
 }
 
 /** Перевіряємо зв'язки до запису в БД — щоб не впасти посеред транзакції. */
