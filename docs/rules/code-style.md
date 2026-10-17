@@ -3,7 +3,7 @@
 > Позначки: без позначки — чинне правило; ⭐ — нове або змінене 2026-10-08 (перечитай).
 
 ## TypeScript
-- `strict: true` у web, admin, пакетах — і ⭐ в API після M1.3 ([D29](../decisions/D29-strict-typescript-api.md)).
+- `strict: true` у web, admin, пакетах і в API (з M1.3.1, [D29](../decisions/D29-strict-typescript-api.md)).
 - Ніяких `any` → `unknown` або явний тип (ESLint API ловить `no-unsafe-*`).
 - ⭐ Типи відповідей API у web / admin — **згенеровані** з OpenAPI (`packages/types`), не написані вручну ([D28](../decisions/D28-openapi-contract.md)).
 - ⭐ Без кастів, що ховають помилки (`req.user as …`) — для користувача є `@CurrentUser()`.
@@ -23,6 +23,7 @@
 - Мова — українська (як склалося в проєкті); коментар пояснює **чому**, а не що робить рядок.
 - Посилання на рішення — за ID: `(P5-3)`, `(🧭 п. 6)`, `(D24)` — їх видно в `docs/decisions/`. Номери етапів плану в коментарях — лише нові (`M1.9`).
 
-## ⭐ Кінці рядків
-- `apps/*` і `packages/*`, `CLAUDE.md`, `README.md` — CRLF (в `apps/api` це перевіряють prettier і ESLint); документація в `docs/` — LF.
-- Новий файл у застосунку — привести до CRLF (`prettier --write` для `apps/api`).
+## Кінці рядків (👤 2026-10-17)
+- **Усі текстові файли — CRLF**, і код, і `docs/`. Виняток — LF лише там, де файл пише інструмент або CR щось ламає: `pnpm-lock.yaml` (pnpm переписує його в LF при кожній зміні залежностей), `apps/api/prisma/migrations/**` (генерує Prisma; контрольна сума застосованої міграції — у `_prisma_migrations`), `*.sh` (shell не розуміє CR).
+- Перевірка — `pnpm lint:eol` (входить у `pnpm lint`), виправлення — `pnpm fix:eol`; список винятків — `scripts/line-endings.mjs`, для редакторів — `.editorconfig`.
+- LF з'являється від генераторів: `prisma format` з CLI, нові файли від create-next-app / AI — після них `pnpm fix:eol`. pnpm у `package.json` CRLF зберігає.

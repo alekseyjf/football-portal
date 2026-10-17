@@ -14,7 +14,9 @@
     "db:generate": "pnpm --filter @football-portal/api exec prisma generate",
     "dev": "turbo dev",
     "build": "turbo build",
-    "lint": "turbo lint"
+    "lint": "turbo lint && pnpm lint:eol",
+    "lint:eol": "node scripts/line-endings.mjs",
+    "fix:eol": "node scripts/line-endings.mjs --fix"
   },
   "devDependencies": {
     "turbo": "latest"

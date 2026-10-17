@@ -1,0 +1,8 @@
+# Кінці рядків — як у scripts/line-endings.mjs (перевірка: pnpm lint:eol)
+root = true
+
+[*]
+end_of_line = crlf
+
+[{pnpm-lock.yaml,apps/api/prisma/migrations/**,*.sh}]
+end_of_line = lf

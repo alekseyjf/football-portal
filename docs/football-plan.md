@@ -1,7 +1,7 @@
 # ⚽ 12Yards — план розвитку
 
 > **Версія:** 5.0 · 2026-10-08 — перший план після переходу на схему v5. Попередні: [`archive/football-plan-v4.7.md`](archive/football-plan-v4.7.md), [`archive/football-plan-intermediate.md`](archive/football-plan-intermediate.md).
-> **Зараз:** M1 «Тестовий реліз» → **M1.2 Мова `uk`** ✅ (чекає PR) · M1.1 — власник перечитує `rules/` · далі **M1.3**.
+> **Зараз:** M1 «Тестовий реліз» → **M1.3.1 Якість коду** ✅ (чекає PR) · M1.1 — власник перечитує `rules/` · далі **M1.3.2**.
 > **Карта документації:** [`docs/README.md`](README.md) · рішення — [`decisions/`](decisions/README.md) · відкладене — [`backlog.md`](backlog.md) · ідеї — [`ideas.md`](ideas.md) · питання — [`open-questions.md`](open-questions.md).
 
 ## Як читати план
@@ -55,7 +55,7 @@
 | 8 | Старі новини доступні | Головна показує 6 останніх, сторінки `/news` і пагінації немає | `/news` з «Завантажити ще» | M1.6 |
 | 9 | Анти-абуз блокує тимчасово | Strike-и за весь час: два «вибухи» лайків за будь-який час = вічний блок, розблокувати нічим | Вікно 30 днів, розблокування адміном ([D37](decisions/D37-anti-abuse-strike-window.md)) | M1.7, M2.6 |
 | 10 | Лайки коментарів дешеві | Кожен коментар — окремий запит лайків (N+1: 100 коментарів = 100 HTTP + ~200 SQL) | Лайки пачкою з порцією коментарів | M1.7 |
-| 11 | `pnpm lint` працює | В адмінці `next lint` (прибрано в Next 16) — падає; у `lint` API — `--fix` | ESLint в адмінці, lint без `--fix` | M1.3 |
+| 11 | `pnpm lint` працює | В адмінці `next lint` (прибрано в Next 16) — падає; у `lint` API — `--fix` | ✅ ESLint в адмінці, lint без `--fix` | M1.3.1 |
 | 12 | Є e2e-тести | `test/app.e2e-spec.ts` — шаблон Nest («Hello World») | Каркас e2e, `/health` | M1.3 |
 | 13 | Синк ощадливий | Завершені WC 2026 і EC 2024 синкаються кожні 2 год | Автопропуск завершених ([D36](decisions/D36-sync-operations.md)) | M1.11.7 |
 | 14 | «Поточний тур» з даних провайдера | `Season.currentMatchday` синк пише й API віддає, але web не використовує | Використати | M2.2 |
@@ -116,12 +116,16 @@
 
 **Мета:** якість коду й контракт API — до нових фіч (👤 13.1, У16).
 
-- [ ] 👤 ESLint в адмінці (flat config як у web, `"lint": "eslint"`) — ⚠️ зараз `pnpm lint` в адмінці падає.
-- [ ] ⭐ `lint` в API без `--fix` (окремо `lint:fix`) — *чому:* перевірка не повинна мовчки міняти файли; CI має падати, а не «виправляти».
+👤 Ділимо на під-етапи (2026-10-17), кожен — окрема гілка й PR; перший — **M1.3.1 Якість коду** ✅ (гілка `refactor/m1-3-1-code-quality`).
+
+- [x] 👤 ESLint в адмінці (flat config як у web, `"lint": "eslint"`) — ⚠️ зараз `pnpm lint` в адмінці падає. *M1.3.1:* `eslint` 9 + `eslint-config-next` 16.2.2 (ті самі версії, що в web; lock-файл — лише рядки адмінки). Єдине попередження — `watch()` React Hook Form несумісний з React Compiler → `useWatch()` у `CreatePostForm` (поведінка та сама).
+- [x] ⭐ `lint` в API без `--fix` (окремо `lint:fix`; з glob прибрано неіснуючі `apps`, `libs` — залишок шаблону Nest) — *чому:* перевірка не повинна мовчки міняти файли; CI має падати, а не «виправляти».
 - [ ] 👤 `GET /health` замість шаблонного Hello World (`AppController` / `AppService` прибрати), оновити `test/app.e2e-spec.ts`.
   - ⭐ Через `@nestjs/terminus`: ping БД з таймаутом, без деталей інфраструктури у відповіді — *чому:* стандартний модуль Nest; хостинг і uptime-монітор питають саме health-ендпоінт; без таймауту завислий пулер повісить і його.
-- [ ] 👤 `@CurrentUser()` замість `req.user as AuthenticatedUser` у контролерах ([D29](decisions/D29-strict-typescript-api.md)).
-- [ ] 👤 Суворий TypeScript в API: `noImplicitAny` (виміряно — 0 помилок) → `strict: true` (12 помилок TS2564 у DTO → `!`).
+- [x] 👤 `@CurrentUser()` замість `req.user as AuthenticatedUser` у контролерах ([D29](decisions/D29-strict-typescript-api.md)). *M1.3.1:* `auth/current-user.decorator.ts` — `@CurrentUser()` (без `JwtAuthGuard` — 500 і стек у лозі, а не тихий `undefined`) і `@OptionalCurrentUser()` для `OptionalJwtAuthGuard` (статистика лайків); `req.user` у контролерах не лишилось. ⭐ Заодно `LikeService.toggle` приймає `Role`, а не `string` (контролер кастував роль до `string`, сервіс порівнював з `'ADMIN'`).
+- [x] 👤 Суворий TypeScript в API: `noImplicitAny` (виміряно — 0 помилок) → `strict: true` (12 помилок TS2564 у DTO → `!`). *M1.3.1:* одразу `strict: true` — рівно 12 полів DTO з `!`; `useUnknownInCatchVariables` знайшов ще 3 `${err}` у `security-cleanup.cron.ts` (ESLint `restrict-template-expressions`) → `String(err)`, той самий текст у лозі. У зібраному JS `"use strict"` уже був — рантайм не змінився.
+- [x] 👤 Кінці рядків — **CRLF в усьому репозиторії**, і в `docs/` (2026-10-17, [code-style](rules/code-style.md)): переведено 76 файлів; винятки LF — `pnpm-lock.yaml`, `apps/api/prisma/migrations/**`, `*.sh`. `scripts/line-endings.mjs` (дані — з `git ls-files --eol`): `pnpm lint:eol` у складі `pnpm lint`, `pnpm fix:eol`; `.editorconfig`.
+  - ⭐ *Чому винятки:* перевірено — pnpm 10 при зміні залежностей переписує `pnpm-lock.yaml` у LF (а CRLF у `package.json` зберігає), `prisma format` з CLI пише LF; контрольна сума застосованої міграції лежить у БД — чи нечутлива вона до CR, з рушія не видно, а хибний «змінений» стан у `migrate dev` = пропозиція скинути dev-БД.
 - [ ] 👤 Swagger ([D28](decisions/D28-openapi-contract.md)): `@nestjs/swagger` + CLI-плагін, UI `/api/docs` — лише не на проді (👤 У17); каркас response DTO.
 - [ ] 👤 Генерація типів `openapi-typescript` → `packages/types` (згенерований файл у git), скрипт `pnpm gen:api-types`.
   - ⭐ Схему генерує скрипт без сервера й БД; у CI — перевірка, що згенероване актуальне — *чому:* так контракт API ↔ web не розходиться мовчки.
