@@ -1,11 +1,11 @@
 import { defineRouting } from 'next-intl/routing';
 
-/** Сегмент URL збігається з query `lang` у API (`en` | `ua`). */
+/** Сегмент URL = `Language.code` = query `lang` у API = `<html lang>` (`en` | `uk`, D22). */
 export const routing = defineRouting({
-  locales: ['en', 'ua'],
+  locales: ['en', 'uk'],
   defaultLocale: 'en',
   localePrefix: 'always',
-  /** Cookie + Accept-Language після нормалізації в `proxy.ts` (браузерний `uk` → сегмент `ua`). */
+  /** Cookie + Accept-Language: браузер шле стандартний `uk` / `uk-UA` — нормалізація не потрібна. */
   localeDetection: true,
 });
 

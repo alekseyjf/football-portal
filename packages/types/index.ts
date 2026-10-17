@@ -30,7 +30,7 @@ export interface User {
 // ─── Posts + i18n ───
 
 /** Мова контенту для query `lang` у GET /posts, /posts/:slug (`Language.code`). */
-export type ApiContentLanguage = 'en' | 'ua';
+export type ApiContentLanguage = 'en' | 'uk';
 
 export const DEFAULT_CONTENT_LANG: ApiContentLanguage = 'en';
 

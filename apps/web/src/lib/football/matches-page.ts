@@ -5,7 +5,7 @@ import type {
 } from '@/lib/api/types';
 import { LEAGUE_QUERY_PARAM } from './league-param';
 
-/** День сторінки матчів у query: `/ua/matches?date=2026-10-10`; без нього — сьогодні. */
+/** День сторінки матчів у query: `/uk/matches?date=2026-10-10`; без нього — сьогодні. */
 export const MATCHES_DATE_QUERY_PARAM = 'date';
 
 /** Посилання на сторінку матчів: день (`null` — сьогодні) і ліга (`null` — усі активні). */

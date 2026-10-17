@@ -38,7 +38,7 @@
 **Rule 6 — Locale передається через URL**
 ```typescript
 // /en/news/[slug]
-// /ua/news/[slug]
+// /uk/news/[slug]  — код мови `uk` (не `ua` — це код країни), D22
 // next-intl у src/proxy.ts (Next 16 — proxy замість middleware) визначає мову
 ```
 
@@ -64,7 +64,7 @@
 //   в Chrome лишається «незавершеним» (клієнт Next не дочитує тіло) → networkidle ніколи не настає
 ```
 
-> ⭐ **Зміна до Rule 6** (після M1.2): українська — `/uk/…`, не `/ua/…` ([D22](../decisions/D22-ukrainian-language-code.md)).
+> ⭐ **Зміна до Rule 6** (з M1.2): українська — `/uk/…`, не `/ua/…` ([D22](../decisions/D22-ukrainian-language-code.md)); старі `/ua/…` — 308 на `/uk/…` до M3.1.
 
 ---
 

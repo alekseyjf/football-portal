@@ -3,10 +3,7 @@
 import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import {
-  contentLangToBcp47,
-  contentLanguageName,
-} from '@/lib/i18n/content-lang';
+import { contentLanguageName } from '@/lib/i18n/content-lang';
 import { postDetailQueryOptions } from '@/hooks/usePostDetail';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
@@ -56,7 +53,7 @@ export function NewsPostView({ slug }: { slug: string }) {
         </p>
       )}
 
-      <article lang={contentLangToBcp47(post.resolvedLanguage)}>
+      <article lang={post.resolvedLanguage}>
         {post.coverImageUrl && (
           // `unoptimized` — як у стрічці (довільний хост, без серверного fetch); `eager` — LCP
           <div className="relative w-full h-64 mb-6 overflow-hidden rounded-2xl">

@@ -10,7 +10,7 @@
 
 | Шар | Технології |
 |-----|------------|
-| **Web** | Next.js 16 (App Router), React 19, Tailwind 4, next-intl (`en` / `ua`), React Hook Form, Zod, Zustand, **TanStack Query** |
+| **Web** | Next.js 16 (App Router), React 19, Tailwind 4, next-intl (`en` / `uk`), React Hook Form, Zod, Zustand, **TanStack Query** |
 | **Admin** | Next.js 16 (порт **3001**), TanStack Query |
 | **API** | NestJS 11, Prisma 7, PostgreSQL (Supabase), JWT (httpOnly cookies), class-validator, Helmet, throttler, axios, **@nestjs/schedule** |
 | **Monorepo** | pnpm workspaces, Turborepo |

@@ -36,9 +36,10 @@ export function LocaleSwitcher() {
           aria-current={loc === locale ? 'true' : undefined}
           aria-label={t(loc)}
         >
-          {/* До 1024 px — код мови (`EN` / `UA`): з повними назвами навбар не влазить */}
+          {/* До 1024 px — коротко (`Eng` / `Укр`): з повними назвами навбар не влазить;
+              не код `UK` — його читають як «Британія» */}
           <span className="lg:hidden" aria-hidden>
-            {loc.toUpperCase()}
+            {t(`short.${loc}`)}
           </span>
           <span className="hidden lg:inline" aria-hidden>
             {t(loc)}

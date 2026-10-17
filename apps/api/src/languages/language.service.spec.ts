@@ -3,7 +3,7 @@ import { LanguageService } from './language.service';
 
 const LANGUAGES: LanguageRow[] = [
   { code: 'en', isDefault: true, isActive: true },
-  { code: 'ua', isDefault: false, isActive: true },
+  { code: 'uk', isDefault: false, isActive: true },
   { code: 'de', isDefault: false, isActive: false },
 ];
 
@@ -17,15 +17,16 @@ function createService(languages: LanguageRow[] = LANGUAGES) {
 
 describe('LanguageService.chooseContentLanguage', () => {
   it.each([
-    ['ua', 'ua'],
+    ['uk', 'uk'],
     ['en', 'en'],
-    [' UA ', 'ua'],
+    [' UK ', 'uk'],
+    ['ua', 'en'], // код країни, не мови (D22)
     ['xx', 'en'],
     ['de', 'en'], // неактивна
     ['', 'en'],
     [undefined, 'en'],
-    [['ua', 'en'], 'en'], // ?lang=ua&lang=en
-    [{ code: 'ua' }, 'en'],
+    [['uk', 'en'], 'en'], // ?lang=uk&lang=en
+    [{ code: 'uk' }, 'en'],
   ])('lang=%j → %s', async (requestedLang, requestedCode) => {
     const { service } = createService();
     await expect(service.chooseContentLanguage(requestedLang)).resolves.toEqual(
@@ -41,13 +42,13 @@ describe('LanguageService.getContentLanguages', () => {
     const { service } = createService();
     const languages = await service.getContentLanguages();
     expect(languages.defaultCode).toBe('en');
-    expect([...languages.activeCodes].sort()).toEqual(['en', 'ua']);
+    expect([...languages.activeCodes].sort()).toEqual(['en', 'uk']);
   });
 
   it('default-мова доступна, навіть якщо її вимкнули', async () => {
     const { service } = createService([
       { code: 'en', isDefault: true, isActive: false },
-      { code: 'ua', isDefault: false, isActive: true },
+      { code: 'uk', isDefault: false, isActive: true },
     ]);
     const languages = await service.getContentLanguages();
     expect(languages.activeCodes.has('en')).toBe(true);
@@ -55,7 +56,7 @@ describe('LanguageService.getContentLanguages', () => {
 
   it('без default-мови — помилка', async () => {
     const { service } = createService([
-      { code: 'ua', isDefault: false, isActive: true },
+      { code: 'uk', isDefault: false, isActive: true },
     ]);
     await expect(service.getContentLanguages()).rejects.toThrow(
       /No default Language/,
@@ -66,7 +67,7 @@ describe('LanguageService.getContentLanguages', () => {
     jest.useFakeTimers({ now: Date.parse('2026-09-26T12:00:00Z') });
     const { service, findAll } = createService();
     await service.getContentLanguages();
-    await service.chooseContentLanguage('ua');
+    await service.chooseContentLanguage('uk');
     jest.advanceTimersByTime(59_000);
     await service.getContentLanguages();
     expect(findAll).toHaveBeenCalledTimes(1);

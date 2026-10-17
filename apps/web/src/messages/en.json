@@ -17,7 +17,11 @@
   "locale": {
     "label": "Language",
     "en": "English",
-    "ua": "Українська"
+    "uk": "Українська",
+    "short": {
+      "en": "Eng",
+      "uk": "Ukr"
+    }
   },
   "home": {
     "title": "Football Portal",
