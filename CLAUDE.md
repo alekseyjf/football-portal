@@ -7,12 +7,12 @@
 - **Monorepo**: pnpm + Turborepo
 - `packages/types` — shared TypeScript types
 - `packages/validation` — спільні межі валідації: `.` — числа (API DTO на class-validator), `./forms` — zod-схеми форм web/admin. Збирається в `dist` (turbo `dev`/`build` — першим; `pnpm install` — через `prepare`)
-- `packages/config` — shared tsconfig, eslint
+- `packages/config` — shared tsconfig (ESLint — свій `eslint.config.mjs` у кожному застосунку; web і admin — однаковий `eslint-config-next`)
 
 ## Auth
 - Access JWT 15 хв (HS256, `{ sub, role, sid }`, `sid` = `AuthSession.familyId`) + opaque refresh (у БД — SHA-256), **httpOnly cookies**; refresh — ротація, ковзне вікно 7 д, **абсолютний ліміт 30 д** від логіну
 - `JwtStrategy` на кожен запит перевіряє, що сесія `sid` жива → logout / logout-all / блокування гасять access одразу
-- Roles: `ADMIN`, `USER`; Guards: `JwtAuthGuard`, `RolesGuard`, `@Roles('ADMIN')` decorator
+- Roles: `ADMIN`, `USER`; Guards: `JwtAuthGuard`, `RolesGuard`, `@Roles('ADMIN')` decorator; користувач у контролері — `@CurrentUser()` / `@OptionalCurrentUser()`, не `req.user`
 - Адмінка логіниться через `POST /auth/login/admin` (не-ADMIN → 403 `ADMIN_ONLY`, сесія не створюється); cookies спільні на localhost
 - Пароль: новий ≥ 8 і ≤ 72 **байти** UTF-8 (межа bcrypt; `PASSWORD_MAX_BYTES`, API — `@MaxUtf8Bytes`, межі — `packages/validation`); логін — без мінімуму (старі акаунти)
 
@@ -36,7 +36,7 @@ All routes prefixed with `/api/v1/`
 - `POST /auth/logout` — без guard (читає refresh-cookie); `POST /auth/logout-all` — JwtAuthGuard; `GET /auth/me`
 - Files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`
 - DTOs: `register.dto.ts`, `login.dto.ts`
-- Guards: `guards/jwt-auth.guard.ts`, `guards/roles.guard.ts`, `guards/roles.decorator.ts`
+- Guards: `guards/jwt-auth.guard.ts`, `guards/optional-jwt-auth.guard.ts`, `guards/roles.guard.ts`, `guards/roles.decorator.ts`; `current-user.decorator.ts`
 - Strategy: `strategies/jwt.strategy.ts` — reads token from cookie `access_token`
 
 ### Posts — `src/posts/`

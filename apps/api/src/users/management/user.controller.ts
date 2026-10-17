@@ -3,14 +3,14 @@ import {
   Controller,
   Delete,
   Param,
-  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { clearAuthCookies } from '../../auth/auth-cookies';
+import { CurrentUser } from '../../auth/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Roles } from '../../auth/guards/roles.decorator';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -31,10 +31,9 @@ export class UserController {
   @PasswordConfirmationThrottle()
   async deleteOwnAccount(
     @Body() dto: DeleteOwnAccountDto,
-    @Req() req: Request,
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const user = req.user as AuthenticatedUser;
     await this.userService.deleteOwnAccount(user.id, dto.password);
     clearAuthCookies(res);
     return { message: 'Account deleted' };
@@ -46,9 +45,8 @@ export class UserController {
   async deleteUser(
     @Param('id') targetUserId: string,
     @Body() dto: DeleteUserDto,
-    @Req() req: Request,
+    @CurrentUser() admin: AuthenticatedUser,
   ) {
-    const admin = req.user as AuthenticatedUser;
     await this.userService.deleteUserAsAdmin(targetUserId, admin.id, dto.note);
     return { message: 'User deleted', userId: targetUserId };
   }

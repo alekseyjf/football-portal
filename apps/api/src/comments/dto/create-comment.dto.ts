@@ -20,7 +20,7 @@ export class CreateCommentDto {
   @IsString()
   @MinLength(COMMENT_MIN_LENGTH)
   @MaxLength(COMMENT_MAX_LENGTH)
-  content: string;
+  content!: string;
 
   // Рівно одне з postId / matchId — перевіряє сервіс (P4-1, `COMMENT_TARGET_INVALID`).
   // `null` = не передано: `@IsOptional` пропускає null без решти валідаторів

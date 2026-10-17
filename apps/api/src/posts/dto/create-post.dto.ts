@@ -23,5 +23,5 @@ export class CreatePostDto extends PostFieldsDto {
   @ArrayMaxSize(POST_TRANSLATIONS_MAX)
   @ValidateNested({ each: true })
   @Type(() => PostTranslationDto)
-  translations: PostTranslationDto[];
+  translations!: PostTranslationDto[];
 }

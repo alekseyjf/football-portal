@@ -7,11 +7,10 @@ import {
   Post,
   Put,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import type { Request } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/guards/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -46,8 +45,10 @@ export class PostController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  createPost(@Body() dto: CreatePostDto, @Req() req: Request) {
-    const user = req.user as AuthenticatedUser;
+  createPost(
+    @Body() dto: CreatePostDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.postService.createPost(dto, user.id);
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
@@ -126,7 +126,7 @@ export function CreatePostForm() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -140,7 +140,7 @@ export function CreatePostForm() {
     },
   });
 
-  const publication: PublicationChoice = watch('publication');
+  const publication: PublicationChoice = useWatch({ control, name: 'publication' });
 
   const onSubmit = async (data: FormData) => {
     setServerError(null);

@@ -31,7 +31,7 @@ export class SecurityCleanupCron {
         this.log.log(`Видалено прострочених сесій: ${deletedSessions}`);
       }
     } catch (err) {
-      this.log.warn(`Очищення AuthSession: ${err}`);
+      this.log.warn(`Очищення AuthSession: ${String(err)}`);
     }
 
     try {
@@ -42,7 +42,7 @@ export class SecurityCleanupCron {
         this.log.log(`Видалено RateLimitEvent: ${deletedEvents}`);
       }
     } catch (err) {
-      this.log.warn(`Очищення RateLimitEvent: ${err}`);
+      this.log.warn(`Очищення RateLimitEvent: ${String(err)}`);
     }
 
     try {
@@ -53,7 +53,7 @@ export class SecurityCleanupCron {
         this.log.log(`Видалено прострочених BlockedEmail: ${deletedBlocks}`);
       }
     } catch (err) {
-      this.log.warn(`Очищення BlockedEmail: ${err}`);
+      this.log.warn(`Очищення BlockedEmail: ${String(err)}`);
     }
   }
 }

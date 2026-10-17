@@ -10,10 +10,10 @@ export class LoginDto {
   @TrimString()
   @IsEmail()
   @MaxLength(EMAIL_MAX_LENGTH)
-  email: string;
+  email!: string;
 
   /** Без мінімуму: акаунти до 2f мають паролі від 6 символів. Максимум — захист від величезних тіл */
   @IsString()
   @MaxLength(PASSWORD_INPUT_MAX_LENGTH)
-  password: string;
+  password!: string;
 }
