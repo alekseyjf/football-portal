@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LikeType } from '@prisma/client';
+import { LikeType, Role } from '@prisma/client';
 import { ToggleLikeDto, type LikeTargetTypeDto } from './dto/toggle-like.dto';
 import { LikeAntiAbuseService } from './like-anti-abuse.service';
 import { LikeRepository } from './like.repository';
@@ -48,10 +48,10 @@ export class LikeService {
 
   async toggle(
     userId: string,
-    userRole: string,
+    userRole: Role,
     dto: ToggleLikeDto,
   ): Promise<LikeStatsResponse> {
-    const isAdmin = userRole === 'ADMIN';
+    const isAdmin = userRole === Role.ADMIN;
     const targetType = dto.targetType;
     await this.ensureTargetExists(targetType, dto.targetId);
     await this.likeAntiAbuse.assertCanLikeOrThrow(userId, isAdmin);

@@ -5,11 +5,10 @@ import {
   Get,
   Param,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import type { Request } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/guards/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -36,18 +35,21 @@ export class CommentController {
   // Авторизовані — створити коментар або відповідь
   @Post()
   @UseGuards(JwtAuthGuard)
-  createComment(@Body() dto: CreateCommentDto, @Req() req: Request) {
-    return this.commentService.createComment(
-      dto,
-      req.user as AuthenticatedUser,
-    );
+  createComment(
+    @Body() dto: CreateCommentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.commentService.createComment(dto, user);
   }
 
   // Автор або адмін — soft delete разом з гілкою відповідей
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  deleteComment(@Param('id') id: string, @Req() req: Request) {
-    return this.commentService.deleteComment(id, req.user as AuthenticatedUser);
+  deleteComment(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.commentService.deleteComment(id, user);
   }
 
   // ⚠️ Деструктивно: рядок фізично зникає з БД (розділ 7.5.2)

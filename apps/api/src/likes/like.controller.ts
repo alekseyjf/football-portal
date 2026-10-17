@@ -1,15 +1,11 @@
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
-import type { Request } from 'express';
+  CurrentUser,
+  OptionalCurrentUser,
+} from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
+import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { ToggleLikeDto } from './dto/toggle-like.dto';
 import { LikeService } from './like.service';
 
@@ -22,16 +18,14 @@ export class LikeController {
   getStats(
     @Param('targetType') targetType: string,
     @Param('targetId') targetId: string,
-    @Req() req: Request,
+    @OptionalCurrentUser() user: AuthenticatedUser | undefined,
   ) {
-    const user = req.user as { id: string } | undefined;
     return this.likeService.getStats(targetType, targetId, user?.id);
   }
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  toggle(@Body() dto: ToggleLikeDto, @Req() req: Request) {
-    const user = req.user as { id: string; role: string };
+  toggle(@Body() dto: ToggleLikeDto, @CurrentUser() user: AuthenticatedUser) {
     return this.likeService.toggle(user.id, user.role, dto);
   }
 }

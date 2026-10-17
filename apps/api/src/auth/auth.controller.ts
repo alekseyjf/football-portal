@@ -25,6 +25,7 @@ import {
   readRefreshToken,
   setAuthCookies,
 } from './auth-cookies';
+import { CurrentUser } from './current-user.decorator';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -144,10 +145,9 @@ export class AuthController {
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   async logoutAll(
-    @Req() req: Request,
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const user = req.user as AuthenticatedUser;
     const revokedSessions = await this.sessionService.endAllSessions(user.id);
     clearAuthCookies(res);
     return { message: 'Logged out on all devices', revokedSessions };
@@ -157,8 +157,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   // Відповідь з персональними даними / токенами — не кешувати (браузер, проксі)
   @Header('Cache-Control', 'no-store')
-  async me(@Req() req: Request) {
-    const user = req.user as AuthenticatedUser;
+  async me(@CurrentUser() user: AuthenticatedUser) {
     return { user: await this.authService.getCurrentUser(user.id) };
   }
 }

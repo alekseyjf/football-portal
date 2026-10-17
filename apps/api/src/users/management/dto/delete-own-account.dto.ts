@@ -7,5 +7,5 @@ export class DeleteOwnAccountDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(PASSWORD_INPUT_MAX_LENGTH)
-  password: string;
+  password!: string;
 }

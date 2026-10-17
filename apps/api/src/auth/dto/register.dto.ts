@@ -15,18 +15,18 @@ export class RegisterDto {
   @TrimString()
   @IsEmail()
   @MaxLength(EMAIL_MAX_LENGTH)
-  email: string;
+  email!: string;
 
   /** Стає `UserProfile.displayName` */
   @TrimString()
   @IsString()
   @MinLength(DISPLAY_NAME_MIN_LENGTH)
   @MaxLength(DISPLAY_NAME_MAX_LENGTH)
-  name: string;
+  name!: string;
 
   /** Максимум — межа bcrypt у байтах UTF-8: довший пароль обрізається мовчки */
   @IsString()
   @MinLength(PASSWORD_MIN_LENGTH)
   @MaxUtf8Bytes(PASSWORD_MAX_BYTES)
-  password: string;
+  password!: string;
 }

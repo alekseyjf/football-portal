@@ -39,22 +39,22 @@ const RELATION_ID_MAX_LENGTH = 64;
 export class PostTranslationDto {
   @IsString()
   @Matches(LANGUAGE_CODE_PATTERN, { message: 'languageCode must be like "en"' })
-  languageCode: string;
+  languageCode!: string;
 
   @TrimString()
   @IsString()
   @Length(POST_TITLE_MIN_LENGTH, POST_TITLE_MAX_LENGTH)
-  title: string;
+  title!: string;
 
   @TrimString()
   @IsString()
   @Length(POST_EXCERPT_MIN_LENGTH, POST_EXCERPT_MAX_LENGTH)
-  excerpt: string;
+  excerpt!: string;
 
   @TrimString()
   @IsString()
   @Length(POST_CONTENT_MIN_LENGTH, POST_CONTENT_MAX_LENGTH)
-  content: string;
+  content!: string;
 }
 
 /** `tagIds` / `clubIds` / `competitionIds`: чи існують — перевіряє сервіс (P3-8). */
