@@ -15,7 +15,7 @@
 const RESERVED_EMAIL_TLD = '.invalid';
 const DELETED_ACCOUNT_EMAIL_DOMAIN = 'removed.invalid';
 
-/** Зберігається в профілі; фронт локалізує за `PublicAuthor.isDeleted`. */
+/** Зберігається в профілі; фронт локалізує за `PublicAuthorDto.isDeleted`. */
 export const DELETED_USER_DISPLAY_NAME = 'Deleted user';
 
 /** Ніколи не проходить `bcrypt.compare` (перевірено: `false`, без винятку). */

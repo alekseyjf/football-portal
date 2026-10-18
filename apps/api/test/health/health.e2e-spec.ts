@@ -1,6 +1,7 @@
 import { createServer, type AddressInfo, type Socket } from 'node:net';
 import request from 'supertest';
 import { apiPath, createE2eApp, type E2eApp } from '../support/e2e-app';
+import { expectMatchesContract } from '../support/openapi-contract';
 
 /** Таймаут пінгу в `HealthController` — 3 с; запас — на старт з'єднання й відповідь. */
 const HEALTH_RESPONSE_DEADLINE_MS = 5000;
@@ -54,6 +55,7 @@ describe('GET /health', () => {
         details: { database: { status: 'up' } },
       });
       expect(response.headers['cache-control']).toContain('no-store');
+      expectMatchesContract(response, 'get', '/health');
     });
   });
 
@@ -76,6 +78,7 @@ describe('GET /health', () => {
         error: { database: { status: 'down' } },
         details: { database: { status: 'down' } },
       });
+      expectMatchesContract(response, 'get', '/health');
     });
   });
 

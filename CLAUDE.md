@@ -5,14 +5,14 @@
 - **Admin** (port 3001): Next.js 16, React Hook Form + Zod, Zustand, **TanStack Query** (пости, логін, створення поста)
 - **API** (port 4000): NestJS, Prisma 7, PostgreSQL (Supabase), JWT httpOnly cookies
 - **Monorepo**: pnpm + Turborepo; нову версію пакета pnpm бере не раніше ніж через 7 днів після публікації (`minimumReleaseAge` у `pnpm-workspace.yaml`)
-- `packages/types` — shared TypeScript types
+- `packages/types` — типи API для web і admin, **згенеровані** з OpenAPI (D28): `pnpm gen:api-types` (без сервера й БД; і `pnpm install`) → `openapi.json` + `src/generated/openapi.ts` — **не в git**; імена (схема без `Dto`) — по файлу на сутність у теці модуля API (`src/football/match.ts`)
 - `packages/validation` — спільні межі валідації: `.` — числа (API DTO на class-validator), `./forms` — zod-схеми форм web/admin. Збирається в `dist` (turbo `dev`/`build` — першим; `pnpm install` — через `prepare`)
 - `packages/config` — shared tsconfig (ESLint — свій `eslint.config.mjs` у кожному застосунку; web і admin — однаковий `eslint-config-next`)
 
 ## Auth
 - Access JWT 15 хв (HS256, `{ sub, role, sid }`, `sid` = `AuthSession.familyId`) + opaque refresh (у БД — SHA-256), **httpOnly cookies**; refresh — ротація, ковзне вікно 7 д, **абсолютний ліміт 30 д** від логіну
 - `JwtStrategy` на кожен запит перевіряє, що сесія `sid` жива → logout / logout-all / блокування гасять access одразу
-- Roles: `ADMIN`, `USER`; Guards: `JwtAuthGuard`, `RolesGuard`, `@Roles('ADMIN')` decorator; користувач у контролері — `@CurrentUser()` / `@OptionalCurrentUser()`, не `req.user`
+- Roles: `ADMIN`, `USER`; доступ до роуту — `@AuthRequired()` / `@AdminOnly()` / `@AuthOptional()` (`auth/guards/access.decorators.ts`: guard-и + опис у Swagger); користувач у контролері — `@CurrentUser()` / `@OptionalCurrentUser()`, не `req.user`
 - Адмінка логіниться через `POST /auth/login/admin` (не-ADMIN → 403 `ADMIN_ONLY`, сесія не створюється); cookies спільні на localhost
 - Пароль: новий ≥ 8 і ≤ 72 **байти** UTF-8 (межа bcrypt; `PASSWORD_MAX_BYTES`, API — `@MaxUtf8Bytes`, межі — `packages/validation`); логін — без мінімуму (старі акаунти)
 
@@ -26,14 +26,14 @@
 - **Sync:** id провайдера — лише в `*ExternalRef` (`payloadHash`), журнал / лок — `SyncRun`. FOOTBALL-таблиці про провайдерів не знають
 
 ## API Structure (NestJS)
-All routes prefixed with `/api/v1/`
+All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/docs-json`), на проді вимкнений. Контракт (D28, backend Rule 11): response DTO — `dto/<сутність>-response.dto.ts`, метод контролера повертає `Promise<XDto>` (схему бере CLI-плагін), помилки — `@throws {404} CODE` у JSDoc; спільне (помилка `default`, 400 валідації) — `src/openapi/openapi-document.ts`
 
 ### Auth — `src/auth/`
 - `POST /auth/register` — public
 - `POST /auth/login` — public, sets httpOnly cookies
 - `POST /auth/login/admin` — public, лише ADMIN (403 `ADMIN_ONLY` до створення сесії); ліміт спроб спільний з `login`
 - `POST /auth/refresh` — ротація refresh-сесії (409 `REFRESH_SUPERSEDED` — гонка вкладок)
-- `POST /auth/logout` — без guard (читає refresh-cookie); `POST /auth/logout-all` — JwtAuthGuard; `GET /auth/me`
+- `POST /auth/logout` — без guard (читає refresh-cookie); `POST /auth/logout-all` — `@AuthRequired()`; `GET /auth/me` — гість без cookies → `200 { user: null }`, 401 лише з refresh-cookie
 - Files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`; cookies з токенами — `AuthCookieService` (`auth-cookies.ts`, надає `AuthSessionsModule`)
 - DTOs: `register.dto.ts`, `login.dto.ts`
 - Guards: `guards/jwt-auth.guard.ts`, `guards/optional-jwt-auth.guard.ts`, `guards/roles.guard.ts`, `guards/roles.decorator.ts`; `current-user.decorator.ts`
@@ -97,7 +97,7 @@ All routes prefixed with `/api/v1/`
 - `POST /football/live-touch` — публічний, ліміт 10 / хв на IP; приймається для матчу в LIVE-вікні (гра йде або `SCHEDULED` у `[−3 год, +15 хв]`), LIVE-синк турніру — не частіше 60 с; лише оновлює наявні матчі, `FINISHED` → оновити таблицю
 
 ### E2E — `apps/api/test/`
-- `pnpm --filter @football-portal/api test:e2e [-- модуль]` — окрема схема `e2e` у dev-БД (потрібна жива Supabase); правила — `apps/api/test/CLAUDE.md`
+- `pnpm test:e2e [-- модуль]` (з кореня; там же `pnpm test`, `pnpm typecheck`, `pnpm db:migrate`, `pnpm db:seed`) — окрема схема `e2e` у dev-БД (потрібна жива Supabase); правила — `apps/api/test/CLAUDE.md`
 
 ## Frontend Structure (apps/web/src/)
 - i18n: `proxy.ts` (next-intl + тимчасовий 308 `/ua/…` → `/uk/…`, прибрати в M3.1), `i18n/` (routing, request, navigation), `messages/en.json` / `uk.json`; для `Intl` / дат — `uk-UA` (`lib/i18n/content-lang.ts`)
@@ -113,9 +113,9 @@ All routes prefixed with `/api/v1/`
 - `app/[locale]/news/[slug]/page.tsx` — RSC: `generateMetadata` через `apiGet`; `prefetchQuery(postDetailQueryOptions)` + `HydrationBoundary`; `NewsPostView.tsx` (`useQuery`)
 - `app/[locale]/news/[slug]/CommentSection.tsx` — `useComments` / `useCreateComment` / `useDeleteComment`; вузол дерева — `components/comments/CommentThreadNode.tsx`; лайки — `components/features/LikeBar.tsx` + `hooks/useLikes.ts` (новина, коментарі, матч)
 - `app/[locale]/auth/login`, `…/auth/register` — форми (React Hook Form + zod-схеми з `@football-portal/validation/forms`)
-- `hooks/usePosts.ts`, `usePostDetail.ts`, `useComments.ts`, `hooks/useAuth.ts` — `useAuthQuery` (`GET /auth/me`, ключ `['auth','me']`, 401 → `null`) + мутації логін/реєстрація/logout (пишуть у кеш `me`); `useAuthorDisplayName` — «Видалений користувач» за `author.isDeleted`
+- `hooks/usePosts.ts`, `usePostDetail.ts`, `useComments.ts`, `hooks/useAuth.ts` — `useAuthQuery` (`GET /auth/me`, ключ `['auth','me']`, гість — `null`) + мутації логін/реєстрація/logout (пишуть у кеш `me`); `useAuthorDisplayName` — «Видалений користувач» за `author.isDeleted`
 - `lib/api/http.ts` — `apiGet` / `apiPost` / `apiPut` / `apiDelete(url, body?)` (credentials, JSON); **єдиний HTTP-шар**. Помилки — `ApiError { status, code, retryAfterSeconds }`. На 401 (лише в браузері; не для `/auth/login|register|refresh|logout`) — один single-flight `POST /auth/refresh` і повтор запиту; 409 від refresh = успіх (інша вкладка); лише 401/403 від refresh = вихід (`onSessionExpired`); 429 / мережа — не розлогінюють
-- `lib/api/types.ts` — `Post`, `PostDetail`, `Comment`, `DEFAULT_CONTENT_LANG` (fallback перекладу робить API; `resolvedLanguage` ≠ мові сторінки → позначка «Переклад недоступний»)
+- `lib/api/types.ts` — ре-експорт `@football-portal/types` (`PaginatedPosts`, `PostDetail`, `Comment`, `DEFAULT_CONTENT_LANG` …; fallback перекладу робить API; `resolvedLanguage` ≠ мові сторінки → позначка «Переклад недоступний»)
 - `lib/query/queryClient.ts`, `providers/QueryProvider.tsx`
 - `providers/AuthSessionSync.tsx` — дзеркалить `useAuthQuery` у store, реагує на `onSessionExpired`
 - `store/auth.store.ts` — Zustand, `user: User | null`, `isLoading` (read-model; писати лише через `AuthSessionSync`)
@@ -129,7 +129,7 @@ All routes prefixed with `/api/v1/`
 - `app/dashboard/posts/page.tsx` — клієнтська сторінка, `useAdminPosts`; посилання «View on site» через `NEXT_PUBLIC_PUBLIC_WEB_URL` (fallback `http://localhost:3000`)
 - `app/dashboard/posts/create/CreatePostForm.tsx` — `useCreatePost`, тіло `CreatePostDto` (EN обов'язково, UK опційно; статус Draft / Publish now / Schedule + дата)
 - `hooks/useAdminPosts.ts`, `useCreatePost.ts`, `useAdminLogin.ts`
-- `lib/api/http.ts` (та сама refresh-логіка, що й у web — міняти разом), `lib/api/types.ts` — `AdminPostRow`, `CreatePostPayload`, `adminPostTitle`, `adminAuthorName`
+- `lib/api/http.ts` (та сама refresh-логіка, що й у web — міняти разом), `lib/api/types.ts` — згенеровані типи (`AdminPost`, `CreatePostRequest`, `SyncRun`) + підписи `adminPostTitle`, `adminAuthorName`
 - `lib/query/queryClient.ts`, `providers/QueryProvider.tsx`
 - `store/auth.store.ts`
 

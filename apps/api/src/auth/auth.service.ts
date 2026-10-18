@@ -11,12 +11,16 @@ import { Prisma, Role, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { EmailBlocklistService } from '../security/email-blocklist/email-blocklist.service';
 import { isReservedEmail } from '../users/deleted-account';
+import type { UserAccountDto } from '../users/dto/user-account-response.dto';
 import { toUserAccount } from '../users/user-account';
 import { UserRepository } from '../users/user.repository';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import type { SessionClientContext } from './session-client-context';
-import { AuthSessionService } from './sessions/auth-session.service';
+import {
+  AuthSessionService,
+  type AuthTokens,
+} from './sessions/auth-session.service';
 
 const PASSWORD_HASH_ROUNDS = 10;
 
@@ -50,7 +54,7 @@ export class AuthService {
     private emailBlocklist: EmailBlocklistService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto): Promise<UserAccountDto> {
     const email = normalizeEmail(dto.email);
     // Простір адрес анонімізованих акаунтів (див. deleted-account.ts)
     if (isReservedEmail(email)) {
@@ -89,7 +93,7 @@ export class AuthService {
     client: SessionClientContext,
     previousRefreshToken: string | undefined,
     requirements: LoginRequirements = {},
-  ) {
+  ): Promise<{ user: UserAccountDto; tokens: AuthTokens }> {
     const email = normalizeEmail(dto.email);
     const credentials = await this.userRepository.findCredentialsByEmail(email);
 
@@ -129,8 +133,19 @@ export class AuthService {
     return { user: toUserAccount(account), tokens };
   }
 
-  /** `GET /auth/me`: статус уже перевірив `JwtStrategy`. */
-  async getCurrentUser(userId: string) {
+  /**
+   * `GET /auth/me`. Живий access → користувач (сесію й статус уже перевірив `JwtStrategy`).
+   * Інакше є refresh-cookie → 401: сесію, можливо, ще можна оновити — клієнт зробить refresh
+   * і повторить. Немає й її → гість (`null`) одразу, без пари 401 + refresh 401 (M1.3.4).
+   */
+  async getSessionUser(
+    userId: string | undefined,
+    hasRefreshToken: boolean,
+  ): Promise<UserAccountDto | null> {
+    if (!userId) {
+      if (hasRefreshToken) throw new UnauthorizedException();
+      return null;
+    }
     const account = await this.userRepository.findAccountById(userId);
     if (!account) throw new UnauthorizedException();
     return toUserAccount(account);

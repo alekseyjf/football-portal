@@ -1,3 +1,12 @@
+import type { LeagueDto, SeasonDto } from '../dto/league-response.dto';
+import type {
+  MatchDetailDto,
+  MatchListItemDto,
+} from '../dto/match-response.dto';
+import type {
+  StandingRowDto,
+  StandingTableDto,
+} from '../dto/standing-response.dto';
 import type {
   CompetitionRecord,
   MatchDetailRecord,
@@ -7,7 +16,7 @@ import type {
 } from '../persistence/football.repository';
 
 /** Сезон у публічних відповідях: дати — `YYYY-MM-DD` (у БД `@db.Date`). */
-export function toPublicSeason(season: SeasonRecord) {
+export function toPublicSeason(season: SeasonRecord): SeasonDto {
   return {
     label: season.label,
     isCurrent: season.isCurrent,
@@ -17,10 +26,8 @@ export function toPublicSeason(season: SeasonRecord) {
   };
 }
 
-export type PublicSeason = ReturnType<typeof toPublicSeason>;
-
 /** `GET /football/leagues[/:slug]`, `league` у дашборді (6.4). */
-export function toPublicLeague(competition: CompetitionRecord) {
+export function toPublicLeague(competition: CompetitionRecord): LeagueDto {
   const currentSeason = competition.seasons[0];
   return {
     id: competition.id,
@@ -33,7 +40,7 @@ export function toPublicLeague(competition: CompetitionRecord) {
   };
 }
 
-function toPublicStandingRow(standingRow: StandingRowRecord) {
+function toPublicStandingRow(standingRow: StandingRowRecord): StandingRowDto {
   return {
     position: standingRow.position,
     played: standingRow.played,
@@ -49,18 +56,11 @@ function toPublicStandingRow(standingRow: StandingRowRecord) {
   };
 }
 
-export type PublicStandingTable = {
-  stage: string;
-  groupName: string | null;
-  type: StandingRowRecord['type'];
-  rows: ReturnType<typeof toPublicStandingRow>[];
-};
-
 /** Рядки, відсортовані за `(stage, groupName, type, position)` → таблиці `[{ stage, groupName, type, rows }]`. */
 export function toPublicStandingTables(
   standingRows: StandingRowRecord[],
-): PublicStandingTable[] {
-  const tables: PublicStandingTable[] = [];
+): StandingTableDto[] {
+  const tables: StandingTableDto[] = [];
   for (const standingRow of standingRows) {
     const groupName = standingRow.groupName || null;
     const lastTable = tables.at(-1);
@@ -83,13 +83,15 @@ export function toPublicStandingTables(
 }
 
 /** `GET /football/matches/:id`: `competition` → `league` — як у решті публічного API. */
-export function toPublicMatchDetail(match: MatchDetailRecord) {
+export function toPublicMatchDetail(match: MatchDetailRecord): MatchDetailDto {
   const { competition, ...matchFields } = match;
   return { ...matchFields, league: competition };
 }
 
 /** `GET /football/matches?from=&to=`: рядок матчу + його турнір (`league`), як у деталі. */
-export function toPublicMatchListItem(match: MatchListRecord) {
+export function toPublicMatchListItem(
+  match: MatchListRecord,
+): MatchListItemDto {
   const { competition, ...matchFields } = match;
   return { ...matchFields, league: competition };
 }

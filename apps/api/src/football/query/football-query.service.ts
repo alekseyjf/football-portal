@@ -3,6 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { SeasonClubDto } from '../dto/club-response.dto';
+import type { LeagueFixturesDto } from '../dto/fixtures-response.dto';
+import type { LeagueDashboardDto } from '../dto/league-dashboard-response.dto';
+import type { LeagueDto } from '../dto/league-response.dto';
+import type {
+  LeagueMatchesPageDto,
+  MatchDetailDto,
+  MatchesInRangeDto,
+} from '../dto/match-response.dto';
+import type { StandingTableDto } from '../dto/standing-response.dto';
 import { groupMatchesIntoRounds } from '../football-matchday.util';
 import {
   FootballRepository,
@@ -51,16 +61,19 @@ function startOfUtcDay(now: Date): Date {
 export class FootballQueryService {
   constructor(private readonly footballRepository: FootballRepository) {}
 
-  async getLeagues() {
+  async getLeagues(): Promise<LeagueDto[]> {
     const competitions = await this.footballRepository.findActiveCompetitions();
     return competitions.map(toPublicLeague);
   }
 
-  async getLeagueBySlug(slug: string) {
+  async getLeagueBySlug(slug: string): Promise<LeagueDto> {
     return toPublicLeague(await this.competitionBySlugOrThrow(slug));
   }
 
-  async getLeagueClubs(slug: string, seasonParam?: string) {
+  async getLeagueClubs(
+    slug: string,
+    seasonParam?: string,
+  ): Promise<SeasonClubDto[]> {
     const season = await this.resolveSeason(
       await this.competitionBySlugOrThrow(slug),
       seasonParam,
@@ -68,7 +81,10 @@ export class FootballQueryService {
     return season ? this.footballRepository.findSeasonClubs(season.id) : [];
   }
 
-  async getLeagueStandings(slug: string, seasonParam?: string) {
+  async getLeagueStandings(
+    slug: string,
+    seasonParam?: string,
+  ): Promise<StandingTableDto[]> {
     const season = await this.resolveSeason(
       await this.competitionBySlugOrThrow(slug),
       seasonParam,
@@ -79,7 +95,10 @@ export class FootballQueryService {
     );
   }
 
-  async getLeagueMatches(slug: string, matchesQuery: LeagueMatchesQuery) {
+  async getLeagueMatches(
+    slug: string,
+    matchesQuery: LeagueMatchesQuery,
+  ): Promise<LeagueMatchesPageDto> {
     const season = await this.resolveSeason(
       await this.competitionBySlugOrThrow(slug),
       matchesQuery.season,
@@ -93,7 +112,10 @@ export class FootballQueryService {
     );
   }
 
-  async getLeagueFixtures(slug: string, seasonParam?: string) {
+  async getLeagueFixtures(
+    slug: string,
+    seasonParam?: string,
+  ): Promise<LeagueFixturesDto> {
     const season = await this.resolveSeason(
       await this.competitionBySlugOrThrow(slug),
       seasonParam,
@@ -106,7 +128,10 @@ export class FootballQueryService {
    * `standingsTable` — яка таблиця в `standings` (заголовок: таблиця ліги / ліга-фаза / група),
    * `null` — таблиці немає (турнір ще не синкали або провайдер її не дає: EC 2024, F4).
    */
-  async getLeagueDashboard(slug: string, seasonParam?: string) {
+  async getLeagueDashboard(
+    slug: string,
+    seasonParam?: string,
+  ): Promise<LeagueDashboardDto> {
     const competition = await this.competitionBySlugOrThrow(slug);
     const season = await this.resolveSeason(competition, seasonParam);
     const [standingRows, fixtures] = await Promise.all([
@@ -127,7 +152,7 @@ export class FootballQueryService {
     };
   }
 
-  async getMatchById(id: string) {
+  async getMatchById(id: string): Promise<MatchDetailDto> {
     const match = await this.footballRepository.findMatchById(id);
     if (!match) throw new NotFoundException('MATCH_NOT_FOUND');
     return toPublicMatchDetail(match);
@@ -137,7 +162,9 @@ export class FootballQueryService {
    * Матчі за інтервалом у всіх турнірах — список дня, календар (🧭 п. 3 плану). Межі — миттєвості
    * від клієнта: «день» він рахує у своєму поясі. Без `league` — лише активні турніри.
    */
-  async getMatchesInRange(rangeQuery: MatchesRangeQuery) {
+  async getMatchesInRange(
+    rangeQuery: MatchesRangeQuery,
+  ): Promise<MatchesInRangeDto> {
     const range = parseMatchRange(rangeQuery.from, rangeQuery.to);
     if (!range.isValid) throw new BadRequestException(range.errorCode);
     const matches = await this.footballRepository.findMatchesInRange(
@@ -149,7 +176,9 @@ export class FootballQueryService {
     return { matches: matches.map(toPublicMatchListItem) };
   }
 
-  private async buildFixtures(season: SeasonRecord | null) {
+  private async buildFixtures(
+    season: SeasonRecord | null,
+  ): Promise<LeagueFixturesDto> {
     if (!season) return { upcoming: [], past: [] };
     const dayStart = startOfUtcDay(new Date());
     const [upcomingMatches, pastMatches] = await Promise.all([

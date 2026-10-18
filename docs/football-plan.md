@@ -1,7 +1,7 @@
 # ⚽ 12Yards — план розвитку
 
 > **Версія:** 5.0 · 2026-10-08 — перший план після переходу на схему v5. Попередні: [`archive/football-plan-v4.7.md`](archive/football-plan-v4.7.md), [`archive/football-plan-intermediate.md`](archive/football-plan-intermediate.md).
-> **Зараз:** M1 «Тестовий реліз» → **M1.3.3 Health і каркас e2e** ✅ (чекає PR; M1.3.2 злито — PR #15) · M1.1 — власник перечитує `rules/` · далі **M1.3.4**.
+> **Зараз:** M1 «Тестовий реліз» → **M1.3.4–M1.3.5 Контракт API й типи з нього** ✅ (чекає PR; M1.3.3 злито — PR #16) — **M1.3 завершено** · M1.1 — власник перечитує `rules/` · далі **M1.4**.
 > **Карта документації:** [`docs/README.md`](README.md) · рішення — [`decisions/`](decisions/README.md) · відкладене — [`backlog.md`](backlog.md) · ідеї — [`ideas.md`](ideas.md) · питання — [`open-questions.md`](open-questions.md).
 
 ## Як читати план
@@ -60,7 +60,7 @@
 | 13 | Синк ощадливий | Завершені WC 2026 і EC 2024 синкаються кожні 2 год | Автопропуск завершених ([D36](decisions/D36-sync-operations.md)) | M1.11.7 |
 | 14 | «Поточний тур» з даних провайдера | `Season.currentMatchday` синк пише й API віддає, але web не використовує | Використати | M2.2 |
 | 15 | Деплой не ламає синк | Немає graceful shutdown → після рестарту `SyncRun` висить `RUNNING` до 10 хв | `enableShutdownHooks` | M1.11.7 |
-| 16 | Гість не робить зайвих запитів | Кожна сторінка гостя: `/auth/me` 401 → `/auth/refresh` 401 | `200 { user: null }` | M1.3 |
+| 16 | Гість не робить зайвих запитів | Кожна сторінка гостя: `/auth/me` 401 → `/auth/refresh` 401 | ✅ `200 { user: null }` | M1.3.4 |
 | 17 | Синк відокремлений, з захистом від паралельного запуску (10.7) | ✅ Уже так: `FootballSyncModule`, cron лише викликає сервіси, лок — `SyncRun` (`RUNNING` + частковий унікальний індекс + advisory-лок, `STALE`) | Лишилось лише на майбутнє: окрема точка входу для worker-а ([D41](decisions/D41-single-instance-scaling.md)) | — |
 
 ---
@@ -116,7 +116,7 @@
 
 **Мета:** якість коду й контракт API — до нових фіч (👤 13.1, У16).
 
-👤 Ділимо на під-етапи (2026-10-17), кожен — окрема гілка й PR: **M1.3.1 Якість коду** ✅ (гілка `refactor/m1-3-1-code-quality`, PR #14) → **M1.3.2 Конфіг** ✅ (гілка `feat/m1-3-2-env-config`, PR #15: схема env, `.env.example`, порт у лозі старту, `minimumReleaseAge`) → **M1.3.3 Health і каркас e2e** ✅ (гілка `feat/m1-3-3-health-e2e`: `/health`, e2e у схемі `e2e`, e2e `?lang` з M1.2).
+👤 Ділимо на під-етапи (2026-10-17), кожен — окрема гілка й PR: **M1.3.1 Якість коду** ✅ (гілка `refactor/m1-3-1-code-quality`, PR #14) → **M1.3.2 Конфіг** ✅ (гілка `feat/m1-3-2-env-config`, PR #15: схема env, `.env.example`, порт у лозі старту, `minimumReleaseAge`) → **M1.3.3 Health і каркас e2e** ✅ (гілка `feat/m1-3-3-health-e2e`, PR #16: `/health`, e2e у схемі `e2e`, e2e `?lang` з M1.2) → **M1.3.4 Swagger і response DTO** ✅ → **M1.3.5 Типи з OpenAPI у web і admin** ✅ (👤 2026-10-18: два під-етапи, одна гілка `feat/m1-3-4-api-contract` і один PR) → перевірка всього M1.3 ✅.
 
 - [x] 👤 ESLint в адмінці (flat config як у web, `"lint": "eslint"`) — ⚠️ зараз `pnpm lint` в адмінці падає. *M1.3.1:* `eslint` 9 + `eslint-config-next` 16.2.2 (ті самі версії, що в web; lock-файл — лише рядки адмінки). Єдине попередження — `watch()` React Hook Form несумісний з React Compiler → `useWatch()` у `CreatePostForm` (поведінка та сама).
 - [x] ⭐ `lint` в API без `--fix` (окремо `lint:fix`; з glob прибрано неіснуючі `apps`, `libs` — залишок шаблону Nest) — *чому:* перевірка не повинна мовчки міняти файли; CI має падати, а не «виправляти».
@@ -131,9 +131,18 @@
 - [x] 👤 Суворий TypeScript в API: `noImplicitAny` (виміряно — 0 помилок) → `strict: true` (12 помилок TS2564 у DTO → `!`). *M1.3.1:* одразу `strict: true` — рівно 12 полів DTO з `!`; `useUnknownInCatchVariables` знайшов ще 3 `${err}` у `security-cleanup.cron.ts` (ESLint `restrict-template-expressions`) → `String(err)`, той самий текст у лозі. У зібраному JS `"use strict"` уже був — рантайм не змінився.
 - [x] 👤 Кінці рядків — **CRLF в усьому репозиторії**, і в `docs/` (2026-10-17, [code-style](rules/code-style.md)): переведено 76 файлів; винятки LF — `pnpm-lock.yaml`, `apps/api/prisma/migrations/**`, `*.sh`. `scripts/line-endings.mjs` (дані — з `git ls-files --eol`): `pnpm lint:eol` у складі `pnpm lint`, `pnpm fix:eol`; `.editorconfig`.
   - ⭐ *Чому винятки:* перевірено — pnpm 10 при зміні залежностей переписує `pnpm-lock.yaml` у LF (а CRLF у `package.json` зберігає), `prisma format` з CLI пише LF; контрольна сума застосованої міграції лежить у БД — чи нечутлива вона до CR, з рушія не видно, а хибний «змінений» стан у `migrate dev` = пропозиція скинути dev-БД.
-- [ ] 👤 Swagger ([D28](decisions/D28-openapi-contract.md)): `@nestjs/swagger` + CLI-плагін, UI `/api/docs` — лише не на проді (👤 У17); каркас response DTO.
-- [ ] 👤 Генерація типів `openapi-typescript` → `packages/types` (згенерований файл у git), скрипт `pnpm gen:api-types`.
+- [x] 👤 Swagger ([D28](decisions/D28-openapi-contract.md)): `@nestjs/swagger` + CLI-плагін, UI `/api/docs` — лише не на проді (👤 У17); каркас response DTO.
+  - *M1.3.4:* 👤 (2026-10-18) response DTO — одразу для **всіх** ендпоінтів, а не поступово (D28 оновлено): 36 ендпоінтів на 34 шляхах, `/health` описує сам terminus. Класи — по файлу на сутність, `dto/<сутність>-response.dto.ts` (`match-response.dto.ts`, `club-response.dto.ts` …), `toPublic*` повертають їхній тип; схему відповіді CLI-плагін бере з типу, який повертає метод контролера (`Promise<PostDetailDto>`), тож опис не розійдеться з кодом. Описи й коди помилок — з JSDoc (`@throws {404} POST_NOT_FOUND — …`); спільне — одним місцем (`openapi/openapi-document.ts`): відповідь `default` = `ApiErrorDto`, 400 — кожній операції з тілом чи query (глобальний `ValidationPipe`). Шляхи — без `/api/v1` (як в `apiGet('/posts')`), префікс — у `servers`.
+  - ⭐ Доступ — `@AuthRequired()` / `@AdminOnly()` / `@AuthOptional()` (`auth/guards/access.decorators.ts`) замість `@UseGuards(…)` + `@Roles(…)` — *чому:* guard-и й опис у Swagger (cookie-сесія, 401 / 403) з одного декоратора не розходяться; так радить документація Nest (`applyDecorators`). `DELETE /users/me` лишив свої guard-и (порядок з throttler-ом) + `@ApiAuthRequired()`.
+  - ⭐ Заодно (правило бойскаута): `toPublicComment` і журнал синку — поля явно, а не spread рядка: нове поле в `select` не потрапить у відповідь непомітно; `stats` старого запуску без нового лічильника — 0, а не `undefined`. `?lang` поста — `ContentLanguageQueryDto` (було `@Query('lang')` без опису); `page` / `limit` у схемі — необов'язкові (мають дефолт); описи полів вхідних DTO — для клієнта, внутрішні нотатки — `//`. З API прибрано залежності, яких він не імпортує: `@nestjs/mapped-types` (хелпери — з `@nestjs/swagger`, щоб наслідували опис) і `@football-portal/types`.
+  - ⭐ `@nestjs/swagger` **11.4.7**, а не 12.x — *чому:* 12.x лише для Nest 12 і ESM. Його `swagger-ui-dist` тягне `@scarf/scarf` (телеметрія під час встановлення) — pnpm 10 його скрипт не запускає.
+  - Перевірено наживо: Swagger UI рендериться під helmet (CSP), «Try it out» `GET /football/leagues` → 200; документ dev-сервера (`/api/docs-json`) збігається зі згенерованим `openapi.json`.
+- [x] 👤 Генерація типів `openapi-typescript` → `packages/types`, скрипт `pnpm gen:api-types`. ~~Згенерований файл у git~~ → 👤 2026-10-19: згенеровані файли в git не зберігаємо.
   - ⭐ Схему генерує скрипт без сервера й БД; у CI — перевірка, що згенероване актуальне — *чому:* так контракт API ↔ web не розходиться мовчки.
+  - *M1.3.5:* `pnpm gen:api-types` (~5 с): `nest build` → Nest у режимі `preview` (граф модулів без створення провайдерів: ні БД, ні `.env`) пише `packages/types/openapi.json` → `openapi-typescript` 7.13 → `src/generated/openapi.ts`. Обидва файли — у `.gitignore` (👤 2026-10-19): після clone їх створює `pnpm install` (`prepare`: Prisma → `validation` → типи API), після зміни API — `pnpm gen:api-types`; генерація детермінована. Інших згенерованих файлів у git немає: `en.d.json.ts` next-intl, `next-env.d.ts`, `dist/`, `*.tsbuildinfo`, клієнт Prisma уже ігнорувались; міграції Prisma й `pnpm-lock.yaml` — не згенерований код, а джерело правди, тож лишаються.
+  - 👤 Кореневі команди (2026-10-19): `pnpm typecheck` (turbo — api, web, admin, `packages/types`), `pnpm test` (unit: jest API + Vitest web), `pnpm test:e2e [-- модуль]`, `pnpm db:migrate`, `pnpm db:seed` — поруч із наявними `dev`, `build`, `lint`, `gen:api-types`; скрипти пакетів лишились.
+  - 👤 Ручні типи web і admin замінено згенерованими; 👤 `packages/types` — по файлу на логічну сутність у теці модуля API, як response DTO в API (👤 після рев'ю 2026-10-18; спершу було за доменами — `posts.ts`, `football.ts`): `users/user-account.ts`, `users/public-author.ts`, `auth/session.ts`, `languages/content-language.ts`, `posts/post.ts`, `posts/admin-post.ts`, `comments/comment.ts`, `likes/like.ts`, `football/` — `league`, `club`, `match`, `fixtures`, `standing`, `league-dashboard`, `live-touch`, `sync`; константи `MATCHDAY_STAGES`, `IN_PLAY_MATCH_STATUSES`, `TERMINAL_MATCH_STATUSES` — тепер типізовані згенерованим `MatchStatus`. ⭐ Ім'я — назва схеми без `Dto` (`PostDetail`), тіло запиту — з `Request` (`CreatePostRequest`) — *чому:* одне правило замість двох систем назв (класи API ↔ типи клієнтів). Адмінка більше не тримає власних `AdminPostRow`, `CreatePostPayload`, `FootballSyncAccepted`; тіла запитів web (логін, реєстрація, коментар, лайк) — теж згенеровані. Експортується лише те, чим користуються web / admin (решта — у `generated/openapi.ts`).
+  - Прибрано мертвий код web: `standingsQueryOptions`, `fixturesQueryOptions`, `prefetchLikeStats` (ніде не викликались).
 - [x] ⭐ Валідація env однією схемою при старті (`@nestjs/config` + zod): `DATABASE_URL`, `FOOTBALL_*`, нові змінні M1 — *чому:* помилка конфігу видна одразу при старті, а не через годину роботи (12-factor). Частково вже є (`JWT_SECRET`, `CORS_ORIGINS`, `TRUST_PROXY`) — звести в одне місце.
   - *M1.3.2:* `src/config/env.schema.ts` — `parseEnv()`: усі 12 змінних API, усі проблеми одним повідомленням без значень (там секрети); `KEY=` без значення = змінної немає. `config/env.config.ts` — `registerAs('env', …)`, `ConfigModule.forRoot({ isGlobal, ignoreEnvFile, load })`; у сервісах — `@Inject(envConfig.KEY) env: AppEnv`. Перевірки з `app.setup.ts` (`TRUST_PROXY`, `CORS_ORIGINS`), `readJwtSecret()`, `EmailBlocklistService`, `getCommentCooldownMs()` переїхали в схему; `auth-cookies` → `AuthCookieService` (прапорець `secure` — з `NODE_ENV`).
   - ⭐ `@nestjs/config` **4.0.4**, а не 12.x — *чому:* 12.x лише ESM, а API — CommonJS + Jest; 4.0.4 — остання для Nest 11. Доступ через `registerAs` (офіційний типізований спосіб), а не `ConfigService.get('…')`: та для незаданої змінної тихо віддає сирий `process.env` (порожній рядок), а тест передає звичайний об'єкт.
@@ -144,7 +153,9 @@
   - [x] 👤 Ручний крок власника: додати в `apps/api/.env` рядок `NODE_ENV=development` (у M1.3.3 ключ уже є).
 - [x] ⭐ `.env.example` для api / web / admin (лише ключі й коментарі) — *чому:* без нього деплой і новий комп'ютер — це вгадування змінних.
   - *M1.3.2:* секрети порожні, безпечні dev-значення заповнені (`NODE_ENV`, `PORT`, `CORS_ORIGINS`, URL-и), біля кожної змінної — що це, обов'язкова чи ні, дефолт. Unit-тест: `apps/api/.env.example` описує кожну змінну схеми. `apps/web/.gitignore` (`.env*`) ховав би шаблон — додано `!.env.example`.
-- [ ] ⭐ `GET /auth/me` для гостя → `200 { user: null }` — *чому:* ⚠️ зараз кожне відкриття сторінки гостем = 2 зайві запити (401 + refresh 401) і шум у консолі.
+- [x] ⭐ `GET /auth/me` для гостя → `200 { user: null }` — *чому:* ⚠️ зараз кожне відкриття сторінки гостем = 2 зайві запити (401 + refresh 401) і шум у консолі.
+  - *M1.3.4:* `@AuthOptional()`: жива сесія → користувач; access немає чи недійсний, але є refresh-cookie → 401 (клієнт робить refresh і повторює — сесія після 15 хв простою відновлюється, як і раніше); жодної cookie сесії → `{ user: null }` одразу. HTTP-шар web не змінився: `apiGet` і так робить refresh на 401, а `null` — це гість. Адмінка `/auth/me` не викликає (перевірено) — для неї зміни немає.
+  - Перевірено в Chrome (dev): гість на кожній сторінці — один `GET /auth/me 200` замість `401 + refresh 401`; без access-cookie (як після 15 хв) — `me 401 → refresh 200 → me 200`; після виходу — знову один `me 200`.
 - [x] ⭐ Каркас e2e API (`apps/api/test/`): застосунок з `configureHttpApp`, окрема БД, фейковий football-провайдер, хелпери логіну з cookies; перший тест — `/health` ([D30](decisions/D30-testing-and-local-env.md)).
   - *Чому:* у Фазах 2–5 сотні перевірок писались тимчасовими скриптами й видалялись; постійний набір ловить регресії.
   - ✅ ~~❓ Локальна БД для e2e (OQ-5)~~ → 👤 2026-10-18: без локальної БД — окрема схема `e2e` у поточній Supabase-БД, «обережно, щоб не зламати» справжні дані ([D30](decisions/D30-testing-and-local-env.md)).
@@ -158,15 +169,31 @@
     - підключення — `E2E_DATABASE_URL` або `DIRECT_URL` (session pooler, :5432): у transaction pooler `search_path` не тримається між транзакціями. `.env` лише читається — у `process.env` тестів (а отже, у застосунок) він не потрапляє.
   - Виміряно: перебудова схеми — 0,5–0,8 с, увесь набір — ~7 с. Після 7 прогонів (з контрольними поломками) у `public` ті самі 33 таблиці й ті самі кількості рядків, що в знімку до них; структура `e2e` — як у `public` (32 таблиці без `_prisma_migrations`, 18 enum, 4 CHECK).
   - ⭐ Фейковий football-провайдер — з першим e2e синку (M1.10 / M1.11.7), а не зараз — *чому:* без тесту, що його використовує, це мертвий код; справжній провайдер з e2e недосяжний — env тестів без `FOOTBALL_API_KEY` (синк → 503, квота football-data не витрачається).
-  - Запуск: `pnpm --filter @football-portal/api test:e2e` (усе) або `… test:e2e -- posts` (модуль).
+  - Запуск: `pnpm test:e2e` (усе) або `pnpm test:e2e -- posts` (модуль) — з кореня.
   - ⭐ Правила написання e2e — `apps/api/test/CLAUDE.md`, а в кореневому `CLAUDE.md` — один рядок (👤 зауваження 2026-10-18) — *чому:* кореневий файл читається в кожній сесії, а вкладений — лише при роботі з тестами.
-- [ ] ⭐ Vitest у web — підключено в M1.2 (`vitest.config.mts`, `pnpm --filter @football-portal/web test`); лишилось — тести меж дня в поясі (`zoned-date`), уже перевірені тимчасовим `node --test`.
+- [x] ⭐ Vitest у web — підключено в M1.2 (`vitest.config.mts`, `pnpm --filter @football-portal/web test`); лишилось — тести меж дня в поясі (`zoned-date`), уже перевірені тимчасовим `node --test`.
+  - *Перевірка M1.3:* `lib/i18n/zoned-date.test.ts` — 22 тести: звичайний день, переходи часу (Київ, Нью-Йорк — 23 / 25 год), 400 днів поспіль у 6 поясах (дні стикуються без проміжків; Лорд-Гав — 30-хвилинний перехід, Кірибаті — UTC+14), `shiftDayKey` / `isDayKey`. ⚠️ Знайдено й виправлено: де літній час умикається **опівночі** (Сантьяго, Парагвай, Ліван), 00:00 не існує, і день починався о 23:00 напередодні — матч о 23:30 потрапив би в список наступного дня. Тест падав до виправлення.
 - [x] ⭐ `minimumReleaseAge` у `pnpm-workspace.yaml` (напр. 7 днів, термінові патчі — через `minimumReleaseAgeExclude`) — *чому:* свіжі релізи npm — головний канал атак через залежності (зламану версію зазвичай знімають за години–дні), а dev-залежності виконуються на машині з `.env`. У M1.2 Vitest уже встановлено так разово (`--config.minimumReleaseAge=20160`): `vite` 8.3.2 замість 8.3.4 восьмиденної давності.
   - *M1.3.2:* `minimumReleaseAge: 10080` (7 днів) — налаштовано **до** встановлення `@nestjs/config` і `zod` (zod — та сама 4.3.6, що в web / admin); правило — у [security](rules/security.md). ⭐ Заодно `turbo: "latest"` → `^2.9.1` (версія в lock-файлі та сама) — *чому:* `latest` при будь-якому перерахунку lock-файлу тягне найновішу версію. Наступний крок захисту — `trustPolicy: no-downgrade` ([backlog](backlog.md), M3.2).
 - [x] ⭐ `main.ts`: лог старту з фактичним портом (зараз захардкоджено 4000). *M1.3.2:* порт — з перевіреного `PORT`, лог — через `Logger` Nest (`[Bootstrap] 🚀 API running on http://localhost:<port>/api/v1`).
 
 **Тести:** e2e `/health` (БД доступна / ні) (✅ M1.3.3: `test/health/health.e2e-spec.ts` — БД працює → 200 і `no-store`; відхиляє з'єднання → 503 лише зі статусом; приймає з'єднання й мовчить, як «мертвий» сокет пулера → 503 за ~3 с, а не зависання); unit — схема env (✅ M1.3.2: `config/env.schema.spec.ts`, 11 тестів — дефолти, порожні значення, усі помилки одним повідомленням без секретів, правила production, `TRUST_PROXY`, `CORS_ORIGINS`, межі, повнота `.env.example`).
-**Готово, коли:** `pnpm lint` і `tsc` зелені в усіх трьох застосунках; Swagger UI відкривається локально; `pnpm gen:api-types` працює.
+- *M1.3.4–M1.3.5, e2e:* `/auth/me` (гість, сесія, лише refresh-cookie, завершені сесії); Swagger UI (є локально, 404 на проді, набір ендпоінтів = `openapi.json`); матриця доступу (гість → 401 на 14 роутах, USER → 403 на 9 адмінських, ADMIN — лише задокументовані відповіді; збіг із `security` у документі); **контрактні** — пости, коментарі, лайки, футбол із журналом синку, видалення акаунтів, `/health`: статус описаний, тіло за схемою, жодного незадокументованого поля. Кожну перевірку зламано навмисно — зайве поле у відповіді, незадокументований статус, адмін-роут без `RolesGuard`, стара поведінка `/auth/me` — тести падали. Усього e2e — 10 файлів, 31 тест (~45 с).
+
+**Готово, коли:** `pnpm lint` і `tsc` зелені в усіх трьох застосунках; Swagger UI відкривається локально; `pnpm gen:api-types` працює. ✅ 2026-10-18.
+
+**Перевірка всього M1.3 (2026-10-18):** `pnpm lint` (api, web, admin + кінці рядків), `tsc` (api, web, admin, `packages/types`), unit API 129, unit web 32, e2e 31, `pnpm build` — зелені. Наживо (dev, Chrome): гість, реєстрація й логін формами, F5, сесія після «простою», вихід; сторінки `/uk`, новина, матчі дня, матч; адмінка — логін, журнал синків (20 реальних запусків), список постів, вихід. Повторно перевірено пункти M1.3.1–M1.3.3: `strict: true` в API, `req.user` у контролерах немає, lint без `--fix`, схема env (unit), `/health` (e2e). Помилки консолі — лише не від коду: обкладинка поста з pngtree.com (хотлінк заборонено — і прав на фото, мабуть, немає: [content](rules/content.md)) і `favicon.ico` адмінки (його немає).
+
+**Повторне рев'ю (2026-10-18, на прохання власника):** кожен змінений файл перечитано; виправлено:
+- 👤 типи — по файлу на логічну сутність: response DTO в API (`football/dto/club-response.dto.ts`, `fixtures-response.dto.ts`, `live-touch-response.dto.ts`, `posts/dto/admin-post-response.dto.ts` …) і `packages/types` (`football/match.ts` …) — однаково з обох боків; одне правило назв `<сутність>-response.dto.ts` (6 файлів його порушували);
+- ⚠️ 400 у документі був і там, де валідація впасти не може (`GET /posts/{slug}`: `lang` не перевіряють — P3-3; перевірено наживо: `?lang=uk&lang=en` → 404, не 400);
+- ⚠️ Swagger склеює описи одного статусу — у `DELETE /users/{id}` «не ADMIN» було двічі; `@throws {403}` адмін-роуту тепер називає лише свої коди;
+- `POST /likes`: `targetId` ≤ 64 символи — межа для кожного параметра (backend Rule 12), як у коментарях і `live-touch`;
+- неточні описи: `user: null` (і недійсний access без refresh-cookie), cooldown коментарів — «за замовчуванням 60 с», 403 адмін-роуту — `Forbidden resource`; лічба ендпоінтів (36, а не 34);
+- ⚠️ Rule 11 суперечила коду (забороняла spread рядка, а мапери футболу так і роблять із виділеним `select`) — правило уточнено: поля — з `select`, витік ловить контрактний e2e;
+- у backlog — `apiGet` / `apiPost`, типізовані шляхом (`paths`): останнє місце, де тип відповіді пишеться вручну.
+
+Після виправлень знову: lint, `tsc` ×4, unit API 129 і web 32, e2e 31, `pnpm build` — зелені; генерація детермінована; документ dev-сервера (`/api/docs-json`) збігається зі згенерованим `openapi.json`.
 
 ### M1.4 Новини — API
 
@@ -218,7 +245,7 @@
 - [ ] 👤 Вибір клубів — **пошук серед клубів, які вже є в БД із синку** (`GET /football/clubs?search=`). Клуби вручну не створюються й не редагуються; пошук потрібен лише для того, щоб прив'язати новину до клубу → фільтр «новини клубу» (👤 4.10).
 
 **M1.4.9 Контракт**
-- [ ] 👤 Response DTO + Swagger для постів і тегів; web і admin — на згенерованих типах цих ендпоінтів.
+- [ ] 👤 Response DTO + Swagger для постів і тегів; web і admin — на згенерованих типах цих ендпоінтів. *M1.3.4–M1.3.5:* наявні ендпоінти постів уже описані, web і admin — на згенерованих типах; нові (теги, `admin/:id`, фільтри) — одразу за DoD ендпоінта.
 
 **Тести (змістовні):** unit — транслітерація UK (апостроф, «щ», «ї», «є»), розбір `{slug}-{number}` (slug із цифрами в кінці), побудова фільтрів; e2e — чернетка → публікація → у списку з фільтрами; чужий slug → API віддає канонічний; чернетка за номером → 404; USER → 403 на керування тегами; невалідні фільтри → 400.
 **Готово, коли:** ендпоінти новин і тегів описані у Swagger і покриті e2e; `sourceUrl` перенесено в `PostSource`.
@@ -309,7 +336,7 @@
 - [ ] 👤 `.github/workflows/ci.yml` на PR і push у `master`: встановлення (pnpm, кеш) → збірка пакетів → lint → typecheck → unit (jest, Vitest) → build (api, web, admin).
 - [ ] 👤 E2E API на тимчасовому Postgres у GitHub Actions (👤 У18): міграції + `constraints.sql` + мінімальний seed, фейковий football-провайдер.
   - *З M1.3.3:* схему `e2e` з міграцій (у них і `constraints.sql`) і мови каркас будує сам — у CI лишається сервіс Postgres і `E2E_DATABASE_URL`.
-- [ ] ⭐ Перевірка контракту: згенеровані типи API актуальні.
+- [ ] ⭐ Перевірка контракту: згенеровані типи API актуальні. *З M1.3.5:* типи не в git — CI генерує їх з коду (`pnpm install` → `prepare`), розходження API ↔ web ловлять `pnpm typecheck` і контрактні e2e (`expectMatchesContract`); окремий `git diff`-крок не потрібен.
 - [ ] ⭐ Захист `master`: злиття лише через PR із зеленим CI — *чому:* правило «не мержити без CI» має виконувати GitHub, а не пам'ять.
 - [ ] ⭐ Dependabot (раз на тиждень, згруповано) + CodeQL і secret scanning (безкоштовно для публічних репо) — *чому:* вразливості в залежностях — найчастіше джерело інцидентів у Node-проєктах.
 
@@ -514,10 +541,10 @@
 
 ### Ендпоінт API ⭐
 - [ ] DTO з межами для кожного параметра (🧭 п. 6)
-- [ ] Response DTO + опис у Swagger
+- [ ] Response DTO + опис у Swagger: метод контролера повертає `Promise<…Dto>`, коди помилок — `@throws` у JSDoc, доступ — `@AuthRequired()` / `@AdminOnly()`; `pnpm gen:api-types`
 - [ ] Prisma `select`, не `include`
 - [ ] Помилки з кодами (`POST_NOT_FOUND` …)
-- [ ] e2e: успіх, права (401 / 403), 404, невалідні дані (400)
+- [ ] e2e: успіх, права (401 / 403), 404, невалідні дані (400) — з `expectMatchesContract`
 
 ### Етап ⭐
 - [ ] Тести змістовні й зелені; ручний сценарій пройдено

@@ -11,20 +11,23 @@ import { TrimString } from '../../common/validation/trim-string.transform';
 
 /** Межі — з `@football-portal/validation` (ті самі, що у формі реєстрації на web). */
 export class RegisterDto {
-  /** Нормалізація регістру — у сервісі */
+  /** Регістр не важливий: зберігається в нижньому */
+  // Нормалізація регістру — у сервісі
   @TrimString()
   @IsEmail()
   @MaxLength(EMAIL_MAX_LENGTH)
   email!: string;
 
-  /** Стає `UserProfile.displayName` */
+  /** Ім'я в профілі */
+  // Стає `UserProfile.displayName`
   @TrimString()
   @IsString()
   @MinLength(DISPLAY_NAME_MIN_LENGTH)
   @MaxLength(DISPLAY_NAME_MAX_LENGTH)
   name!: string;
 
-  /** Максимум — межа bcrypt у байтах UTF-8: довший пароль обрізається мовчки */
+  /** Від 8 символів до 72 байтів UTF-8 (кирилиця — 2 байти на літеру) */
+  // Максимум — межа bcrypt у байтах UTF-8: довший пароль обрізається мовчки
   @IsString()
   @MinLength(PASSWORD_MIN_LENGTH)
   @MaxUtf8Bytes(PASSWORD_MAX_BYTES)

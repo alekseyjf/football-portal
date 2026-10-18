@@ -13,10 +13,11 @@ module/
   module.repository.ts   ← ТІЛЬКИ Prisma запити (select-константи + типи рядків)
   module-response.ts     ← форма публічної відповіді: чисті функції toPublic*(row) (post-response.ts, football-response.ts)
   dto/
-    create-X.dto.ts      ← ЛИШЕ вхідні дані (class-validator)
+    create-X.dto.ts      ← вхідні дані (class-validator)
     update-X.dto.ts
+    X-response.dto.ts    ← класи відповіді для Swagger (Rule 11), по файлу на сутність; `toPublic*` повертає їхній тип
 ```
-Mapper (`*.mapper.ts`) — лише для зовнішніх API (Rule 4); відповіді API — не DTO-класи, а `toPublic*`.
+Mapper (`*.mapper.ts`) — лише для зовнішніх API (Rule 4); відповідь API будує `toPublic*`, а її форму описує response DTO.
 
 **Rule 1 — Controller тупий**
 ```typescript
@@ -107,10 +108,17 @@ email = dto.email.toLowerCase().trim();
 
 ## ⭐ Нові правила (2026-10-08)
 
-**Rule 11 — Відповідь API = response DTO + Swagger** ([D28](../decisions/D28-openapi-contract.md))
+**Rule 11 — Відповідь API = response DTO + Swagger** ([D28](../decisions/D28-openapi-contract.md); доповнено 2026-10-18, M1.3.4)
 ```typescript
-// ✅ Окремий клас відповіді з @ApiProperty (не модель Prisma); toPublic*(row) повертає його форму
-// ✅ Кожен ендпоінт описаний у Swagger — типи web / admin генеруються з цієї схеми (openapi-typescript)
+// ✅ Окремий клас відповіді (dto/*-response.dto.ts, не модель Prisma); toPublic*(row) повертає його тип
+// ✅ Метод контролера повертає Promise<XDto>: схему відповіді CLI-плагін Swagger бере з цього типу
+//    getPostBySlug(...): Promise<PostDetailDto>
+// ✅ @ApiProperty — лише там, де плагін не вгадає: enum ({ enum: PostStatus, enumName: 'PostStatus' }), формат дати
+// ✅ JSDoc методу — опис у Swagger: перший рядок — summary, `@throws {404} POST_NOT_FOUND — …` — помилка з кодом;
+//    JSDoc поля DTO — опис для клієнта (внутрішні нотатки — `//`, щоб не потрапили в контракт)
+// ✅ Доступ — @AuthRequired() / @AdminOnly() / @AuthOptional() (guard-и й опис у Swagger разом)
+// ✅ Змінив контракт → pnpm gen:api-types (openapi.json + типи web / admin); e2e — expectMatchesContract
+// ✅ Поля відповіді — лише з `select` (Rule 6); поле, якого немає в DTO, валить контрактний e2e (additionalProperties)
 // ❌ Повертати рядок Prisma чи «ReturnType<…>» без опису контракту
 ```
 

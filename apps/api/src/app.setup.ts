@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { API_GLOBAL_PREFIX, JSON_BODY_LIMIT } from './app.constants';
 import { envConfig } from './config/env.config';
 import type { AppEnv } from './config/env.schema';
+import { setupSwaggerUi } from './openapi/openapi-document';
 import {
   ACCOUNT_THROTTLER,
   IP_THROTTLER,
@@ -12,7 +13,7 @@ import {
 
 /**
  * HTTP-налаштування застосунку. Окремо від `main.ts`, щоб тестовий застосунок
- * піднімався з тією самою конфігурацією (helmet, CORS, trust proxy).
+ * піднімався з тією самою конфігурацією (helmet, CORS, trust proxy, Swagger UI).
  */
 export function configureHttpApp(app: NestExpressApplication): void {
   // Значення вже перевірені схемою: там і пояснення до TRUST_PROXY / CORS_ORIGINS
@@ -43,4 +44,5 @@ export function configureHttpApp(app: NestExpressApplication): void {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   app.setGlobalPrefix(API_GLOBAL_PREFIX);
+  setupSwaggerUi(app, env);
 }

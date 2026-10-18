@@ -33,6 +33,27 @@ export async function createUser(
   return { id, email, password: E2E_PASSWORD };
 }
 
+/**
+ * Значення cookie з `Set-Cookie` відповіді — для тестів, де браузер шле лише частину cookies
+ * (access уже прострочений, refresh — ні). Порожнє значення — це очищення, не cookie.
+ */
+export function readSetCookie(
+  response: request.Response,
+  cookieName: string,
+): string {
+  const setCookieHeader = response.headers['set-cookie'] as unknown;
+  const setCookies = Array.isArray(setCookieHeader)
+    ? (setCookieHeader as string[])
+    : [];
+  const cookieValue = setCookies
+    .map((setCookie) => setCookie.split(';')[0])
+    .filter((pair) => pair.startsWith(`${cookieName}=`))
+    .map((pair) => pair.slice(cookieName.length + 1))
+    .find((value) => value !== '');
+  if (!cookieValue) throw new Error(`No ${cookieName} cookie in the response`);
+  return cookieValue;
+}
+
 /** Агент supertest зберігає httpOnly cookies логіну й шле їх далі — як браузер. */
 export async function loginAs(
   e2e: E2eApp,

@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsInt,
@@ -16,12 +17,14 @@ const MAX_PAGE = 100_000;
 
 /** `GET /football/leagues/:slug/matches?season=&stage=&page=&limit=` */
 export class LeagueMatchesQueryDto extends SeasonQueryDto {
-  /** Нормалізована стадія (D18): `LEAGUE_STAGE`, `LAST_16`, … */
+  /** Лише ця стадія: `LEAGUE_STAGE`, `LAST_16`, … (D18) */
   @IsOptional()
   @IsString()
   @Matches(/^[A-Z0-9_]{1,40}$/)
   stage?: string;
 
+  // Поле з дефолтом — необов'язкове в запиті, хоч у коді завжди число
+  @ApiPropertyOptional({ type: 'integer' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -29,6 +32,7 @@ export class LeagueMatchesQueryDto extends SeasonQueryDto {
   @Max(MAX_PAGE)
   page: number = 1;
 
+  @ApiPropertyOptional({ type: 'integer' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

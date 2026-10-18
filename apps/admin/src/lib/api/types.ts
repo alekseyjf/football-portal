@@ -1,35 +1,21 @@
-import type {
-  PostStatus,
-  PublicAuthor,
-  SyncRunRow,
+import type { AdminPost, PublicAuthor } from '@football-portal/types';
+
+/**
+ * Типи API — згенеровані з OpenAPI-документа API (`@football-portal/types`, D28). Тут — лише
+ * підписи для інтерфейсу адмінки.
+ */
+export type {
+  AdminPost,
+  AuthUserResponse,
+  CreatePostRequest,
+  FootballSyncAccepted,
+  LoginRequest,
+  MessageResponse,
+  PostTranslationRequest,
+  SyncRun,
   SyncRunStats,
-  User,
+  UserAccount,
 } from '@football-portal/types';
-
-export type { PostStatus, SyncRunRow, SyncRunStats };
-
-/** Відповідь `POST /football/sync` (202): синк іде у фоні, хід — у `GET /football/sync-runs`. */
-export interface FootballSyncAccepted {
-  status: 'accepted';
-  /** Slug-и турнірів, поставлених у чергу */
-  competitions: string[];
-}
-
-/** Рядок списку GET /posts/admin/all (і відповідь POST / PUT /posts). */
-export interface AdminPostRow {
-  id: string;
-  slug: string;
-  status: PostStatus;
-  publishedAt: string | null;
-  /** Видно на сайті зараз: SCHEDULED з датою, що настала, — теж */
-  isLive: boolean;
-  coverImageUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-  author: PublicAuthor;
-  /** Усі мови, якими є переклад */
-  translations: { languageCode: string; title: string }[];
-}
 
 /** Підпис мови в інтерфейсі: код усередині — `uk`, напис — «Укр» (D22). */
 const LANGUAGE_SHORT_LABELS: Record<string, string> = { en: 'Eng', uk: 'Укр' };
@@ -39,7 +25,7 @@ export function languageShortLabel(languageCode: string): string {
 }
 
 export function adminPostTitle(
-  post: AdminPostRow,
+  post: AdminPost,
   languageCode: string = 'en',
 ): string {
   return (
@@ -52,7 +38,7 @@ export function adminPostTitle(
 }
 
 /** Статус, що бачить редактор: запланований, чия дата настала, уже на сайті. */
-export function adminPostStatusLabel(post: AdminPostRow): string {
+export function adminPostStatusLabel(post: AdminPost): string {
   if (post.isLive) return 'Published';
   switch (post.status) {
     case 'DRAFT':
@@ -65,29 +51,6 @@ export function adminPostStatusLabel(post: AdminPostRow): string {
       return 'Archived';
   }
 }
-
-/** Тіло POST /posts (CreatePostDto). Без `status` — чернетка. */
-export interface CreatePostPayload {
-  translations: Array<{
-    languageCode: string;
-    title: string;
-    excerpt: string;
-    content: string;
-  }>;
-  /** ARCHIVED — лише для наявного поста */
-  status?: Exclude<PostStatus, 'ARCHIVED'>;
-  /** ISO з часовою зоною; для SCHEDULED — обов'язково, у майбутньому */
-  publishedAt?: string;
-  coverImageUrl?: string;
-  videoUrl?: string;
-  sourceUrl?: string;
-  tagIds?: string[];
-  clubIds?: string[];
-  competitionIds?: string[];
-}
-
-/** Користувач з `POST /auth/login` (адмінку пускаємо лише з `role: ADMIN`). */
-export type AdminUser = User;
 
 /** Ім'я автора в списках: видалений акаунт — підпис, а не ім'я з БД. */
 export function adminAuthorName(author: PublicAuthor): string {

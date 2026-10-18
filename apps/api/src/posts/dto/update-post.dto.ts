@@ -17,6 +17,7 @@ import {
  * content); переклади, яких немає в масиві, лишаються. Видалити переклад не можна (P3-5).
  */
 export class UpdatePostDto extends PostFieldsDto {
+  /** Upsert за мовою (кожен переклад — повністю); мов, яких немає в масиві, зміна не торкається */
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)

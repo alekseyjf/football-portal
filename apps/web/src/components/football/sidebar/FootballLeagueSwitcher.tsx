@@ -10,15 +10,15 @@ import {
 } from 'react';
 import { useTranslations } from 'next-intl';
 import { FootballLeagueEmblem } from './FootballLeagueEmblem';
-import type { CompetitionType, FootballLeagueMeta } from '@/lib/api/types';
+import type { CompetitionType, League } from '@/lib/api/types';
 
 type Props = {
-  leagues: FootballLeagueMeta[];
+  leagues: League[];
   isLoading: boolean;
   isError: boolean;
   selectedLeagueSlug: string;
   /** Зі списку або з дашборду: архівної ліги (`isActive = false`) у списку немає */
-  selectedLeague: FootballLeagueMeta | null;
+  selectedLeague: League | null;
   leagueHref: (leagueSlug: string) => string;
   onSelectLeague: (leagueSlug: string) => void;
 };

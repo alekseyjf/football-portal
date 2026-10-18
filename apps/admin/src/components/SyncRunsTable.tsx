@@ -1,22 +1,22 @@
 'use client';
 
 import { useSyncRuns } from '@/hooks/useSyncRuns';
-import type { SyncRunRow, SyncRunStats } from '@/lib/api/types';
+import type { SyncRun, SyncRunStats } from '@/lib/api/types';
 
-const STATUS_CLASS: Record<SyncRunRow['status'], string> = {
+const STATUS_CLASS: Record<SyncRun['status'], string> = {
   RUNNING: 'bg-blue-900/60 text-blue-200',
   SUCCEEDED: 'bg-green-900/60 text-green-200',
   PARTIAL: 'bg-yellow-900/60 text-yellow-200',
   FAILED: 'bg-red-900/60 text-red-200',
 };
 
-const SCOPE_LABEL: Record<SyncRunRow['scope'], string> = {
+const SCOPE_LABEL: Record<SyncRun['scope'], string> = {
   COMPETITION_FULL: 'Повний',
   MATCHES_LIVE: 'LIVE',
   STANDINGS: 'Таблиця',
 };
 
-const TRIGGER_LABEL: Record<SyncRunRow['trigger'], string> = {
+const TRIGGER_LABEL: Record<SyncRun['trigger'], string> = {
   ADMIN: 'адмін',
   CRON: 'cron',
   LIVE_TOUCH: 'сторінка матчу',
@@ -32,7 +32,7 @@ function formatStartedAt(isoDate: string): string {
   });
 }
 
-function formatDuration(syncRun: SyncRunRow): string {
+function formatDuration(syncRun: SyncRun): string {
   if (!syncRun.finishedAt) return '…';
   const durationMs =
     new Date(syncRun.finishedAt).getTime() -

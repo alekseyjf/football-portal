@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import {
   HealthCheck,
   HealthCheckService,
@@ -20,6 +21,7 @@ const DATABASE_PING_TIMEOUT_MS = 3000;
  * У відповіді лише статуси: адресу сервера з помилки з'єднання terminus не віддає.
  * `@HealthCheck()` забороняє кешування (`Cache-Control: no-store`).
  */
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(

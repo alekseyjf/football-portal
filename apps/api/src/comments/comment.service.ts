@@ -14,11 +14,7 @@ import {
 } from '../prisma/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommentAntiAbuseService } from './comment-anti-abuse.service';
-import {
-  toPublicComment,
-  type PurgedComment,
-  type SoftDeletedComment,
-} from './comment-response';
+import { toPublicComment } from './comment-response';
 import { collectCommentSubtree } from './comment-subtree';
 import { MAX_COMMENT_THREAD_DEPTH } from './comment-thread.constants';
 import {
@@ -26,15 +22,17 @@ import {
   type CommentTargetState,
   type ThreadState,
 } from './comment-thread.repository';
-import {
-  buildCommentTreeFromFlat,
-  type PublicCommentNode,
-} from './comment-thread.util';
+import { buildCommentTreeFromFlat } from './comment-thread.util';
 import {
   CommentRepository,
   type CommentModerationRow,
   type LockedComment,
 } from './comment.repository';
+import type {
+  CommentDto,
+  PurgedCommentDto,
+  SoftDeletedCommentDto,
+} from './dto/comment-response.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
 type CommentTargetRef =
@@ -115,7 +113,7 @@ export class CommentService {
   ) {}
 
   /** Неживий пост → 404 (P4-1); живий без жодного коментаря → `[]`. */
-  async getCommentsByPost(postId: string): Promise<PublicCommentNode[]> {
+  async getCommentsByPost(postId: string): Promise<CommentDto[]> {
     const target = await this.threadRepository.findLivePostTarget(
       postId,
       new Date(),
@@ -124,7 +122,7 @@ export class CommentService {
     return this.buildThreadTree(target);
   }
 
-  async getCommentsByMatch(matchId: string): Promise<PublicCommentNode[]> {
+  async getCommentsByMatch(matchId: string): Promise<CommentDto[]> {
     const target = await this.threadRepository.findMatchTarget(matchId);
     if (!target) throw new NotFoundException('MATCH_NOT_FOUND');
     return this.buildThreadTree(target);
@@ -133,7 +131,7 @@ export class CommentService {
   async createComment(
     dto: CreateCommentDto,
     user: AuthenticatedUser,
-  ): Promise<PublicCommentNode> {
+  ): Promise<CommentDto> {
     const isAdmin = user.role === Role.ADMIN;
     const targetRef = readTargetRef(dto);
     const parentId = dto.parentId ?? null;
@@ -175,7 +173,7 @@ export class CommentService {
   async deleteComment(
     id: string,
     user: AuthenticatedUser,
-  ): Promise<SoftDeletedComment> {
+  ): Promise<SoftDeletedCommentDto> {
     const comment = await this.commentRepository.findForModeration(id);
     if (!comment || comment.deletedAt) {
       throw new NotFoundException('COMMENT_NOT_FOUND');
@@ -233,7 +231,7 @@ export class CommentService {
   }
 
   /** ADMIN: фізичне видалення коментаря без жодної відповіді (P4-6, розділ 7.5.2). */
-  async purgeComment(id: string): Promise<PurgedComment> {
+  async purgeComment(id: string): Promise<PurgedCommentDto> {
     const comment = await this.findForPurgeOrThrow(id);
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -260,7 +258,7 @@ export class CommentService {
   }
 
   /** ADMIN: фізичне видалення коментаря з усім піддеревом відповідей (P4-7). */
-  async purgeCommentThread(id: string): Promise<PurgedComment> {
+  async purgeCommentThread(id: string): Promise<PurgedCommentDto> {
     const comment = await this.findForPurgeOrThrow(id);
     try {
       const purgedCount = await this.prisma.$transaction(async (tx) => {
@@ -307,7 +305,7 @@ export class CommentService {
     user: AuthenticatedUser,
     target: CommentTarget,
     reply: ReplyPlacement | null,
-  ): Promise<PublicCommentNode> {
+  ): Promise<CommentDto> {
     const isAdmin = user.role === Role.ADMIN;
     // Порядок блокувань — батько → тред, як і в delete: без deadlock-ів між ними
     return this.prisma.$transaction(async (tx) => {
@@ -357,7 +355,7 @@ export class CommentService {
 
   private async buildThreadTree(
     target: CommentTargetState,
-  ): Promise<PublicCommentNode[]> {
+  ): Promise<CommentDto[]> {
     if (!target.thread) return [];
     const comments = await this.commentRepository.findLiveInThread(
       target.thread.id,

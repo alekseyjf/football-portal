@@ -97,7 +97,12 @@ function zonedMidnight(dayKey: string, timeZone: string): Date {
   const firstGuessOffset = timeZoneOffsetMs(new Date(midnightAsUtc), timeZone);
   const firstGuess = midnightAsUtc - firstGuessOffset;
   const actualOffset = timeZoneOffsetMs(new Date(firstGuess), timeZone);
-  return new Date(midnightAsUtc - actualOffset);
+  const midnight = new Date(midnightAsUtc - actualOffset);
+  // Літній час умикається рівно опівночі (Чилі, Парагвай, Ліван): 00:00 не існує, і `midnight`
+  // припала б на 23:00 напередодні — тоді день починається з переходу, тобто з першої здогадки
+  return dayKeyInTimeZone(midnight, timeZone) === dayKey
+    ? midnight
+    : new Date(firstGuess);
 }
 
 /** Межі дня в поясі: `[північ, наступна північ)` — для `GET /football/matches?from=&to=`. */

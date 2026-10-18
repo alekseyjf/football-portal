@@ -7,13 +7,13 @@ import {
   isMatchInPlay,
   useMatchStatusLabel,
 } from '@/hooks/useMatchStatusLabel';
-import type { FootballClub, FootballMatchListItem } from '@/lib/api/types';
+import type { Club, MatchListItem } from '@/lib/api/types';
 
 function ClubLine({
   club,
   alignEnd = false,
 }: {
-  club: FootballClub;
+  club: Club;
   /** Господарі в один рядок: назва біля рахунку (праворуч), емблема — після неї */
   alignEnd?: boolean;
 }) {
@@ -36,7 +36,7 @@ function ClubLine({
  * Рядок матчу в списку дня. До 640 px — команди одна під одною (як у сайдбарі), інакше
  * назви обрізались до «Sunder…»; від 640 px — господарі · рахунок · гості в один рядок.
  */
-export function MatchListRow({ match }: { match: FootballMatchListItem }) {
+export function MatchListRow({ match }: { match: MatchListItem }) {
   const formatDateTime = useDateTimeFormat();
   const formatStatus = useMatchStatusLabel();
   const live = isMatchInPlay(match.status);

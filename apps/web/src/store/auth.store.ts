@@ -1,15 +1,15 @@
 import { create } from 'zustand';
-import type { User } from '@/lib/api/types';
+import type { UserAccount } from '@/lib/api/types';
 
 /**
  * Дзеркало `useAuthQuery` (`GET /auth/me`) для компонентів. Єдиний запис — `AuthSessionSync`;
  * login / logout змінюють кеш запиту, а не store.
  */
 interface AuthState {
-  user: User | null;
+  user: UserAccount | null;
   /** `true`, поки перший `GET /auth/me` не відповів — не показувати «Увійти» залогіненому. */
   isLoading: boolean;
-  syncSession: (user: User | null) => void;
+  syncSession: (user: UserAccount | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({

@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { SyncScope, SyncStatus, SyncTrigger } from '@prisma/client';
+import type { SyncRunDto } from '../dto/football-sync-response.dto';
 import { FULL_SYNC_STALE_AFTER_MS } from '../football.constants';
 import {
   FOOTBALL_PROVIDER,
@@ -18,16 +19,14 @@ import {
   FootballSyncRepository,
   type SyncTargetCompetition,
 } from '../persistence/football-sync.repository';
-import {
-  SyncRunRepository,
-  type SyncRunRow,
-} from '../persistence/sync-run.repository';
+import { SyncRunRepository } from '../persistence/sync-run.repository';
 import {
   createSyncStats,
   describeSyncError,
   hasPartialFailures,
   type SyncStats,
 } from './football-sync-stats';
+import { toSyncRunView } from './sync-run-response';
 import { FootballSyncWriter } from './football-sync.writer';
 
 export type FullSyncOutcome =
@@ -81,8 +80,9 @@ export class FootballSyncService {
   }
 
   /** Журнал для адмінки (6.2 п. 7). */
-  getRecentRuns(limit: number): Promise<SyncRunRow[]> {
-    return this.syncRuns.findRecent(limit);
+  async getRecentRuns(limit: number): Promise<SyncRunDto[]> {
+    const syncRuns = await this.syncRuns.findRecent(limit);
+    return syncRuns.map(toSyncRunView);
   }
 
   /** Cron: усі активні турніри (D7). */

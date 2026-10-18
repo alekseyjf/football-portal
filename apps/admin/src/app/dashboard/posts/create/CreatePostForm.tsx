@@ -12,7 +12,7 @@ import {
   postTitleSchema,
 } from '@football-portal/validation/forms';
 import { isApiError } from '@/lib/api/http';
-import type { CreatePostPayload } from '@/lib/api/types';
+import type { PostTranslationRequest } from '@/lib/api/types';
 import { useCreatePost } from '@/hooks/useCreatePost';
 
 const PUBLICATION_OPTIONS = [
@@ -145,7 +145,7 @@ export function CreatePostForm() {
   const onSubmit = async (data: FormData) => {
     setServerError(null);
     // Значення вже після trim (zod-схеми полів)
-    const translations: CreatePostPayload['translations'] = [
+    const translations: PostTranslationRequest[] = [
       {
         languageCode: 'en',
         title: data.titleEn,

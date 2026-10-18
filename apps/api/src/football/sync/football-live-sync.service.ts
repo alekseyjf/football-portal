@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SyncStatus, SyncTrigger } from '@prisma/client';
+import type { LiveTouchResultDto } from '../dto/live-touch-response.dto';
 import { LIVE_SYNC_DATE_WINDOW_DAYS } from '../football.constants';
 import { isMatchInLiveWindow } from '../football-match-status';
 import {
@@ -24,11 +25,6 @@ import {
 import { FootballSyncWriter } from './football-sync.writer';
 
 const DAY_MS = 24 * 60 * 60_000;
-
-export type LiveTouchResult = {
-  accepted: boolean;
-  skipped?: 'not_found' | 'not_live' | 'throttled' | 'no_api_key';
-};
 
 function toIsoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -67,7 +63,7 @@ export class FootballLiveSyncService {
    * `POST /football/live-touch` (P5-12): матч у LIVE-вікні — не лише зі статусом `LIVE` у БД,
    * інакше матч ніколи б не «ожив» (F10). Синк — у фоні.
    */
-  async requestLiveSyncForMatch(matchId: string): Promise<LiveTouchResult> {
+  async requestLiveSyncForMatch(matchId: string): Promise<LiveTouchResultDto> {
     const liveContext = await this.syncRepository.findMatchLiveContext(
       matchId,
       this.provider.provider,

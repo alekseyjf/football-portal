@@ -1,70 +1,90 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Roles } from '../auth/guards/roles.decorator';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { AdminOnly, AuthRequired } from '../auth/guards/access.decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { CommentService } from './comment.service';
+import {
+  CommentDto,
+  PurgedCommentDto,
+  SoftDeletedCommentDto,
+} from './dto/comment-response.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
+@ApiTags('comments')
 @Controller('comments')
 export class CommentController {
   constructor(private commentService: CommentService) {}
 
-  // Публічний — дерево коментарів живого поста
+  /**
+   * Дерево коментарів новини (без коментарів — порожній масив).
+   * @throws {404} POST_NOT_FOUND — немає, ще не опублікована або видалена
+   */
   @Get('post/:postId')
-  getByPost(@Param('postId') postId: string) {
+  getByPost(@Param('postId') postId: string): Promise<CommentDto[]> {
     return this.commentService.getCommentsByPost(postId);
   }
 
-  // Публічний — дерево коментарів матчу
+  /**
+   * Дерево коментарів матчу.
+   * @throws {404} MATCH_NOT_FOUND
+   */
   @Get('match/:matchId')
-  getByMatch(@Param('matchId') matchId: string) {
+  getByMatch(@Param('matchId') matchId: string): Promise<CommentDto[]> {
     return this.commentService.getCommentsByMatch(matchId);
   }
 
-  // Авторизовані — створити коментар або відповідь
+  /**
+   * Коментар або відповідь (`parentId`); у відповіді — створений коментар з `replies: []`.
+   * @throws {400} Невалідні поля; COMMENT_TARGET_INVALID — не рівно одне з postId / matchId; PARENT_COMMENT_MISMATCH — батько з іншого треду; COMMENT_DEPTH_EXCEEDED
+   * @throws {403} COMMENT_THREAD_LOCKED, COMMENTS_SUSPENDED (санкція за спам), ACCOUNT_LOCKED
+   * @throws {404} POST_NOT_FOUND, MATCH_NOT_FOUND, PARENT_COMMENT_NOT_FOUND
+   * @throws {409} COMMENT_THREAD_CHANGED — гонка з видаленням: повторіть
+   * @throws {429} COMMENT_COOLDOWN — не минула пауза між коментарями (за замовчуванням 60 с)
+   */
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @AuthRequired()
   createComment(
     @Body() dto: CreateCommentDto,
     @CurrentUser() user: AuthenticatedUser,
-  ) {
+  ): Promise<CommentDto> {
     return this.commentService.createComment(dto, user);
   }
 
-  // Автор або адмін — soft delete разом з гілкою відповідей
+  /**
+   * Видалити коментар разом з усією гілкою відповідей (soft delete) — автор або ADMIN.
+   * @throws {403} COMMENT_DELETE_FORBIDDEN — чужий коментар
+   * @throws {404} COMMENT_NOT_FOUND
+   * @throws {409} COMMENT_THREAD_CHANGED — гонка: повторіть
+   */
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @AuthRequired()
   deleteComment(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-  ) {
+  ): Promise<SoftDeletedCommentDto> {
     return this.commentService.deleteComment(id, user);
   }
 
-  // ⚠️ Деструктивно: рядок фізично зникає з БД (розділ 7.5.2)
+  /**
+   * ⚠️ Фізично видалити коментар без відповідей (legal / GDPR).
+   * @throws {404} COMMENT_NOT_FOUND
+   * @throws {409} COMMENT_HAS_REPLIES — є відповіді: `purge-thread`; COMMENT_THREAD_CHANGED — гонка
+   */
   @Delete(':id/purge')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  purgeComment(@Param('id') id: string) {
+  @AdminOnly()
+  purgeComment(@Param('id') id: string): Promise<PurgedCommentDto> {
     return this.commentService.purgeComment(id);
   }
 
-  // ⚠️ Деструктивно: коментар і все піддерево відповідей
+  /**
+   * ⚠️ Фізично видалити коментар з усім піддеревом відповідей.
+   * @throws {404} COMMENT_NOT_FOUND
+   * @throws {409} COMMENT_THREAD_CHANGED — піддерево змінилось під час видалення: повторіть
+   */
   @Delete(':id/purge-thread')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  purgeCommentThread(@Param('id') id: string) {
+  @AdminOnly()
+  purgeCommentThread(@Param('id') id: string): Promise<PurgedCommentDto> {
     return this.commentService.purgeCommentThread(id);
   }
 }

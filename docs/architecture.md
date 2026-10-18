@@ -14,6 +14,7 @@
 - **Наша БД — джерело правди.** Публічні `GET` читають лише Prisma; зовнішнє API викликає тільки синк (виняток — `live-touch`).
 - **Домени БД** (схема v5): identity · moderation · content · engagement · football · sync ([`decisions/v5-foundation.md`](decisions/v5-foundation.md), розділ 4). FOOTBALL-таблиці про провайдерів не знають — id провайдера лише в `*ExternalRef`.
 - **Auth:** access-JWT 15 хв (`sid`) + opaque refresh-сесії в БД, httpOnly cookies ([`decisions/v5-identity.md`](decisions/v5-identity.md)).
+- **Контракт API** ([D28](decisions/D28-openapi-contract.md)): OpenAPI-документ будується з коду API (`@nestjs/swagger` + CLI-плагін: схема відповіді — тип, який повертає метод контролера) → `packages/types/openapi.json` → `openapi-typescript` → типи web і admin. `pnpm gen:api-types` — без сервера й БД; контрактні e2e звіряють реальні відповіді з документом. Swagger UI — `/api/docs` (не на проді).
 - **Один інстанс API**: ліміти, черга провайдера, кеш — у пам'яті процесу ([D41](decisions/D41-single-instance-scaling.md)).
 
 ## Football: як це працює (для розбору коду)

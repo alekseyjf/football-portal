@@ -7,7 +7,7 @@ import {
   adminPostStatusLabel,
   adminPostTitle,
   languageShortLabel,
-  type AdminPostRow,
+  type AdminPost,
 } from '@/lib/api/types';
 import { getPublicWebUrl } from '@/lib/publicWebUrl';
 
@@ -21,7 +21,7 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 };
 
 /** Дата публікації (для запланованих — коли вийде), для чернеток — створення. */
-function adminPostDateLine(post: AdminPostRow): string {
+function adminPostDateLine(post: AdminPost): string {
   const formatDateTime = (isoDate: string) =>
     new Date(isoDate).toLocaleString('en-GB', {
       dateStyle: 'medium',

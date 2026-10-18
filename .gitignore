@@ -59,5 +59,9 @@ Thumbs.db
 *.db
 *.db-journal
 
+# Контракт API і типи з нього — генерує `pnpm gen:api-types` (і `pnpm install`), D28
+packages/types/openapi.json
+packages/types/src/generated/
+
 # Кастомний вивід Prisma (якщо увімкнеш output у схемі)
 **/generated/prisma

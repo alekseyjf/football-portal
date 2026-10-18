@@ -3,7 +3,8 @@ import { TrimString } from '../../../common/validation/trim-string.transform';
 
 /** `DELETE /users/:id` (ADMIN). Тіло опційне. */
 export class DeleteUserDto {
-  /** Причина — у `UserSanction.note` для аудиту */
+  /** Причина — для аудиту */
+  // Зберігається в `UserSanction.note`
   @IsOptional()
   @TrimString()
   @IsString()

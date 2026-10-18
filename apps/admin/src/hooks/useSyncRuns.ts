@@ -5,7 +5,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api/http';
-import type { SyncRunRow } from '@/lib/api/types';
+import type { SyncRun } from '@/lib/api/types';
 
 const SYNC_RUNS_LIMIT = 20;
 const SYNC_RUNS_REFETCH_MS = 5_000;
@@ -20,7 +20,7 @@ export function syncRunsQueryOptions() {
   return queryOptions({
     queryKey: ['admin', 'football', 'sync-runs'] as const,
     queryFn: () =>
-      apiGet<SyncRunRow[]>(`/football/sync-runs?limit=${SYNC_RUNS_LIMIT}`),
+      apiGet<SyncRun[]>(`/football/sync-runs?limit=${SYNC_RUNS_LIMIT}`),
     staleTime: 10 * 1000,
   });
 }
