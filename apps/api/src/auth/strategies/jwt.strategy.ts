@@ -1,9 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { UserStatus } from '@prisma/client';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { envConfig } from '../../config/env.config';
+import type { AppEnv } from '../../config/env.schema';
 import { readAccessToken } from '../auth-cookies';
-import { ACCESS_TOKEN_ALGORITHM, readJwtSecret } from '../auth.constants';
+import { ACCESS_TOKEN_ALGORITHM } from '../auth.constants';
 import type { AccessTokenPayload } from '../auth.service';
 import { AuthSessionRepository } from '../sessions/auth-session.repository';
 
@@ -15,13 +17,15 @@ export interface AuthenticatedUser {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private sessionRepository: AuthSessionRepository) {
+  constructor(
+    private sessionRepository: AuthSessionRepository,
+    @Inject(envConfig.KEY) env: AppEnv,
+  ) {
     super({
       // Читаємо токен з httpOnly cookie, а не з заголовку
       jwtFromRequest: ExtractJwt.fromExtractors([readAccessToken]),
       ignoreExpiration: false,
-      // Падає на старті, якщо секрету немає або він закороткий
-      secretOrKey: readJwtSecret(),
+      secretOrKey: env.JWT_SECRET,
       algorithms: [ACCESS_TOKEN_ALGORITHM],
     });
   }

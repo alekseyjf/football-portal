@@ -52,14 +52,16 @@
 
 ### Змінні середовища (football)
 
+Повний перелік усіх змінних із поясненнями — `apps/{api,web,admin}/.env.example`; змінні API перевіряє одна схема при старті — `apps/api/src/config/env.schema.ts` (M1.3.2).
+
 **`apps/api/.env`**
 
 | Змінна | Призначення |
 |--------|-------------|
 | `FOOTBALL_API_KEY` | **Токен** з football-data.org |
-| `FOOTBALL_API_URL` | За замовчуванням `https://api.football-data.org/v4` |
+| `FOOTBALL_API_URL` | За замовчуванням `https://api.football-data.org/v4`; лише https (ключ іде в заголовку) |
 | `FOOTBALL_LIVE_CRON_ENABLED` | `true` — кожні 5 хв LIVE-синк турнірів, де зараз є матч; інакше лише on-demand |
-| `FOOTBALL_HTTP_LOG` | `true` — логувати кожен запит до football-data (у dev це й так увімкнено) |
+| `FOOTBALL_HTTP_LOG` | `true` / `false` — логувати кожен запит до football-data; за замовчуванням `true` лише при `NODE_ENV=development` |
 
 **`apps/web/.env.local`**
 
@@ -97,6 +99,7 @@
 | Football: Prisma | `apps/api/src/football/persistence/` (читання, записи синку, `*ExternalRef`, `SyncRun`) |
 | Football: cron | `apps/api/src/football/sync/football.cron.ts` |
 | Схема БД | `apps/api/prisma/schema.prisma` |
+| Змінні середовища API (схема, доступ) | `apps/api/src/config/env.schema.ts`, `env.config.ts`; шаблон — `apps/api/.env.example` |
 | Сайдбар на головній | `apps/web/src/components/football/FootballSidebar.tsx` |
 | Хуки / query keys футболу | `apps/web/src/hooks/useFootball.ts` (`leagueDashboardQueryOptions`) |
 | Slug ліги для SSR | `apps/web/src/app/resolveDefaultLeagueSlug.ts` |

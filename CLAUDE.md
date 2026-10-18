@@ -4,7 +4,7 @@
 - **Web** (port 3000): Next.js 16, React 19, Tailwind 4, React Hook Form + Zod, Zustand, Vitest (unit), **TanStack Query** (`prefetchQuery` + `HydrationBoundary` для головної, новини й матчу; хуки для коментарів і auth), **next-intl** (маршрути `app/[locale]/…`, локалі лише `en` | `uk` — той самий код у БД, API і `<html lang>`, D22)
 - **Admin** (port 3001): Next.js 16, React Hook Form + Zod, Zustand, **TanStack Query** (пости, логін, створення поста)
 - **API** (port 4000): NestJS, Prisma 7, PostgreSQL (Supabase), JWT httpOnly cookies
-- **Monorepo**: pnpm + Turborepo
+- **Monorepo**: pnpm + Turborepo; нову версію пакета pnpm бере не раніше ніж через 7 днів після публікації (`minimumReleaseAge` у `pnpm-workspace.yaml`)
 - `packages/types` — shared TypeScript types
 - `packages/validation` — спільні межі валідації: `.` — числа (API DTO на class-validator), `./forms` — zod-схеми форм web/admin. Збирається в `dist` (turbo `dev`/`build` — першим; `pnpm install` — через `prepare`)
 - `packages/config` — shared tsconfig (ESLint — свій `eslint.config.mjs` у кожному застосунку; web і admin — однаковий `eslint-config-next`)
@@ -34,7 +34,7 @@ All routes prefixed with `/api/v1/`
 - `POST /auth/login/admin` — public, лише ADMIN (403 `ADMIN_ONLY` до створення сесії); ліміт спроб спільний з `login`
 - `POST /auth/refresh` — ротація refresh-сесії (409 `REFRESH_SUPERSEDED` — гонка вкладок)
 - `POST /auth/logout` — без guard (читає refresh-cookie); `POST /auth/logout-all` — JwtAuthGuard; `GET /auth/me`
-- Files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`
+- Files: `auth.controller.ts`, `auth.service.ts`, `auth.module.ts`; cookies з токенами — `AuthCookieService` (`auth-cookies.ts`, надає `AuthSessionsModule`)
 - DTOs: `register.dto.ts`, `login.dto.ts`
 - Guards: `guards/jwt-auth.guard.ts`, `guards/optional-jwt-auth.guard.ts`, `guards/roles.guard.ts`, `guards/roles.decorator.ts`; `current-user.decorator.ts`
 - Strategy: `strategies/jwt.strategy.ts` — reads token from cookie `access_token`
@@ -139,34 +139,15 @@ All routes prefixed with `/api/v1/`
 @docs/rules/content.md
 
 ## Environment Variables
-### apps/api/.env
-```
-DATABASE_URL=... (Supabase: транзакційний пулер :6543)
-DIRECT_URL=... (session-пулер / пряме з'єднання :5432 — для `prisma migrate` і довгих прогонів; `prisma.config.ts`)
-JWT_SECRET=... (обов'язковий, ≥ 32 символи, випадковий — інакше API не стартує; HS256 для access-JWT)
-PORT=4000
-FOOTBALL_API_KEY=... (API Token з кабінету, НЕ id змагання)
-FOOTBALL_API_URL=https://api.football-data.org/v4
-FOOTBALL_LIVE_CRON_ENABLED=false
-FOOTBALL_HTTP_LOG=true
-CORS_ORIGINS=http://localhost:3000,http://localhost:3001 (обов'язковий; через кому, рівно origin — без шляху і `/`; на проді лише https)
-EMAIL_HASH_SECRET=... (обов'язковий, ≥ 32 символи, випадковий; HMAC блоклиста пошт видалених акаунтів — НЕ змінювати після запуску)
-TRUST_PROXY= (порожньо в dev; на проді ОБОВ'ЯЗКОВИЙ — кількість проксі, напр. 1, або 0/false без проксі; `true` заборонено)
-```
-(`FOOTBALL_HTTP_LOG` — логувати всі запити до football-data; у dev це вмикається автоматично)
-Опційно: `COMMENT_COOLDOWN_MS` (дефолт 60000); лише для `pnpm db:seed` без `seed-data/content.json` — `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_NAME`. Турніри для синку — з `Competition.isActive` (seed має власний список), не з env
-### apps/web/.env.local
-```
-NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
-NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG=PL
-# як у Competition.slug (код змагання, напр. PL); немає / неактивна — перша активна за sortOrder
-NEXT_PUBLIC_ADMIN_URL=http://localhost:3001 (опційно; посилання на адмінку в Navbar, це й дефолт)
-```
-### apps/admin/.env.local (рекомендовано)
-```
-NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
-NEXT_PUBLIC_PUBLIC_WEB_URL=http://localhost:3000
-```
+Повний перелік із поясненнями — `apps/api/.env.example`, `apps/web/.env.example`, `apps/admin/.env.example` (скопіювати в `.env` / `.env.local`; ці файли — не в git).
+### apps/api/.env — схема `src/config/env.schema.ts` (zod, M1.3.2)
+- Перевіряється при старті (`config/env.config.ts`: `registerAs` + `ConfigModule.forRoot({ ignoreEnvFile, load })`): немає обов'язкової або значення невалідне → API не стартує й перелічує всі проблеми (без значень); `KEY=` без значення = змінної немає
+- У коді — лише `@Inject(envConfig.KEY) env: AppEnv`; `process.env` у `src/` поза `config/env.config.ts` забороняє ESLint (Rule 13). `.env` завантажує `main.ts` (dotenv), а не `ConfigModule` — e2e не підхопить dev-БД випадково
+- Обов'язкові: `NODE_ENV` (development | production | test), `DATABASE_URL` (транзакційний пулер :6543), `JWT_SECRET` і `EMAIL_HASH_SECRET` (≥ 32 символи, різні; HMAC — НЕ змінювати після запуску), `CORS_ORIGINS` (рівно origin-и через кому; на проді лише https); на проді ще `TRUST_PROXY` (кількість проксі, напр. 1, або 0 / false; `true` заборонено)
+- Опційні (дефолт): `PORT` (4000), `FOOTBALL_API_KEY` (без нього синк → 503), `FOOTBALL_API_URL` (football-data v4, лише https), `FOOTBALL_LIVE_CRON_ENABLED` (false), `FOOTBALL_HTTP_LOG` (true лише в development; явне значення перемагає), `COMMENT_COOLDOWN_MS` (60000, ≤ 24 год — retention `RateLimitEvent`)
+- Лише CLI (у схемі немає): `DIRECT_URL` (session-пулер / пряме з'єднання :5432 — `prisma migrate`, seed; порожньо → `DATABASE_URL`), `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_NAME` (`pnpm db:seed` без `seed-data/content.json`). Турніри для синку — з `Competition.isActive`, не з env
+### apps/web/.env.local, apps/admin/.env.local
+`NEXT_PUBLIC_*` — вбудовуються в JS при збірці (секретів не буває); без файлу — дефолти localhost. Web: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG` (як `Competition.slug`; немає / неактивна — перша активна за `sortOrder`), `NEXT_PUBLIC_ADMIN_URL`. Admin: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_PUBLIC_WEB_URL`
 
 ## Current Status
 Документація — `docs/` (карта — `docs/README.md`): **план** — `docs/football-plan.md` (віхи M1–M4, етапи з чекбоксами, Definition of Done, повний чекліст зробленого), **рішення** — `docs/decisions/` (D1–D20, P2-* … P5b-*, R*, «🧭 п. N» — з тими самими ID, що в коментарях коду; нові — D21+), **правила** — `docs/rules/`, архітектура — `docs/architecture.md`, відкладене / ідеї / питання — `docs/backlog.md`, `docs/ideas.md`, `docs/open-questions.md`; старі плани — `docs/archive/` (історія, не план). Позначки в плані: 👤 рішення власника · ⭐ рекомендація · ❓ уточнити перед виконанням · ⚠️ розбіжність з кодом.

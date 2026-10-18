@@ -1,7 +1,7 @@
 # ⚽ 12Yards — план розвитку
 
 > **Версія:** 5.0 · 2026-10-08 — перший план після переходу на схему v5. Попередні: [`archive/football-plan-v4.7.md`](archive/football-plan-v4.7.md), [`archive/football-plan-intermediate.md`](archive/football-plan-intermediate.md).
-> **Зараз:** M1 «Тестовий реліз» → **M1.3.1 Якість коду** ✅ (чекає PR) · M1.1 — власник перечитує `rules/` · далі **M1.3.2**.
+> **Зараз:** M1 «Тестовий реліз» → **M1.3.2 Конфіг** ✅ (чекає PR; M1.3.1 злито — PR #14) · M1.1 — власник перечитує `rules/` · далі **M1.3.3**.
 > **Карта документації:** [`docs/README.md`](README.md) · рішення — [`decisions/`](decisions/README.md) · відкладене — [`backlog.md`](backlog.md) · ідеї — [`ideas.md`](ideas.md) · питання — [`open-questions.md`](open-questions.md).
 
 ## Як читати план
@@ -116,7 +116,7 @@
 
 **Мета:** якість коду й контракт API — до нових фіч (👤 13.1, У16).
 
-👤 Ділимо на під-етапи (2026-10-17), кожен — окрема гілка й PR; перший — **M1.3.1 Якість коду** ✅ (гілка `refactor/m1-3-1-code-quality`).
+👤 Ділимо на під-етапи (2026-10-17), кожен — окрема гілка й PR: **M1.3.1 Якість коду** ✅ (гілка `refactor/m1-3-1-code-quality`, PR #14) → **M1.3.2 Конфіг** ✅ (гілка `feat/m1-3-2-env-config`: схема env, `.env.example`, порт у лозі старту, `minimumReleaseAge`).
 
 - [x] 👤 ESLint в адмінці (flat config як у web, `"lint": "eslint"`) — ⚠️ зараз `pnpm lint` в адмінці падає. *M1.3.1:* `eslint` 9 + `eslint-config-next` 16.2.2 (ті самі версії, що в web; lock-файл — лише рядки адмінки). Єдине попередження — `watch()` React Hook Form несумісний з React Compiler → `useWatch()` у `CreatePostForm` (поведінка та сама).
 - [x] ⭐ `lint` в API без `--fix` (окремо `lint:fix`; з glob прибрано неіснуючі `apps`, `libs` — залишок шаблону Nest) — *чому:* перевірка не повинна мовчки міняти файли; CI має падати, а не «виправляти».
@@ -129,17 +129,27 @@
 - [ ] 👤 Swagger ([D28](decisions/D28-openapi-contract.md)): `@nestjs/swagger` + CLI-плагін, UI `/api/docs` — лише не на проді (👤 У17); каркас response DTO.
 - [ ] 👤 Генерація типів `openapi-typescript` → `packages/types` (згенерований файл у git), скрипт `pnpm gen:api-types`.
   - ⭐ Схему генерує скрипт без сервера й БД; у CI — перевірка, що згенероване актуальне — *чому:* так контракт API ↔ web не розходиться мовчки.
-- [ ] ⭐ Валідація env однією схемою при старті (`@nestjs/config` + zod): `DATABASE_URL`, `FOOTBALL_*`, нові змінні M1 — *чому:* помилка конфігу видна одразу при старті, а не через годину роботи (12-factor). Частково вже є (`JWT_SECRET`, `CORS_ORIGINS`, `TRUST_PROXY`) — звести в одне місце.
-- [ ] ⭐ `.env.example` для api / web / admin (лише ключі й коментарі) — *чому:* без нього деплой і новий комп'ютер — це вгадування змінних.
+- [x] ⭐ Валідація env однією схемою при старті (`@nestjs/config` + zod): `DATABASE_URL`, `FOOTBALL_*`, нові змінні M1 — *чому:* помилка конфігу видна одразу при старті, а не через годину роботи (12-factor). Частково вже є (`JWT_SECRET`, `CORS_ORIGINS`, `TRUST_PROXY`) — звести в одне місце.
+  - *M1.3.2:* `src/config/env.schema.ts` — `parseEnv()`: усі 12 змінних API, усі проблеми одним повідомленням без значень (там секрети); `KEY=` без значення = змінної немає. `config/env.config.ts` — `registerAs('env', …)`, `ConfigModule.forRoot({ isGlobal, ignoreEnvFile, load })`; у сервісах — `@Inject(envConfig.KEY) env: AppEnv`. Перевірки з `app.setup.ts` (`TRUST_PROXY`, `CORS_ORIGINS`), `readJwtSecret()`, `EmailBlocklistService`, `getCommentCooldownMs()` переїхали в схему; `auth-cookies` → `AuthCookieService` (прапорець `secure` — з `NODE_ENV`).
+  - ⭐ `@nestjs/config` **4.0.4**, а не 12.x — *чому:* 12.x лише ESM, а API — CommonJS + Jest; 4.0.4 — остання для Nest 11. Доступ через `registerAs` (офіційний типізований спосіб), а не `ConfigService.get('…')`: та для незаданої змінної тихо віддає сирий `process.env` (порожній рядок), а тест передає звичайний об'єкт.
+  - ⭐ `NODE_ENV` тепер обов'язковий (development | production | test) — *чому:* забутий `production` на сервері мовчки вимикав би secure-cookies і перевірку `TRUST_PROXY`, а так деплой падає одразу.
+  - ⭐ Суворіше, ніж було: `COMMENT_COOLDOWN_MS` поза межами — помилка старту, а не тихий дефолт / обрізання; прапорці — лише `true` / `false`; `FOOTBALL_API_URL` — лише https (ключ іде в заголовку); `EMAIL_HASH_SECRET` ≠ `JWT_SECRET` (один секрет — одне призначення); `FOOTBALL_HTTP_LOG` — явне значення перемагає дефолт development.
+  - ⭐ ESLint (`no-restricted-properties`) забороняє `process.env` у `src/` поза `config/env.config.ts` — Rule 13 перевіряє інструмент, а не пам'ять. `prisma.config.ts` і seed (CLI) читають env самі; порожній `DIRECT_URL=` тепер = не задано (`||`).
+  - Перевірено наживо: з поточним `.env` API не стартує — `NODE_ENV: is required` (решта змінних схему пройшла); з `NODE_ENV=development` — БД, `/football/leagues` 200, гість `/auth/me` 401, CORS лише для своїх origin-ів, logout чистить cookies як раніше.
+  - [ ] 👤 Ручний крок власника: додати в `apps/api/.env` рядок `NODE_ENV=development`.
+- [x] ⭐ `.env.example` для api / web / admin (лише ключі й коментарі) — *чому:* без нього деплой і новий комп'ютер — це вгадування змінних.
+  - *M1.3.2:* секрети порожні, безпечні dev-значення заповнені (`NODE_ENV`, `PORT`, `CORS_ORIGINS`, URL-и), біля кожної змінної — що це, обов'язкова чи ні, дефолт. Unit-тест: `apps/api/.env.example` описує кожну змінну схеми. `apps/web/.gitignore` (`.env*`) ховав би шаблон — додано `!.env.example`.
 - [ ] ⭐ `GET /auth/me` для гостя → `200 { user: null }` — *чому:* ⚠️ зараз кожне відкриття сторінки гостем = 2 зайві запити (401 + refresh 401) і шум у консолі.
 - [ ] ⭐ Каркас e2e API (`apps/api/test/`): застосунок з `configureHttpApp`, окрема БД, фейковий football-провайдер, хелпери логіну з cookies; перший тест — `/health` ([D30](decisions/D30-testing-and-local-env.md)).
   - *Чому:* у Фазах 2–5 сотні перевірок писались тимчасовими скриптами й видалялись; постійний набір ловить регресії.
   - ❓ Локальна БД для e2e (OQ-5).
+  - ⭐ (з M1.3.2) Конфіг тест-застосунку — `overrideProvider(envConfig.KEY).useValue(parseEnv({ … }))` або змінні до старту; `.env` застосунок сам не читає (`ignoreEnvFile`), тож dev-БД e2e не підхопить.
 - [ ] ⭐ Vitest у web — підключено в M1.2 (`vitest.config.mts`, `pnpm --filter @football-portal/web test`); лишилось — тести меж дня в поясі (`zoned-date`), уже перевірені тимчасовим `node --test`.
-- [ ] ⭐ `minimumReleaseAge` у `pnpm-workspace.yaml` (напр. 7 днів, термінові патчі — через `minimumReleaseAgeExclude`) — *чому:* свіжі релізи npm — головний канал атак через залежності (зламану версію зазвичай знімають за години–дні), а dev-залежності виконуються на машині з `.env`. У M1.2 Vitest уже встановлено так разово (`--config.minimumReleaseAge=20160`): `vite` 8.3.2 замість 8.3.4 восьмиденної давності.
-- [ ] ⭐ `main.ts`: лог старту з фактичним портом (зараз захардкоджено 4000).
+- [x] ⭐ `minimumReleaseAge` у `pnpm-workspace.yaml` (напр. 7 днів, термінові патчі — через `minimumReleaseAgeExclude`) — *чому:* свіжі релізи npm — головний канал атак через залежності (зламану версію зазвичай знімають за години–дні), а dev-залежності виконуються на машині з `.env`. У M1.2 Vitest уже встановлено так разово (`--config.minimumReleaseAge=20160`): `vite` 8.3.2 замість 8.3.4 восьмиденної давності.
+  - *M1.3.2:* `minimumReleaseAge: 10080` (7 днів) — налаштовано **до** встановлення `@nestjs/config` і `zod` (zod — та сама 4.3.6, що в web / admin); правило — у [security](rules/security.md). ⭐ Заодно `turbo: "latest"` → `^2.9.1` (версія в lock-файлі та сама) — *чому:* `latest` при будь-якому перерахунку lock-файлу тягне найновішу версію. Наступний крок захисту — `trustPolicy: no-downgrade` ([backlog](backlog.md), M3.2).
+- [x] ⭐ `main.ts`: лог старту з фактичним портом (зараз захардкоджено 4000). *M1.3.2:* порт — з перевіреного `PORT`, лог — через `Logger` Nest (`[Bootstrap] 🚀 API running on http://localhost:<port>/api/v1`).
 
-**Тести:** e2e `/health` (БД доступна / ні); unit — схема env.
+**Тести:** e2e `/health` (БД доступна / ні); unit — схема env (✅ M1.3.2: `config/env.schema.spec.ts`, 11 тестів — дефолти, порожні значення, усі помилки одним повідомленням без секретів, правила production, `TRUST_PROXY`, `CORS_ORIGINS`, межі, повнота `.env.example`).
 **Готово, коли:** `pnpm lint` і `tsc` зелені в усіх трьох застосунках; Swagger UI відкривається локально; `pnpm gen:api-types` працює.
 
 ### M1.4 Новини — API
@@ -305,6 +315,7 @@
 
 **M1.11.4 Середовища й секрети**
 - [ ] ⭐ `APP_ENV=test` (окремо від `NODE_ENV=production`) вмикає `noindex`, Basic Auth і Swagger.
+  - Перелік змінних для хостингу — `apps/{api,web,admin}/.env.example`; `APP_ENV` — нове поле схеми `env.schema.ts` і рядок у `.env.example` ([Rule 13](rules/backend.md)).
 - [ ] ⭐ Нові секрети для тесту (`JWT_SECRET`, `EMAIL_HASH_SECRET`), не з dev — *чому:* секрет, що «гуляв» локально, не має відчиняти сервер.
 
 **M1.11.5 БД**

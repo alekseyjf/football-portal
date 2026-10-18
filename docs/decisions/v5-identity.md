@@ -109,7 +109,7 @@
 #### Рев'ю Фаз 1–2 (2026-09-26)
 Звірено код з розділами 5, 5.1, 7, 7.5.1 і P2-1…P2-21: схема = розділ 5 + `BlockedEmail` (2d); `tsc` API — 45 (auth, users, security — 0). Критичних проблем (обхід auth, витік email/хешів, ескалація ролі, CSRF) не знайдено.
 - [x] `RegisterDto.name`: trim **до** `MinLength` — ім'я з пробілів проходило валідацію і ставало порожнім `displayName`
-- [x] `JWT_SECRET`: `readJwtSecret()` (`auth.constants.ts`) — < 32 символів → API не стартує (як `EMAIL_HASH_SECRET`); алгоритм закріплено: підпис і `JwtStrategy` — лише `HS256`
+- [x] `JWT_SECRET`: `readJwtSecret()` (`auth.constants.ts`; з M1.3.2 — схема env `config/env.schema.ts`) — < 32 символів → API не стартує (як `EMAIL_HASH_SECRET`); алгоритм закріплено: підпис і `JwtStrategy` — лише `HS256`
 - [x] Перевірка (мінімальний Nest, dev-БД) 9/9: короткий секрет → старт падає; ім'я `"   "` → 400, `"  Ab  "` → `Ab`; login / me / refresh → 200; токен HS512 тим самим секретом і `alg=none` → 401. Тестового юзера прибрано
 - [x] Документація: `BlockedEmail` у розділах 4, 5, 5.1; `CLAUDE.md` — `JWT_SECRET`, admin не викликає `/auth/me`
 - ⚠️ **До проду (не код-баг, а політика)** → бэклог Redis-етапу в `football-plan-new.md`: strikes анти-абузу рахуються за весь час, а ендпоінта розблокування немає → легітимний користувач, що двічі (з будь-яким інтервалом) лайкне 5 разів за 5 с, блокується назавжди. Варіанти: strikes лише за N днів, м'якший поріг для LIKE, `POST /users/:id/unlock` (ADMIN) — разом з адмінкою користувачів

@@ -12,7 +12,8 @@ export default defineConfig({
     seed: "ts-node --transpile-only prisma/seed.ts",
   },
   datasource: {
-    // CLI (migrate) потребує прямого з’єднання; з pooler (Supabase) — DIRECT_URL, інакше DATABASE_URL
-    url: process.env.DIRECT_URL ?? env("DATABASE_URL"),
+    // CLI (migrate) потребує прямого з’єднання; з pooler (Supabase) — DIRECT_URL, інакше DATABASE_URL.
+    // `||`, а не `??`: порожній `DIRECT_URL=` (як у .env.example) — те саме, що змінної немає
+    url: process.env.DIRECT_URL || env("DATABASE_URL"),
   },
 } satisfies PrismaConfig);

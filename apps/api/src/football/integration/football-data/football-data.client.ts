@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
+import { envConfig } from '../../../config/env.config';
+import type { AppEnv } from '../../../config/env.schema';
 import {
   FOOTBALL_API_MAX_RETRY_WAIT_MS,
   FOOTBALL_API_REQUEST_INTERVAL_MS,
@@ -7,10 +9,15 @@ import {
 } from '../../football.constants';
 import { FootballProviderError } from '../football-provider.port';
 
-const DEFAULT_BASE_URL = 'https://api.football-data.org/v4';
 const REQUEST_TIMEOUT_MS = 45_000;
 /** Друга спроба — лише для 429, 5xx і мережевих збоїв */
 const MAX_REQUEST_ATTEMPTS = 2;
+
+/** Змінні середовища, які читає клієнт (схема — `config/env.schema.ts`). */
+export type FootballDataEnv = Pick<
+  AppEnv,
+  'FOOTBALL_API_KEY' | 'FOOTBALL_API_URL' | 'FOOTBALL_HTTP_LOG'
+>;
 
 /**
  * HTTP до football-data.org (axios). Усі запити процесу йдуть **однією чергою** з інтервалом
@@ -20,13 +27,22 @@ const MAX_REQUEST_ATTEMPTS = 2;
 @Injectable()
 export class FootballDataClient {
   private readonly log = new Logger(FootballDataClient.name);
+  private readonly apiKey: string | undefined;
+  private readonly baseUrl: string;
+  private readonly logRequests: boolean;
   private axiosInstance: AxiosInstance | null = null;
   /** Хвіст черги: кожен запит чекає свого слоту після попереднього */
   private requestQueueTail: Promise<void> = Promise.resolve();
   private nextRequestNotBefore = 0;
 
+  constructor(@Inject(envConfig.KEY) env: FootballDataEnv) {
+    this.apiKey = env.FOOTBALL_API_KEY;
+    this.baseUrl = env.FOOTBALL_API_URL;
+    this.logRequests = env.FOOTBALL_HTTP_LOG;
+  }
+
   hasApiKey(): boolean {
-    return Boolean(process.env.FOOTBALL_API_KEY?.trim());
+    return this.apiKey !== undefined;
   }
 
   async getJson<ResponseBody>(
@@ -78,20 +94,19 @@ export class FootballDataClient {
   }
 
   private getAxios(): AxiosInstance {
-    const apiKey = process.env.FOOTBALL_API_KEY?.trim();
-    if (!apiKey) {
+    if (!this.apiKey) {
       throw new FootballProviderError('AUTH', 'FOOTBALL_API_KEY is not set');
     }
     if (!this.axiosInstance) {
-      if (/^\d{1,6}$/.test(apiKey)) {
+      if (/^\d{1,6}$/.test(this.apiKey)) {
         this.log.warn(
           'FOOTBALL_API_KEY схожий на id змагання. Потрібен токен з кабінету football-data.org.',
         );
       }
       this.axiosInstance = axios.create({
-        baseURL: process.env.FOOTBALL_API_URL?.trim() || DEFAULT_BASE_URL,
+        baseURL: this.baseUrl,
         timeout: REQUEST_TIMEOUT_MS,
-        headers: { 'X-Auth-Token': apiKey },
+        headers: { 'X-Auth-Token': this.apiKey },
       });
       this.attachRequestLogging(this.axiosInstance);
     }
@@ -99,10 +114,7 @@ export class FootballDataClient {
   }
 
   private attachRequestLogging(client: AxiosInstance): void {
-    const enabled =
-      process.env.NODE_ENV === 'development' ||
-      process.env.FOOTBALL_HTTP_LOG === 'true';
-    if (!enabled) return;
+    if (!this.logRequests) return;
 
     client.interceptors.request.use((config) => {
       this.log.log(`[football-data] → GET ${client.getUri(config)}`);

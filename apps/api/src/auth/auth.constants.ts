@@ -16,19 +16,5 @@ export const SESSION_ABSOLUTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
  */
 export const REFRESH_SUPERSEDED_GRACE_MS = 30 * 1000;
 
-/** Алгоритм підпису access-JWT; `JwtStrategy` інших не приймає. */
+/** Алгоритм підпису access-JWT; `JwtStrategy` інших не приймає. Секрет — `JWT_SECRET` (схема env). */
 export const ACCESS_TOKEN_ALGORITHM = 'HS256';
-
-/** Коротший секрет HS256 можна перебрати офлайн, маючи будь-який виданий токен. */
-const JWT_SECRET_MIN_LENGTH = 32;
-
-/** Секрет підпису access-JWT. Без нього (або з короткою dev-фразою) API не стартує. */
-export function readJwtSecret(): string {
-  const jwtSecret = process.env.JWT_SECRET ?? '';
-  if (jwtSecret.length < JWT_SECRET_MIN_LENGTH) {
-    throw new Error(
-      `JWT_SECRET is missing or shorter than ${JWT_SECRET_MIN_LENGTH} characters`,
-    );
-  }
-  return jwtSecret;
-}

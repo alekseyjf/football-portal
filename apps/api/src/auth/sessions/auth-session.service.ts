@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -8,6 +9,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { UserStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { envConfig } from '../../config/env.config';
+import type { AppEnv } from '../../config/env.schema';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ACCESS_TOKEN_ALGORITHM,
@@ -15,7 +18,6 @@ import {
   REFRESH_SESSION_TTL_MS,
   REFRESH_SUPERSEDED_GRACE_MS,
   SESSION_ABSOLUTE_TTL_MS,
-  readJwtSecret,
 } from '../auth.constants';
 import type { AccessTokenPayload } from '../auth.service';
 import type { SessionClientContext } from '../session-client-context';
@@ -40,13 +42,16 @@ const ACCOUNT_LOCKED = 'ACCOUNT_LOCKED';
 @Injectable()
 export class AuthSessionService {
   private readonly logger = new Logger(AuthSessionService.name);
-  private readonly jwtSecret = readJwtSecret();
+  private readonly jwtSecret: string;
 
   constructor(
     private prisma: PrismaService,
     private sessionRepository: AuthSessionRepository,
     private jwt: JwtService,
-  ) {}
+    @Inject(envConfig.KEY) env: AppEnv,
+  ) {
+    this.jwtSecret = env.JWT_SECRET;
+  }
 
   /** Логін: нова сім'я сесій; від її старту рахується абсолютний ліміт (2f). */
   async startSession(

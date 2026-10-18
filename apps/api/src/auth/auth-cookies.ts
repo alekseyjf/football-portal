@@ -1,5 +1,8 @@
+import { Inject, Injectable } from '@nestjs/common';
 import type { CookieOptions, Request, Response } from 'express';
 import { API_GLOBAL_PREFIX } from '../app.constants';
+import { envConfig } from '../config/env.config';
+import type { AppEnv } from '../config/env.schema';
 import { ACCESS_TOKEN_TTL_SECONDS } from './auth.constants';
 import type { AuthTokens } from './sessions/auth-session.service';
 
@@ -12,47 +15,53 @@ const REFRESH_TOKEN_COOKIE_PATH = `/${API_GLOBAL_PREFIX}/auth`;
 const LEGACY_REFRESH_TOKEN_COOKIE_PATH = '/';
 const ACCESS_TOKEN_COOKIE_PATH = '/';
 
-/** JS на фронті не бачить токенів; cross-site POST не несе cookies (`lax`). */
-function baseCookieOptions(): CookieOptions {
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-  };
-}
+/** Cookies з токенами для відповідей контролерів; `secure` — на проді (локально API на http). */
+@Injectable()
+export class AuthCookieService {
+  /** JS на фронті не бачить токенів; cross-site POST не несе cookies (`lax`). */
+  private readonly baseOptions: CookieOptions;
 
-export function setAuthCookies(res: Response, tokens: AuthTokens): void {
-  res.cookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
-    ...baseCookieOptions(),
-    path: ACCESS_TOKEN_COOKIE_PATH,
-    maxAge: ACCESS_TOKEN_TTL_SECONDS * 1000,
-  });
-  res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
-    ...baseCookieOptions(),
-    path: REFRESH_TOKEN_COOKIE_PATH,
-    expires: tokens.refreshExpiresAt,
-  });
-  clearLegacyRefreshCookie(res);
-}
+  constructor(@Inject(envConfig.KEY) env: AppEnv) {
+    this.baseOptions = {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    };
+  }
 
-/** `clearCookie` спрацьовує лише з тим самим `path`, що й при встановленні. */
-export function clearAuthCookies(res: Response): void {
-  res.clearCookie(ACCESS_TOKEN_COOKIE, {
-    ...baseCookieOptions(),
-    path: ACCESS_TOKEN_COOKIE_PATH,
-  });
-  res.clearCookie(REFRESH_TOKEN_COOKIE, {
-    ...baseCookieOptions(),
-    path: REFRESH_TOKEN_COOKIE_PATH,
-  });
-  clearLegacyRefreshCookie(res);
-}
+  set(res: Response, tokens: AuthTokens): void {
+    res.cookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
+      ...this.baseOptions,
+      path: ACCESS_TOKEN_COOKIE_PATH,
+      maxAge: ACCESS_TOKEN_TTL_SECONDS * 1000,
+    });
+    res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
+      ...this.baseOptions,
+      path: REFRESH_TOKEN_COOKIE_PATH,
+      expires: tokens.refreshExpiresAt,
+    });
+    this.clearLegacyRefreshCookie(res);
+  }
 
-function clearLegacyRefreshCookie(res: Response): void {
-  res.clearCookie(REFRESH_TOKEN_COOKIE, {
-    ...baseCookieOptions(),
-    path: LEGACY_REFRESH_TOKEN_COOKIE_PATH,
-  });
+  /** `clearCookie` спрацьовує лише з тим самим `path`, що й при встановленні. */
+  clear(res: Response): void {
+    res.clearCookie(ACCESS_TOKEN_COOKIE, {
+      ...this.baseOptions,
+      path: ACCESS_TOKEN_COOKIE_PATH,
+    });
+    res.clearCookie(REFRESH_TOKEN_COOKIE, {
+      ...this.baseOptions,
+      path: REFRESH_TOKEN_COOKIE_PATH,
+    });
+    this.clearLegacyRefreshCookie(res);
+  }
+
+  private clearLegacyRefreshCookie(res: Response): void {
+    res.clearCookie(REFRESH_TOKEN_COOKIE, {
+      ...this.baseOptions,
+      path: LEGACY_REFRESH_TOKEN_COOKIE_PATH,
+    });
+  }
 }
 
 /**

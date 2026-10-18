@@ -177,8 +177,8 @@ interface SeedSummary {
 }
 
 function createPrismaClient(): PrismaClient {
-  // Як у prisma.config.ts: пряме з'єднання, якщо є (Supabase pooler + транзакції)
-  const databaseUrl = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+  // Як у prisma.config.ts: пряме з'єднання, якщо є (Supabase pooler + транзакції); порожнє — не задано
+  const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DIRECT_URL / DATABASE_URL is not set');
   }
@@ -287,7 +287,7 @@ async function buildAdminFromEnv(): Promise<ExportedAdmin> {
   }
   return {
     email,
-    displayName: process.env.SEED_ADMIN_NAME ?? 'Admin',
+    displayName: process.env.SEED_ADMIN_NAME || 'Admin',
     passwordHash: await bcrypt.hash(password, PASSWORD_HASH_ROUNDS),
     role: Role.ADMIN,
     avatarUrl: null,

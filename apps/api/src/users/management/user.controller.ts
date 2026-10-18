@@ -9,7 +9,7 @@ import {
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import type { Response } from 'express';
-import { clearAuthCookies } from '../../auth/auth-cookies';
+import { AuthCookieService } from '../../auth/auth-cookies';
 import { CurrentUser } from '../../auth/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Roles } from '../../auth/guards/roles.decorator';
@@ -22,7 +22,10 @@ import { UserService } from './user.service';
 
 @Controller('users')
 export class UserController {
-  constructor(private userService: UserService) {}
+  constructor(
+    private userService: UserService,
+    private authCookies: AuthCookieService,
+  ) {}
 
   // ⚠️ `me` ОБОВ'ЯЗКОВО перед `:id` — інакше `me` сприймається як id
   @Delete('me')
@@ -35,7 +38,7 @@ export class UserController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.userService.deleteOwnAccount(user.id, dto.password);
-    clearAuthCookies(res);
+    this.authCookies.clear(res);
     return { message: 'Account deleted' };
   }
 

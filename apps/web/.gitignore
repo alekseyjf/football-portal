@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Шаблон без секретів — комітимо (кореневий `!.env.example` сюди не дістає: правило вкладеного файлу сильніше)
+!.env.example
 
 # vercel
 .vercel

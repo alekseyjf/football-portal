@@ -27,20 +27,11 @@ export interface RateLimitPolicy {
   cooldown: { ms: number; code: string } | null;
 }
 
-const DEFAULT_COMMENT_COOLDOWN_MS = 60_000;
-
-/** Мінімальний інтервал між коментарями (мс); перевизначити через COMMENT_COOLDOWN_MS */
-export function getCommentCooldownMs(): number {
-  const raw = process.env.COMMENT_COOLDOWN_MS;
-  if (raw === undefined || raw === '') return DEFAULT_COMMENT_COOLDOWN_MS;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 0)
-    return DEFAULT_COMMENT_COOLDOWN_MS;
-  // Події старші за retention cron видаляє — довший cooldown перестав би діяти
-  return Math.min(parsed, RATE_LIMIT_EVENT_RETENTION_MS);
-}
-
-export function getRateLimitPolicy(action: RateLimitAction): RateLimitPolicy {
+/** `commentCooldownMs` — `COMMENT_COOLDOWN_MS` (схема env: ≤ `RATE_LIMIT_EVENT_RETENTION_MS`). */
+export function getRateLimitPolicy(
+  action: RateLimitAction,
+  commentCooldownMs: number,
+): RateLimitPolicy {
   switch (action) {
     case RateLimitAction.LIKE:
       return {
@@ -60,7 +51,7 @@ export function getRateLimitPolicy(action: RateLimitAction): RateLimitPolicy {
         sanctionReason: SanctionReason.COMMENT_BURST,
         suspensionMs: 24 * HOUR_MS,
         suspendedCode: 'COMMENTS_SUSPENDED',
-        cooldown: { ms: getCommentCooldownMs(), code: 'COMMENT_COOLDOWN' },
+        cooldown: { ms: commentCooldownMs, code: 'COMMENT_COOLDOWN' },
       };
   }
 }

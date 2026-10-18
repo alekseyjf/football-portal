@@ -120,10 +120,13 @@ email = dto.email.toLowerCase().trim();
 // page ≤ 100 000, limit ≤ 50…100, список slug-ів ≤ 20, інтервал дат ≤ 32 доби; невалідне → 400, не 500
 ```
 
-**Rule 13 — Конфіг лише через перевірену схему env**
+**Rule 13 — Конфіг лише через перевірену схему env** (з M1.3.2 так і в коді — `process.env` у `src/` ловить ESLint)
 ```typescript
-// ✅ Усі змінні середовища описані в одній схемі й перевіряються при старті (API не стартує з поганим конфігом)
-// ❌ process.env.X у бізнес-коді
+// ✅ Усі змінні середовища описані в одній схемі й перевіряються при старті (API не стартує з поганим конфігом):
+//    src/config/env.schema.ts (zod); шаблон — apps/api/.env.example (тест перевіряє, що там є кожна змінна схеми)
+// ✅ constructor(@Inject(envConfig.KEY) env: AppEnv) { this.jwtSecret = env.JWT_SECRET; }
+// ❌ process.env.X у src/ поза config/env.config.ts — помилка ESLint (no-restricted-properties)
+// Нова змінна = поле в схемі + рядок у .env.example з поясненням (+ CLAUDE.md, якщо обов'язкова)
 ```
 
 **Rule 14 — Суворий TypeScript** — `strict: true` в API так само, як у web / admin ([D29](../decisions/D29-strict-typescript-api.md)).

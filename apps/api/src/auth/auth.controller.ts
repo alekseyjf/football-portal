@@ -20,11 +20,7 @@ import {
   RegisterThrottle,
 } from '../security/throttling/request-throttling';
 import { AuthService } from './auth.service';
-import {
-  clearAuthCookies,
-  readRefreshToken,
-  setAuthCookies,
-} from './auth-cookies';
+import { AuthCookieService, readRefreshToken } from './auth-cookies';
 import { CurrentUser } from './current-user.decorator';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -39,6 +35,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private sessionService: AuthSessionService,
+    private authCookies: AuthCookieService,
   ) {}
 
   @Post('register')
@@ -67,7 +64,7 @@ export class AuthController {
       readSessionClientContext(req),
       readRefreshToken(req),
     );
-    setAuthCookies(res, tokens);
+    this.authCookies.set(res, tokens);
     return { message: 'Logged in successfully', user };
   }
 
@@ -91,7 +88,7 @@ export class AuthController {
       readRefreshToken(req),
       { requiredRole: Role.ADMIN },
     );
-    setAuthCookies(res, tokens);
+    this.authCookies.set(res, tokens);
     return { message: 'Logged in successfully', user };
   }
 
@@ -115,7 +112,7 @@ export class AuthController {
         refreshToken,
         readSessionClientContext(req),
       );
-      setAuthCookies(res, tokens);
+      this.authCookies.set(res, tokens);
       return { message: 'Session refreshed' };
     } catch (error) {
       // Сесії більше немає — прибираємо мертві cookies, щоб браузер їх не слав.
@@ -126,7 +123,7 @@ export class AuthController {
         (error instanceof UnauthorizedException ||
           error instanceof ForbiddenException)
       ) {
-        clearAuthCookies(res);
+        this.authCookies.clear(res);
       }
       throw error;
     }
@@ -137,7 +134,7 @@ export class AuthController {
   @HttpCode(200)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.sessionService.endSession(readRefreshToken(req));
-    clearAuthCookies(res);
+    this.authCookies.clear(res);
     return { message: 'Logged out successfully' };
   }
 
@@ -149,7 +146,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const revokedSessions = await this.sessionService.endAllSessions(user.id);
-    clearAuthCookies(res);
+    this.authCookies.clear(res);
     return { message: 'Logged out on all devices', revokedSessions };
   }
 
