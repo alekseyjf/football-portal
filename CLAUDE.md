@@ -79,6 +79,9 @@ All routes prefixed with `/api/v1/`
 - `throttling/request-throttling.ts` — ліміти на IP / акаунт лише на окремих роутах (login, register, refresh, `DELETE /users/me`, `live-touch`); сховище — пам'ять процесу
 - `email-blocklist/`, `security-cleanup.cron.ts` (щогодини: прострочені `AuthSession` > 7 д, `RateLimitEvent` > 24 год, `BlockedEmail`)
 
+### Health — `src/health/` (D33)
+- `GET /health` — public (хостинг, uptime-монітор): terminus ping БД, таймаут 3 с → 200 / 503, у відповіді лише статуси
+
 ### Football — `src/football/` (schema v5; рішення — `docs/decisions/v5-football.md`)
 - **Корінь:** `football.module.ts`, `football.controller.ts`, `football.constants.ts`, `football-match-status.ts` (`IN_PLAY` = LIVE + PAUSED, LIVE-вікно), `football-matchday.util.ts` (тури: `(stage, matchday)` у лізі / ліга-фазі / групах, плей-оф — уся стадія, `matchday: null`), `dto/*`
 - **`integration/`** — порт `football-provider.port.ts` (`FootballProvider`, DI-токен `FOOTBALL_PROVIDER`, нейтральні `Provider*`, `FootballProviderError`) + адаптер `football-data/` (`client` — **одна черга запитів на процес**, ≥ 6,5 с між стартами, 429 → `X-RequestCounter-Reset`; `mapper` — **єдине** місце, що знає формат football-data; `provider`). Синк `Fd*` не бачить
@@ -92,6 +95,9 @@ All routes prefixed with `/api/v1/`
 - `GET /football/matches?from=&to=&league=PL,CL` — матчі за часом початку `[from, to)` у всіх турнірах: межі — ISO **з поясом** (день рахує клієнт у своєму поясі), ≤ 32 доби (`MATCH_RANGE_INVALID` / `MATCH_RANGE_TOO_LONG`, `query/football-match-range.ts`); без `league` — лише `isActive`, зі slug-ами — будь-які; ≤ 1000 рядків; `{ matches: [рядок матчу + league] }`. `@IsIsoDateTimeWithZone` — `common/validation/iso-date-time.decorator.ts` (і `publishedAt` поста)
 - `POST /football/sync` — **ADMIN**, **202** + фон; body `{ competitionIds?: string[] }` — **наші slug-и** (без тіла — усі активні); невідомий → 400 `UNKNOWN_COMPETITION`, без ключа → 503 `FOOTBALL_PROVIDER_NOT_CONFIGURED`. `GET /football/sync-runs?limit=` — **ADMIN**
 - `POST /football/live-touch` — публічний, ліміт 10 / хв на IP; приймається для матчу в LIVE-вікні (гра йде або `SCHEDULED` у `[−3 год, +15 хв]`), LIVE-синк турніру — не частіше 60 с; лише оновлює наявні матчі, `FINISHED` → оновити таблицю
+
+### E2E — `apps/api/test/`
+- `pnpm --filter @football-portal/api test:e2e [-- модуль]` — окрема схема `e2e` у dev-БД (потрібна жива Supabase); правила — `apps/api/test/CLAUDE.md`
 
 ## Frontend Structure (apps/web/src/)
 - i18n: `proxy.ts` (next-intl + тимчасовий 308 `/ua/…` → `/uk/…`, прибрати в M3.1), `i18n/` (routing, request, navigation), `messages/en.json` / `uk.json`; для `Intl` / дат — `uk-UA` (`lib/i18n/content-lang.ts`)

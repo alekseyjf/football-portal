@@ -1,7 +1,7 @@
 # ⚽ 12Yards — план розвитку
 
 > **Версія:** 5.0 · 2026-10-08 — перший план після переходу на схему v5. Попередні: [`archive/football-plan-v4.7.md`](archive/football-plan-v4.7.md), [`archive/football-plan-intermediate.md`](archive/football-plan-intermediate.md).
-> **Зараз:** M1 «Тестовий реліз» → **M1.3.2 Конфіг** ✅ (чекає PR; M1.3.1 злито — PR #14) · M1.1 — власник перечитує `rules/` · далі **M1.3.3**.
+> **Зараз:** M1 «Тестовий реліз» → **M1.3.3 Health і каркас e2e** ✅ (чекає PR; M1.3.2 злито — PR #15) · M1.1 — власник перечитує `rules/` · далі **M1.3.4**.
 > **Карта документації:** [`docs/README.md`](README.md) · рішення — [`decisions/`](decisions/README.md) · відкладене — [`backlog.md`](backlog.md) · ідеї — [`ideas.md`](ideas.md) · питання — [`open-questions.md`](open-questions.md).
 
 ## Як читати план
@@ -56,7 +56,7 @@
 | 9 | Анти-абуз блокує тимчасово | Strike-и за весь час: два «вибухи» лайків за будь-який час = вічний блок, розблокувати нічим | Вікно 30 днів, розблокування адміном ([D37](decisions/D37-anti-abuse-strike-window.md)) | M1.7, M2.6 |
 | 10 | Лайки коментарів дешеві | Кожен коментар — окремий запит лайків (N+1: 100 коментарів = 100 HTTP + ~200 SQL) | Лайки пачкою з порцією коментарів | M1.7 |
 | 11 | `pnpm lint` працює | В адмінці `next lint` (прибрано в Next 16) — падає; у `lint` API — `--fix` | ✅ ESLint в адмінці, lint без `--fix` | M1.3.1 |
-| 12 | Є e2e-тести | `test/app.e2e-spec.ts` — шаблон Nest («Hello World») | Каркас e2e, `/health` | M1.3 |
+| 12 | Є e2e-тести | `test/app.e2e-spec.ts` — шаблон Nest («Hello World») | ✅ Каркас e2e (схема `e2e`), `/health` | M1.3.3 |
 | 13 | Синк ощадливий | Завершені WC 2026 і EC 2024 синкаються кожні 2 год | Автопропуск завершених ([D36](decisions/D36-sync-operations.md)) | M1.11.7 |
 | 14 | «Поточний тур» з даних провайдера | `Season.currentMatchday` синк пише й API віддає, але web не використовує | Використати | M2.2 |
 | 15 | Деплой не ламає синк | Немає graceful shutdown → після рестарту `SyncRun` висить `RUNNING` до 10 хв | `enableShutdownHooks` | M1.11.7 |
@@ -108,7 +108,7 @@
 - [x] ⚠️ Знайдено й виправлено: `/UA/…` (великими) → 404 — next-intl приймає локаль у будь-якому регістрі (`/EN` → `/en`), а редирект був чутливий до регістру; тепер `/i`. Тест падав до виправлення.
 - [x] API перевірено наживо: `?lang=uk` → UK-переклади (`resolvedLanguage: uk`, `availableLanguages: [en, uk]`), `?lang=ua` → EN.
 - [x] Web перевірено вручну (dev, curl): `/uk` і `/uk/news/…` — UK-заголовки без позначки «Переклад недоступний»; `/ua`, `/ua/news/x?league=CL`, `/ua/matches?date=…` → 308 на `/uk/…` з query; `Accept-Language: uk-UA` → `/uk`; `<html lang="uk">` / `"en"`; перемикач `Eng` / `Укр`.
-- [ ] e2e API `?lang=uk` / `?lang=ua` — з каркасом e2e (M1.3); `<html lang>` — у смоук-сценарій тест-сервера (M1.11).
+- [x] e2e API `?lang=uk` / `?lang=ua` — з каркасом e2e. *M1.3.3:* `test/posts/post-languages.e2e-spec.ts` — пост з UK-перекладом → UK, без нього → EN з `resolvedLanguage: en`, `?lang=ua` → EN без 400, сторінка поста → UK-текст і `availableLanguages: [en, uk]`. `<html lang>` — у смоук-сценарій тест-сервера (M1.11).
 
 **Готово, коли:** у коді немає `'ua'` як коду мови (крім редиректу й читання старого експорту в seed); у БД мови `en`, `uk`.
 
@@ -116,12 +116,17 @@
 
 **Мета:** якість коду й контракт API — до нових фіч (👤 13.1, У16).
 
-👤 Ділимо на під-етапи (2026-10-17), кожен — окрема гілка й PR: **M1.3.1 Якість коду** ✅ (гілка `refactor/m1-3-1-code-quality`, PR #14) → **M1.3.2 Конфіг** ✅ (гілка `feat/m1-3-2-env-config`: схема env, `.env.example`, порт у лозі старту, `minimumReleaseAge`).
+👤 Ділимо на під-етапи (2026-10-17), кожен — окрема гілка й PR: **M1.3.1 Якість коду** ✅ (гілка `refactor/m1-3-1-code-quality`, PR #14) → **M1.3.2 Конфіг** ✅ (гілка `feat/m1-3-2-env-config`, PR #15: схема env, `.env.example`, порт у лозі старту, `minimumReleaseAge`) → **M1.3.3 Health і каркас e2e** ✅ (гілка `feat/m1-3-3-health-e2e`: `/health`, e2e у схемі `e2e`, e2e `?lang` з M1.2).
 
 - [x] 👤 ESLint в адмінці (flat config як у web, `"lint": "eslint"`) — ⚠️ зараз `pnpm lint` в адмінці падає. *M1.3.1:* `eslint` 9 + `eslint-config-next` 16.2.2 (ті самі версії, що в web; lock-файл — лише рядки адмінки). Єдине попередження — `watch()` React Hook Form несумісний з React Compiler → `useWatch()` у `CreatePostForm` (поведінка та сама).
 - [x] ⭐ `lint` в API без `--fix` (окремо `lint:fix`; з glob прибрано неіснуючі `apps`, `libs` — залишок шаблону Nest) — *чому:* перевірка не повинна мовчки міняти файли; CI має падати, а не «виправляти».
-- [ ] 👤 `GET /health` замість шаблонного Hello World (`AppController` / `AppService` прибрати), оновити `test/app.e2e-spec.ts`.
+- [x] 👤 `GET /health` замість шаблонного Hello World (`AppController` / `AppService` прибрати), оновити `test/app.e2e-spec.ts`.
   - ⭐ Через `@nestjs/terminus`: ping БД з таймаутом, без деталей інфраструктури у відповіді — *чому:* стандартний модуль Nest; хостинг і uptime-монітор питають саме health-ендпоінт; без таймауту завислий пулер повісить і його.
+  - *M1.3.3:* `src/health/` — `GET /api/v1/health` (той самий префікс, що й увесь API): `PrismaHealthIndicator` terminus (`SELECT 1`, таймаут 3 с) → 200 `{ status: 'ok', …, details: { database: { status: 'up' } } }` / 503 зі `status: 'down'`; адреси сервера й тексту помилки у відповіді немає; `@HealthCheck()` ставить `Cache-Control: no-store`. `AppController` / `AppService` і обидва шаблонні тести прибрано — `/api/v1` тепер 404.
+  - ⭐ terminus **11.1.1**, а не 12.x — *чому:* 12.x лише ESM (як `@nestjs/config` 12 у M1.3.2), а API — CommonJS + Jest; 11.1.1 — остання для Nest 11. Вбудований індикатор перевірено з Prisma 7: спершу кличе Mongo-метод `$runCommandRaw` (Prisma відповідає «Use the mongodb provider»), тоді `SELECT 1`; текст помилки з'єднання (там адреса БД) не віддає — свій індикатор не потрібен.
+  - ⭐ Таймаут 3 с — *чому:* нове з'єднання з Supabase — 0,2–0,4 с (виміряно), а запит на «мертвому» сокеті пулера висить ~15 хв (OQ-11).
+  - ⭐ Один `/health` з БД, без окремих liveness / readiness — *чому:* інстанс один ([D41](decisions/D41-single-instance-scaling.md)), хостинг і монітор питають один шлях; ділимо, коли з'явиться оркестратор, якому рестарт через недоступну БД шкодить.
+  - Перевірено наживо (`node dist/main`, справжній `PrismaService` через transaction pooler): 200 з тим самим тілом і `Cache-Control: no-cache, no-store, must-revalidate`; `/api/v1` → 404; `/football/leagues` → 200.
 - [x] 👤 `@CurrentUser()` замість `req.user as AuthenticatedUser` у контролерах ([D29](decisions/D29-strict-typescript-api.md)). *M1.3.1:* `auth/current-user.decorator.ts` — `@CurrentUser()` (без `JwtAuthGuard` — 500 і стек у лозі, а не тихий `undefined`) і `@OptionalCurrentUser()` для `OptionalJwtAuthGuard` (статистика лайків); `req.user` у контролерах не лишилось. ⭐ Заодно `LikeService.toggle` приймає `Role`, а не `string` (контролер кастував роль до `string`, сервіс порівнював з `'ADMIN'`).
 - [x] 👤 Суворий TypeScript в API: `noImplicitAny` (виміряно — 0 помилок) → `strict: true` (12 помилок TS2564 у DTO → `!`). *M1.3.1:* одразу `strict: true` — рівно 12 полів DTO з `!`; `useUnknownInCatchVariables` знайшов ще 3 `${err}` у `security-cleanup.cron.ts` (ESLint `restrict-template-expressions`) → `String(err)`, той самий текст у лозі. У зібраному JS `"use strict"` уже був — рантайм не змінився.
 - [x] 👤 Кінці рядків — **CRLF в усьому репозиторії**, і в `docs/` (2026-10-17, [code-style](rules/code-style.md)): переведено 76 файлів; винятки LF — `pnpm-lock.yaml`, `apps/api/prisma/migrations/**`, `*.sh`. `scripts/line-endings.mjs` (дані — з `git ls-files --eol`): `pnpm lint:eol` у складі `pnpm lint`, `pnpm fix:eol`; `.editorconfig`.
@@ -136,20 +141,31 @@
   - ⭐ Суворіше, ніж було: `COMMENT_COOLDOWN_MS` поза межами — помилка старту, а не тихий дефолт / обрізання; прапорці — лише `true` / `false`; `FOOTBALL_API_URL` — лише https (ключ іде в заголовку); `EMAIL_HASH_SECRET` ≠ `JWT_SECRET` (один секрет — одне призначення); `FOOTBALL_HTTP_LOG` — явне значення перемагає дефолт development.
   - ⭐ ESLint (`no-restricted-properties`) забороняє `process.env` у `src/` поза `config/env.config.ts` — Rule 13 перевіряє інструмент, а не пам'ять. `prisma.config.ts` і seed (CLI) читають env самі; порожній `DIRECT_URL=` тепер = не задано (`||`).
   - Перевірено наживо: з поточним `.env` API не стартує — `NODE_ENV: is required` (решта змінних схему пройшла); з `NODE_ENV=development` — БД, `/football/leagues` 200, гість `/auth/me` 401, CORS лише для своїх origin-ів, logout чистить cookies як раніше.
-  - [ ] 👤 Ручний крок власника: додати в `apps/api/.env` рядок `NODE_ENV=development`.
+  - [x] 👤 Ручний крок власника: додати в `apps/api/.env` рядок `NODE_ENV=development` (у M1.3.3 ключ уже є).
 - [x] ⭐ `.env.example` для api / web / admin (лише ключі й коментарі) — *чому:* без нього деплой і новий комп'ютер — це вгадування змінних.
   - *M1.3.2:* секрети порожні, безпечні dev-значення заповнені (`NODE_ENV`, `PORT`, `CORS_ORIGINS`, URL-и), біля кожної змінної — що це, обов'язкова чи ні, дефолт. Unit-тест: `apps/api/.env.example` описує кожну змінну схеми. `apps/web/.gitignore` (`.env*`) ховав би шаблон — додано `!.env.example`.
 - [ ] ⭐ `GET /auth/me` для гостя → `200 { user: null }` — *чому:* ⚠️ зараз кожне відкриття сторінки гостем = 2 зайві запити (401 + refresh 401) і шум у консолі.
-- [ ] ⭐ Каркас e2e API (`apps/api/test/`): застосунок з `configureHttpApp`, окрема БД, фейковий football-провайдер, хелпери логіну з cookies; перший тест — `/health` ([D30](decisions/D30-testing-and-local-env.md)).
+- [x] ⭐ Каркас e2e API (`apps/api/test/`): застосунок з `configureHttpApp`, окрема БД, фейковий football-провайдер, хелпери логіну з cookies; перший тест — `/health` ([D30](decisions/D30-testing-and-local-env.md)).
   - *Чому:* у Фазах 2–5 сотні перевірок писались тимчасовими скриптами й видалялись; постійний набір ловить регресії.
-  - ❓ Локальна БД для e2e (OQ-5).
-  - ⭐ (з M1.3.2) Конфіг тест-застосунку — `overrideProvider(envConfig.KEY).useValue(parseEnv({ … }))` або змінні до старту; `.env` застосунок сам не читає (`ignoreEnvFile`), тож dev-БД e2e не підхопить.
+  - ✅ ~~❓ Локальна БД для e2e (OQ-5)~~ → 👤 2026-10-18: без локальної БД — окрема схема `e2e` у поточній Supabase-БД, «обережно, щоб не зламати» справжні дані ([D30](decisions/D30-testing-and-local-env.md)).
+  - ⭐ (з M1.3.2) Конфіг тест-застосунку — `overrideProvider(envConfig.KEY).useValue(parseEnv({ … }))` або змінні до старту; `.env` застосунок сам не читає (`ignoreEnvFile`), тож dev-БД e2e не підхопить. *M1.3.3:* так і зроблено — фабрика env у `ConfigModule` — звичайний провайдер, підміна означає, що `parseEnv(process.env)` не виконується.
+  - *M1.3.3:* `test/support/` — `e2e-database.ts` (схема, підключення, перебудова, `resetE2eData`), `e2e-app.ts` (`createE2eApp`: `AppModule` + `configureHttpApp`; env з нуля — `NODE_ENV=test`, випадкові секрети, без ключа football-data; `PrismaService` → клієнт схеми `e2e`), `e2e-auth.ts` (`createUser` — `POST /auth/register` + роль у БД; `loginAs` — агент supertest з httpOnly cookies), `global-setup.ts` (перебудова схеми раз на прогін). `jest-e2e.json`: `maxWorkers: 1` (одна схема на всі файли), `testTimeout` 30 с. Кожен файл тестів починає з `resetE2eData` (порожні таблиці + мови `en`, `uk`).
+  - Як захищено `public` — кожен запобіжник перевірено поломкою: тести або перебудова падають **до** першого запису:
+    - схема — константа `e2e` у коді, а не налаштування;
+    - ⚠️ адаптер Prisma 7 ігнорує `?schema=` у рядку підключення — `PrismaService` писав би в `public`. Тому в e2e свій клієнт: `PrismaPg(…, { schema: 'e2e' })` (запити Prisma — `"e2e"."Post"`) + `search_path=e2e` при підключенні (сирий SQL застосунку, `FOR NO KEY UPDATE`, пише таблиці без схеми); перед стартом — перевірка `current_schema()`. `DATABASE_URL` тест-застосунку нікуди не веде: тест в обхід `createE2eApp` впаде на з'єднанні, а не запише в `public`;
+    - перебудова — один запит і одна транзакція: `DROP` / `CREATE SCHEMA "e2e"` → `SET LOCAL search_path` → перевірка `current_schema()` у DO-блоці → міграції 0001–0005 (у 0004 / 0005 є `UPDATE "AuthSession"` / `"Language"` без схеми). ⭐ Не `prisma migrate deploy` — *чому:* той бере адресу з `prisma.config.ts`, де `.env` (`DIRECT_URL` → `public`); помилка в змінних застосувала б нову міграцію до справжньої БД;
+    - `TRUNCATE` — лише явно `"e2e"."Таблиця"` за каталогом цієї схеми;
+    - підключення — `E2E_DATABASE_URL` або `DIRECT_URL` (session pooler, :5432): у transaction pooler `search_path` не тримається між транзакціями. `.env` лише читається — у `process.env` тестів (а отже, у застосунок) він не потрапляє.
+  - Виміряно: перебудова схеми — 0,5–0,8 с, увесь набір — ~7 с. Після 7 прогонів (з контрольними поломками) у `public` ті самі 33 таблиці й ті самі кількості рядків, що в знімку до них; структура `e2e` — як у `public` (32 таблиці без `_prisma_migrations`, 18 enum, 4 CHECK).
+  - ⭐ Фейковий football-провайдер — з першим e2e синку (M1.10 / M1.11.7), а не зараз — *чому:* без тесту, що його використовує, це мертвий код; справжній провайдер з e2e недосяжний — env тестів без `FOOTBALL_API_KEY` (синк → 503, квота football-data не витрачається).
+  - Запуск: `pnpm --filter @football-portal/api test:e2e` (усе) або `… test:e2e -- posts` (модуль).
+  - ⭐ Правила написання e2e — `apps/api/test/CLAUDE.md`, а в кореневому `CLAUDE.md` — один рядок (👤 зауваження 2026-10-18) — *чому:* кореневий файл читається в кожній сесії, а вкладений — лише при роботі з тестами.
 - [ ] ⭐ Vitest у web — підключено в M1.2 (`vitest.config.mts`, `pnpm --filter @football-portal/web test`); лишилось — тести меж дня в поясі (`zoned-date`), уже перевірені тимчасовим `node --test`.
 - [x] ⭐ `minimumReleaseAge` у `pnpm-workspace.yaml` (напр. 7 днів, термінові патчі — через `minimumReleaseAgeExclude`) — *чому:* свіжі релізи npm — головний канал атак через залежності (зламану версію зазвичай знімають за години–дні), а dev-залежності виконуються на машині з `.env`. У M1.2 Vitest уже встановлено так разово (`--config.minimumReleaseAge=20160`): `vite` 8.3.2 замість 8.3.4 восьмиденної давності.
   - *M1.3.2:* `minimumReleaseAge: 10080` (7 днів) — налаштовано **до** встановлення `@nestjs/config` і `zod` (zod — та сама 4.3.6, що в web / admin); правило — у [security](rules/security.md). ⭐ Заодно `turbo: "latest"` → `^2.9.1` (версія в lock-файлі та сама) — *чому:* `latest` при будь-якому перерахунку lock-файлу тягне найновішу версію. Наступний крок захисту — `trustPolicy: no-downgrade` ([backlog](backlog.md), M3.2).
 - [x] ⭐ `main.ts`: лог старту з фактичним портом (зараз захардкоджено 4000). *M1.3.2:* порт — з перевіреного `PORT`, лог — через `Logger` Nest (`[Bootstrap] 🚀 API running on http://localhost:<port>/api/v1`).
 
-**Тести:** e2e `/health` (БД доступна / ні); unit — схема env (✅ M1.3.2: `config/env.schema.spec.ts`, 11 тестів — дефолти, порожні значення, усі помилки одним повідомленням без секретів, правила production, `TRUST_PROXY`, `CORS_ORIGINS`, межі, повнота `.env.example`).
+**Тести:** e2e `/health` (БД доступна / ні) (✅ M1.3.3: `test/health/health.e2e-spec.ts` — БД працює → 200 і `no-store`; відхиляє з'єднання → 503 лише зі статусом; приймає з'єднання й мовчить, як «мертвий» сокет пулера → 503 за ~3 с, а не зависання); unit — схема env (✅ M1.3.2: `config/env.schema.spec.ts`, 11 тестів — дефолти, порожні значення, усі помилки одним повідомленням без секретів, правила production, `TRUST_PROXY`, `CORS_ORIGINS`, межі, повнота `.env.example`).
 **Готово, коли:** `pnpm lint` і `tsc` зелені в усіх трьох застосунках; Swagger UI відкривається локально; `pnpm gen:api-types` працює.
 
 ### M1.4 Новини — API
@@ -292,6 +308,7 @@
 
 - [ ] 👤 `.github/workflows/ci.yml` на PR і push у `master`: встановлення (pnpm, кеш) → збірка пакетів → lint → typecheck → unit (jest, Vitest) → build (api, web, admin).
 - [ ] 👤 E2E API на тимчасовому Postgres у GitHub Actions (👤 У18): міграції + `constraints.sql` + мінімальний seed, фейковий football-провайдер.
+  - *З M1.3.3:* схему `e2e` з міграцій (у них і `constraints.sql`) і мови каркас будує сам — у CI лишається сервіс Postgres і `E2E_DATABASE_URL`.
 - [ ] ⭐ Перевірка контракту: згенеровані типи API актуальні.
 - [ ] ⭐ Захист `master`: злиття лише через PR із зеленим CI — *чому:* правило «не мержити без CI» має виконувати GitHub, а не пам'ять.
 - [ ] ⭐ Dependabot (раз на тиждень, згруповано) + CodeQL і secret scanning (безкоштовно для публічних репо) — *чому:* вразливості в залежностях — найчастіше джерело інцидентів у Node-проєктах.
