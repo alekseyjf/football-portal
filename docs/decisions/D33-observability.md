@@ -6,6 +6,7 @@
 
 ## Рішення
 - 👤 `GET /health` — ⭐ через `@nestjs/terminus`: ping БД з таймаутом, без деталей інфраструктури у відповіді.
+  - *M1.3.3:* `GET /api/v1/health` — terminus **11.1.1** (12.x лише ESM, API — CommonJS + Jest), `PrismaHealthIndicator`: `SELECT 1` з таймаутом 3 с → 200 / 503, у відповіді лише `status` (адресу БД з помилки з'єднання terminus не віддає), `Cache-Control: no-store`. Один ендпоінт з БД, без окремих liveness / readiness (один інстанс, [D41](D41-single-instance-scaling.md)).
 - ⭐ Uptime-монітор на `/health` (UptimeRobot або Better Stack, безкоштовно) → 👤 Telegram — уже на тест-сервері.
 - 👤 Sentry для web, admin і API — ⭐ уже на тесті (M2.1): помилки тестувальників видно без їхніх скриншотів.
 - 👤 Алерт у Telegram: `SyncRun FAILED` N разів поспіль — інакше football-дані мовчки застаріють.

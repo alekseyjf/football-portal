@@ -52,7 +52,7 @@
 
 ### Змінні середовища (football)
 
-Повний перелік усіх змінних із поясненнями — `apps/{api,web,admin}/.env.example`; змінні API перевіряє одна схема при старті — `apps/api/src/config/env.schema.ts` (M1.3.2).
+Повний перелік усіх змінних із поясненнями — `apps/{api,web,admin}/.env.example`; змінні API перевіряє одна схема при старті — `apps/api/src/config/env.schema.ts`.
 
 **`apps/api/.env`**
 
@@ -100,6 +100,8 @@
 | Football: cron | `apps/api/src/football/sync/football.cron.ts` |
 | Схема БД | `apps/api/prisma/schema.prisma` |
 | Змінні середовища API (схема, доступ) | `apps/api/src/config/env.schema.ts`, `env.config.ts`; шаблон — `apps/api/.env.example` |
+| Health (`GET /api/v1/health`, ping БД) | `apps/api/src/health/health.controller.ts` |
+| E2E API: каркас (схема `e2e`, застосунок, логін) | `apps/api/test/support/`; тести — `apps/api/test/<модуль>/*.e2e-spec.ts` ([D30](decisions/D30-testing-and-local-env.md)) |
 | Сайдбар на головній | `apps/web/src/components/football/FootballSidebar.tsx` |
 | Хуки / query keys футболу | `apps/web/src/hooks/useFootball.ts` (`leagueDashboardQueryOptions`) |
 | Slug ліги для SSR | `apps/web/src/app/resolveDefaultLeagueSlug.ts` |
