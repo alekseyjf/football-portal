@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { FootballRoundBlock } from './FootballRoundBlock';
-import type { FixturesRound, MatchStatusDto } from '@/lib/api/types';
+import type { FixturesRound, MatchStatus } from '@/lib/api/types';
 
 type SectionHeadingKey = 'upcomingRounds' | 'pastRounds';
 type EmptyMessageKey = 'noUpcoming' | 'noPast';
@@ -13,7 +13,7 @@ type Props = {
   emptyMessageKey: EmptyMessageKey;
   roundKindKey: RoundKindKey;
   rounds: FixturesRound[];
-  formatStatus: (status: MatchStatusDto) => string;
+  formatStatus: (status: MatchStatus) => string;
   formatMatchWhen: (iso: string) => string;
   isLoading: boolean;
   isError: boolean;

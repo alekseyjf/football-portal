@@ -3,12 +3,12 @@
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { FootballLeagueEmblem } from '@/components/football/sidebar/FootballLeagueEmblem';
-import type { FootballLeagueMeta } from '@/lib/api/types';
+import type { League } from '@/lib/api/types';
 import { matchesPageHref } from '@/lib/football/matches-page';
 
 type Props = {
   /** Активні турніри за `sortOrder` (`GET /football/leagues`) */
-  leagues: FootballLeagueMeta[];
+  leagues: League[];
   selectedLeagueSlug: string | null;
   /** `null` — сьогодні (посилання без `?date=`) */
   dayKey: string | null;

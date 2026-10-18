@@ -3,14 +3,14 @@
 import { useTranslations } from 'next-intl';
 import { FootballMatchStrip } from './FootballMatchStrip';
 import { useFootballStageLabels } from '@/hooks/useFootballStageLabels';
-import type { FixturesRound, MatchStatusDto } from '@/lib/api/types';
+import type { FixturesRound, MatchStatus } from '@/lib/api/types';
 
 type RoundKindKey = 'upcoming' | 'past';
 
 type Props = {
   roundKindKey: RoundKindKey;
   round: FixturesRound;
-  formatStatus: (status: MatchStatusDto) => string;
+  formatStatus: (status: MatchStatus) => string;
   formatMatchWhen: (iso: string) => string;
 };
 

@@ -1,6 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiDelete } from '@/lib/api/http';
-import type { Comment } from '@/lib/api/types';
+import type {
+  Comment,
+  CreateCommentRequest,
+  SoftDeletedComment,
+} from '@/lib/api/types';
 
 export const commentsQueryKey = (postId: string) =>
   ['comments', 'post', postId] as const;
@@ -19,7 +23,7 @@ export function useCreateComment(postId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { content: string; postId?: string; parentId?: string }) =>
+    mutationFn: (data: CreateCommentRequest) =>
       apiPost<Comment>('/comments', data),
     onSuccess: () => {
       // Інвалідуємо кеш — TanStack автоматично рефетчить коментарі
@@ -34,7 +38,7 @@ export function useDeleteComment(postId: string) {
 
   return useMutation({
     mutationFn: (commentId: string) =>
-      apiDelete<{ id: string; deletedCount: number }>(`/comments/${commentId}`),
+      apiDelete<SoftDeletedComment>(`/comments/${commentId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: commentsQueryKey(postId) });
     },

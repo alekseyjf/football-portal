@@ -1,8 +1,8 @@
 import Image from 'next/image';
-import type { FootballClub } from '@/lib/api/types';
+import type { Club } from '@/lib/api/types';
 
 type Props = {
-  club: Pick<FootballClub, 'crestUrl' | 'tla' | 'name'>;
+  club: Pick<Club, 'crestUrl' | 'tla' | 'name'>;
 };
 
 /**

@@ -1,7 +1,7 @@
 import type {
-  FootballLeagueMeta,
-  FootballMatchLeague,
-  FootballMatchListItem,
+  League,
+  MatchLeague,
+  MatchListItem,
 } from '@/lib/api/types';
 import { LEAGUE_QUERY_PARAM } from './league-param';
 
@@ -17,8 +17,8 @@ export function matchesPageHref(dayKey: string | null, leagueSlug: string | null
 }
 
 export type LeagueMatchGroup = {
-  league: FootballMatchLeague;
-  matches: FootballMatchListItem[];
+  league: MatchLeague;
+  matches: MatchListItem[];
 };
 
 /**
@@ -27,8 +27,8 @@ export type LeagueMatchGroup = {
  * Матчі в групі — у порядку API (за часом початку).
  */
 export function groupMatchesByLeague(
-  matches: FootballMatchListItem[],
-  orderedLeagues: FootballLeagueMeta[],
+  matches: MatchListItem[],
+  orderedLeagues: League[],
 ): LeagueMatchGroup[] {
   const groupsBySlug = new Map<string, LeagueMatchGroup>();
   for (const match of matches) {
@@ -54,7 +54,7 @@ export function groupMatchesByLeague(
 
 /** Тур, спільний для всіх матчів групи (у лізі за день — зазвичай так), інакше `null`. */
 export function commonRoundOf(
-  matches: FootballMatchListItem[],
+  matches: MatchListItem[],
 ): { stage: string; matchday: number | null } | null {
   const [firstMatch] = matches;
   if (!firstMatch) return null;

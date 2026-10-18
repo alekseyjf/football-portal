@@ -18,6 +18,7 @@ export { PostTranslationDto } from './post-fields.dto';
  * без `status` — чернетка.
  */
 export class CreatePostDto extends PostFieldsDto {
+  /** Переклади, кожна мова — один раз; англійський (default) — обов'язковий */
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(POST_TRANSLATIONS_MAX)

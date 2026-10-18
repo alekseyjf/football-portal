@@ -1,20 +1,17 @@
 import { queryOptions } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api/http';
 import type {
-  FootballLeagueMeta,
-  LeagueDashboardResponse,
-  LeagueFixturesResponse,
+  League,
+  LeagueDashboard,
+  LiveTouchResult,
   MatchDetail,
-  MatchesInRangeResponse,
-  StandingTable,
+  MatchesInRange,
 } from '@/lib/api/types';
 
 export const footballKeys = {
   leagues: ['football', 'leagues'] as const,
   /** Рекомендовано для сайдбару — один round-trip. */
   leagueDashboard: (slug: string) => ['football', 'league-dashboard', slug] as const,
-  standings: (slug: string) => ['football', 'standings', slug] as const,
-  fixtures: (slug: string) => ['football', 'fixtures', slug] as const,
   match: (id: string) => ['football', 'match', id] as const,
   /** `leagueSlug: null` — усі активні турніри */
   matchesInRange: (from: string, to: string, leagueSlug: string | null) =>
@@ -25,7 +22,7 @@ export const footballKeys = {
 export function leaguesQueryOptions() {
   return queryOptions({
     queryKey: footballKeys.leagues,
-    queryFn: () => apiGet<FootballLeagueMeta[]>('/football/leagues'),
+    queryFn: () => apiGet<League[]>('/football/leagues'),
     staleTime: 5 * 60_000,
   });
 }
@@ -34,30 +31,10 @@ export function leagueDashboardQueryOptions(leagueSlug: string) {
   return queryOptions({
     queryKey: footballKeys.leagueDashboard(leagueSlug),
     queryFn: () =>
-      apiGet<LeagueDashboardResponse>(
+      apiGet<LeagueDashboard>(
         `/football/leagues/${encodeURIComponent(leagueSlug)}/dashboard`,
       ),
     staleTime: 120_000,
-  });
-}
-
-export function standingsQueryOptions(leagueSlug: string) {
-  return queryOptions({
-    queryKey: footballKeys.standings(leagueSlug),
-    queryFn: () =>
-      apiGet<StandingTable[]>(
-        `/football/leagues/${encodeURIComponent(leagueSlug)}/standings`,
-      ),
-  });
-}
-
-export function fixturesQueryOptions(leagueSlug: string) {
-  return queryOptions({
-    queryKey: footballKeys.fixtures(leagueSlug),
-    queryFn: () =>
-      apiGet<LeagueFixturesResponse>(
-        `/football/leagues/${encodeURIComponent(leagueSlug)}/fixtures`,
-      ),
   });
 }
 
@@ -75,7 +52,7 @@ export function matchesInRangeQueryOptions(
   return queryOptions({
     queryKey: footballKeys.matchesInRange(from, to, leagueSlug),
     queryFn: () =>
-      apiGet<MatchesInRangeResponse>(`/football/matches?${searchParams}`),
+      apiGet<MatchesInRange>(`/football/matches?${searchParams}`),
     staleTime: 60_000,
   });
 }
@@ -94,8 +71,5 @@ export function matchDetailQueryOptions(matchId: string) {
 }
 
 export async function requestLiveTouch(matchId: string) {
-  return apiPost<{
-    accepted: boolean;
-    skipped?: 'not_found' | 'not_live' | 'throttled' | 'no_api_key';
-  }>('/football/live-touch', { matchId });
+  return apiPost<LiveTouchResult>('/football/live-touch', { matchId });
 }

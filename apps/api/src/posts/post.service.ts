@@ -18,13 +18,15 @@ import {
   type PostPublication,
   type PostPublicationInput,
 } from './post-publication';
+import type {
+  AdminPostDto,
+  DeletedPostDto,
+} from './dto/admin-post-response.dto';
+import type { PaginatedPostsDto, PostDetailDto } from './dto/post-response.dto';
 import {
   toAdminPostView,
   toPublicPostDetail,
   toPublicPostSummary,
-  type AdminPostView,
-  type PublicPostDetail,
-  type PublicPostSummary,
 } from './post-response';
 import { slugifyTitle, withRandomSlugSuffix } from './post-slug';
 import {
@@ -35,14 +37,6 @@ import {
 
 /** Спроб створити пост з випадковим суфіксом slug-а після колізії (P3-6). */
 const SLUG_COLLISION_RETRIES = 5;
-
-export interface PaginatedPublicPosts {
-  data: PublicPostSummary[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
 
 function languageCodesToLoad(languageChoice: ContentLanguageChoice): string[] {
   return [
@@ -70,9 +64,7 @@ export class PostService {
     private readonly languageService: LanguageService,
   ) {}
 
-  async getPublicPosts(
-    query: ListPostsQueryDto,
-  ): Promise<PaginatedPublicPosts> {
+  async getPublicPosts(query: ListPostsQueryDto): Promise<PaginatedPostsDto> {
     const languageChoice = await this.languageService.chooseContentLanguage(
       query.lang,
     );
@@ -95,7 +87,7 @@ export class PostService {
   async getPublicPostBySlug(
     slug: string,
     requestedLang: unknown,
-  ): Promise<PublicPostDetail> {
+  ): Promise<PostDetailDto> {
     const [languageChoice, { activeCodes }] = await Promise.all([
       this.languageService.chooseContentLanguage(requestedLang),
       this.languageService.getContentLanguages(),
@@ -121,7 +113,7 @@ export class PostService {
     );
   }
 
-  async getAllForAdmin(): Promise<AdminPostView[]> {
+  async getAllForAdmin(): Promise<AdminPostDto[]> {
     const now = new Date();
     const postRows = await this.postRepository.findAllForAdmin();
     return postRows.map((postRow) => toAdminPostView(postRow, now));
@@ -130,7 +122,7 @@ export class PostService {
   async createPost(
     dto: CreatePostDto,
     authorId: string,
-  ): Promise<AdminPostView> {
+  ): Promise<AdminPostDto> {
     const languages = await this.languageService.getContentLanguages();
     this.assertTranslationsSupported(dto.translations, languages);
     const defaultTranslation = dto.translations.find(
@@ -162,7 +154,7 @@ export class PostService {
     return toAdminPostView(postRow, now);
   }
 
-  async updatePost(id: string, dto: UpdatePostDto): Promise<AdminPostView> {
+  async updatePost(id: string, dto: UpdatePostDto): Promise<AdminPostDto> {
     const currentPublication =
       await this.postRepository.findPublicationState(id);
     if (!currentPublication) throw new NotFoundException('POST_NOT_FOUND');
@@ -200,7 +192,7 @@ export class PostService {
     }
   }
 
-  async deletePost(id: string): Promise<{ id: string }> {
+  async deletePost(id: string): Promise<DeletedPostDto> {
     // Soft delete — рядок лишається для модерації й аудиту
     const isDeleted = await this.postRepository.softDelete(id, new Date());
     if (!isDeleted) throw new NotFoundException('POST_NOT_FOUND');

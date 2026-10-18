@@ -5,7 +5,7 @@
 ## TypeScript
 - `strict: true` у web, admin, пакетах і в API (з M1.3.1, [D29](../decisions/D29-strict-typescript-api.md)).
 - Ніяких `any` → `unknown` або явний тип (ESLint API ловить `no-unsafe-*`).
-- ⭐ Типи відповідей API у web / admin — **згенеровані** з OpenAPI (`packages/types`), не написані вручну ([D28](../decisions/D28-openapi-contract.md)).
+- ⭐ Типи відповідей API у web / admin — **згенеровані** з OpenAPI (`packages/types`), не написані вручну ([D28](../decisions/D28-openapi-contract.md)). Ім'я — назва схеми без `Dto` (`PostDetailDto` → `PostDetail`), тіло запиту — з `Request` (`CreatePostRequest`); файл — сутність у теці модуля API (`packages/types/src/football/match.ts`), як response DTO в API (`football/dto/match-response.dto.ts`).
 - ⭐ Без кастів, що ховають помилки (`req.user as …`) — для користувача є `@CurrentUser()`.
 
 ## Іменування

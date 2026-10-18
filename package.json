@@ -9,11 +9,17 @@
   "packageManager": "pnpm@10.33.0",
   "private": true,
   "scripts": {
-    "prepare": "pnpm run db:generate && pnpm run build:packages",
+    "prepare": "pnpm run db:generate && pnpm run build:packages && pnpm run gen:api-types",
     "build:packages": "pnpm --filter @football-portal/validation build",
     "db:generate": "pnpm --filter @football-portal/api exec prisma generate",
+    "db:migrate": "pnpm --filter @football-portal/api exec prisma migrate deploy",
+    "db:seed": "pnpm --filter @football-portal/api db:seed",
+    "gen:api-types": "pnpm --filter @football-portal/api openapi:generate && pnpm --filter @football-portal/types generate",
     "dev": "turbo dev",
     "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:e2e": "pnpm --filter @football-portal/api test:e2e",
     "lint": "turbo lint && pnpm lint:eol",
     "lint:eol": "node scripts/line-endings.mjs",
     "fix:eol": "node scripts/line-endings.mjs --fix"

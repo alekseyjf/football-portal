@@ -25,6 +25,8 @@ export interface E2eApp {
 export interface E2eAppOptions {
   /** Лише для тестів «БД недоступна»: адреса без робочої БД. Без неї — схема `e2e`. */
   unavailableDatabaseUrl?: string;
+  /** Змінні поверх env тестів — напр. `NODE_ENV: 'production'` (тоді ще й `TRUST_PROXY`, https-origin) */
+  envOverrides?: Record<string, string>;
 }
 
 /** `apiPath('/health')` → `/api/v1/health` */
@@ -38,7 +40,7 @@ function randomSecret(): string {
 }
 
 /** Env — з нуля, без `process.env`: без ключа football-data синк відповідає 503 і квоту не витрачає. */
-function buildE2eEnv(): AppEnv {
+function buildE2eEnv(envOverrides: Record<string, string> = {}): AppEnv {
   return parseEnv({
     NODE_ENV: 'test',
     // БД застосунок бачить лише через PrismaService, а його тут замінено. Рядок нікуди не веде:
@@ -48,6 +50,7 @@ function buildE2eEnv(): AppEnv {
     JWT_SECRET: randomSecret(),
     EMAIL_HASH_SECRET: randomSecret(),
     CORS_ORIGINS: 'http://localhost:3000',
+    ...envOverrides,
   });
 }
 
@@ -67,7 +70,7 @@ export async function createE2eApp(
     if (!options.unavailableDatabaseUrl) await assertE2eSearchPath(prisma);
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(envConfig.KEY)
-      .useValue(buildE2eEnv())
+      .useValue(buildE2eEnv(options.envOverrides))
       .overrideProvider(PrismaService)
       .useValue(prisma)
       .compile();

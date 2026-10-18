@@ -1,4 +1,4 @@
-import type { FootballLeagueMeta } from '@/lib/api/types';
+import type { League } from '@/lib/api/types';
 
 /**
  * Ліга сайдбару без `?league=`: `NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG`, якщо вона серед активних
@@ -7,7 +7,7 @@ import type { FootballLeagueMeta } from '@/lib/api/types';
  * Список не завантажився (API недоступне) — env як є.
  */
 export function resolveDefaultLeagueSlug(
-  activeLeagues: FootballLeagueMeta[] | null,
+  activeLeagues: League[] | null,
 ): string | null {
   const envLeagueSlug =
     process.env.NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG?.trim() || null;

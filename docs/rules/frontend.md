@@ -15,6 +15,7 @@
 // ✅ queryFn: () => apiGet('/posts') у useQuery / prefetchQuery
 // ✅ мутації: apiPost / apiDelete у useMutation
 // ✅ generateMetadata (RSC): apiGet напряму — без React Query
+// ✅ Тип відповіді — згенерований: apiGet<PostDetail>(…), типи з `@/lib/api/types` (D28)
 // ❌ fetch('http://localhost:4000/...') з хардкодом URL у компоненті
 ```
 

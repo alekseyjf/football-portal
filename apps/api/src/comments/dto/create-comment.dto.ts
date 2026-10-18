@@ -15,14 +15,16 @@ import { TrimString } from '../../common/validation/trim-string.transform';
 const COMMENT_REF_MAX_LENGTH = 64;
 
 export class CreateCommentDto {
-  /** Межі — з `@football-portal/validation` (ті самі, що у формі коментаря на web) */
+  /** Текст коментаря; пробіли по краях обрізаються */
+  // Межі — з `@football-portal/validation` (ті самі, що у формі коментаря на web)
   @TrimString()
   @IsString()
   @MinLength(COMMENT_MIN_LENGTH)
   @MaxLength(COMMENT_MAX_LENGTH)
   content!: string;
 
-  // Рівно одне з postId / matchId — перевіряє сервіс (P4-1, `COMMENT_TARGET_INVALID`).
+  /** Новина, яку коментують; рівно одне з `postId` / `matchId` */
+  // Рівно одне — перевіряє сервіс (P4-1, `COMMENT_TARGET_INVALID`).
   // `null` = не передано: `@IsOptional` пропускає null без решти валідаторів
   @IsOptional()
   @IsString()
@@ -30,13 +32,14 @@ export class CreateCommentDto {
   @MaxLength(COMMENT_REF_MAX_LENGTH)
   postId?: string | null;
 
+  /** Матч, який коментують */
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(COMMENT_REF_MAX_LENGTH)
   matchId?: string | null;
 
-  // Якщо є parentId — це відповідь на коментар того ж треду
+  /** Коментар, на який це відповідь (з того самого треду) */
   @IsOptional()
   @IsString()
   @IsNotEmpty()

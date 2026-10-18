@@ -1,6 +1,11 @@
-import type { PostStatus } from '@prisma/client';
 import type { ContentLanguageChoice } from '../languages/language.service';
-import { toPublicAuthor, type PublicAuthor } from '../users/public-author';
+import { toPublicAuthor } from '../users/public-author';
+import type { AdminPostDto } from './dto/admin-post-response.dto';
+import type {
+  PostDetailDto,
+  PostSummaryDto,
+  PostTagDto,
+} from './dto/post-response.dto';
 import { isPostLive } from './post-visibility';
 import type {
   AdminPostRow,
@@ -8,62 +13,11 @@ import type {
   PostSummaryRow,
 } from './post.repository';
 
-export interface PostTagView {
-  id: string;
-  slug: string;
-  name: string;
-}
-
-/**
- * Пост у стрічці (P3-4): переклад уже розгорнуто з fallback на default-мову;
- * `resolvedLanguage` ≠ запитаній → UI показує «переклад недоступний».
+/*
+ * Форма відповідей постів (Rule 5): рядок Prisma → response DTO. Пост у стрічці — переклад уже
+ * розгорнуто з fallback на default-мову (P3-4); `resolvedLanguage` ≠ запитаній → UI показує
+ * «переклад недоступний».
  */
-export interface PublicPostSummary {
-  id: string;
-  slug: string;
-  publishedAt: Date;
-  coverImageUrl: string | null;
-  resolvedLanguage: string;
-  title: string;
-  excerpt: string;
-  author: PublicAuthor;
-  tags: PostTagView[];
-}
-
-export interface PublicPostDetail extends PublicPostSummary {
-  content: string;
-  videoUrl: string | null;
-  sourceUrl: string | null;
-  /** Мови з перекладом — для `hreflang` (розділ 8) */
-  availableLanguages: string[];
-  competitions: {
-    id: string;
-    slug: string;
-    name: string;
-    emblemUrl: string | null;
-  }[];
-  clubs: {
-    id: string;
-    slug: string;
-    name: string;
-    shortName: string | null;
-    crestUrl: string | null;
-  }[];
-}
-
-export interface AdminPostView {
-  id: string;
-  slug: string;
-  status: PostStatus;
-  publishedAt: Date | null;
-  /** Видно на сайті зараз (SCHEDULED з датою, що настала, — теж) */
-  isLive: boolean;
-  coverImageUrl: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  author: PublicAuthor;
-  translations: { languageCode: string; title: string }[];
-}
 
 /** Запитана мова → default (розділ 8). */
 function pickTranslation<Translation extends { languageCode: string }>(
@@ -107,7 +61,7 @@ function requirePublishedAt(postRow: {
 function toTagView(
   tagLink: PostSummaryRow['tags'][number],
   languageChoice: ContentLanguageChoice,
-): PostTagView {
+): PostTagDto {
   const { tag } = tagLink;
   return {
     id: tag.id,
@@ -120,7 +74,7 @@ function toTagView(
 export function toPublicPostSummary(
   postRow: PostSummaryRow,
   languageChoice: ContentLanguageChoice,
-): PublicPostSummary {
+): PostSummaryDto {
   const translation = requireTranslation(postRow, languageChoice);
   return {
     id: postRow.id,
@@ -139,7 +93,7 @@ export function toPublicPostDetail(
   postRow: PostDetailRow,
   languageChoice: ContentLanguageChoice,
   availableLanguages: string[],
-): PublicPostDetail {
+): PostDetailDto {
   const translation = requireTranslation(postRow, languageChoice);
   return {
     ...toPublicPostSummary(postRow, languageChoice),
@@ -157,7 +111,7 @@ export function toPublicPostDetail(
 export function toAdminPostView(
   postRow: AdminPostRow,
   now: Date,
-): AdminPostView {
+): AdminPostDto {
   return {
     id: postRow.id,
     slug: postRow.slug,

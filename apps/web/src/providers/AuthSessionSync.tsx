@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { authKeys, markSignedOut, useAuthQuery } from '@/hooks/useAuth';
 import { onSessionExpired } from '@/lib/api/http';
-import type { User } from '@/lib/api/types';
+import type { UserAccount } from '@/lib/api/types';
 import { useAuthStore } from '@/store/auth.store';
 
 /** Тримає `useAuthStore` у згоді з `GET /auth/me` і реагує на відхилений refresh. */
@@ -21,8 +21,8 @@ export function AuthSessionSync() {
   useEffect(
     () =>
       onSessionExpired(() => {
-        // Гість після F5 теж отримує 401 від refresh — міняти нічого
-        if (queryClient.getQueryData<User | null>(authKeys.me)) {
+        // Гість (дія для залогінених без сесії) теж отримує відмову refresh — міняти нічого
+        if (queryClient.getQueryData<UserAccount | null>(authKeys.me)) {
           void markSignedOut(queryClient);
         }
       }),

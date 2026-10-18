@@ -12,6 +12,7 @@ import {
  * провайдера (P5-13); без поля — усі активні.
  */
 export class SyncFootballDto {
+  /** Slug-и турнірів (`PL`, `CL`); без поля — усі активні */
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)

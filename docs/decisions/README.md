@@ -26,7 +26,7 @@
 | [D25](D25-markdown-content.md) | Текст новин у Markdown | M1.4 |
 | [D26](D26-post-sources.md) | Джерела новини — таблиця `PostSource` | M1.4 |
 | [D27](D27-youtube-style-comments.md) | Коментарі як на YouTube | M1.7 |
-| [D28](D28-openapi-contract.md) | OpenAPI (Swagger) як джерело правди контракту | M1.3 |
+| [D28](D28-openapi-contract.md) | OpenAPI (Swagger) як джерело правди контракту; типи web / admin — з нього | M1.3.4–M1.3.5 ✅ |
 | [D29](D29-strict-typescript-api.md) | Суворий TypeScript в API | M1.3 |
 | [D30](D30-testing-and-local-env.md) | Тести й середовище: без Docker локально | M1.3, M1.10 |
 | [D31](D31-test-environment.md) | Тест-сервер: закритий, без індексації, rewrites | M1.11 |

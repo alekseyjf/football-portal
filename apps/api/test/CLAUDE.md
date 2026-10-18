@@ -8,4 +8,7 @@
 - Схему не чіпати через `prisma migrate` / `db push` — її перебудовує `globalSetup` з `prisma/migrations` на кожен прогін.
 - Користувачі — `createUser` / `loginAs` (`support/e2e-auth.ts`): ≤ 5 реєстрацій на файл (ліміт з IP). Ключа football-data немає — синк відповідає 503.
 - Підключення — `E2E_DATABASE_URL` або `DIRECT_URL` (session pooler); transaction pooler не підходить (`search_path`).
-- Файли — `test/<модуль>/*.e2e-spec.ts`; запуск модуля — `pnpm --filter @football-portal/api test:e2e -- <модуль>`.
+- Файли — `test/<модуль>/*.e2e-spec.ts`; запуск модуля з кореня — `pnpm test:e2e -- <модуль>`.
+- Контракт ([D28](../../../docs/decisions/D28-openapi-contract.md)): відповідь ендпоінта — `expectMatchesContract(response, 'get', '/posts/{slug}')` (`support/openapi-contract.ts`): статус описаний у `packages/types/openapi.json`, тіло — за схемою, без незадокументованих полів. Змінив DTO чи роут — спершу `pnpm gen:api-types`.
+- Env тест-застосунку — `createE2eApp({ envOverrides })` (`COMMENT_COOLDOWN_MS: '0'`, прод-режим); турнір з матчами й таблицею — `seedFootballLeague` (`support/e2e-football.ts`): синк без ключа не працює.
+- supertest: `request(server)` слухає порт лише до кінця свого запиту — запит створювати там, де його `await`-ять, а не масивом наперед (інакше `ECONNREFUSED`).

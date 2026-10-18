@@ -3,11 +3,11 @@
 import { Link } from '@/i18n/navigation';
 import { useFootballStageLabels } from '@/hooks/useFootballStageLabels';
 import { isMatchInPlay } from '@/hooks/useMatchStatusLabel';
-import type { FootballMatchRow, MatchStatusDto } from '@/lib/api/types';
+import type { MatchRow, MatchStatus } from '@/lib/api/types';
 
 type Props = {
-  matchRow: FootballMatchRow;
-  formatStatus: (status: MatchStatusDto) => string;
+  matchRow: MatchRow;
+  formatStatus: (status: MatchStatus) => string;
   formatMatchWhen: (iso: string) => string;
 };
 

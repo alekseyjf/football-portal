@@ -3,12 +3,12 @@
 import { useTranslations } from 'next-intl';
 import { FootballStandingsTable } from './FootballStandingsTable';
 import { useFootballStageLabels } from '@/hooks/useFootballStageLabels';
-import type { LeagueDashboardResponse, StandingRow } from '@/lib/api/types';
+import type { LeagueDashboard, StandingRow } from '@/lib/api/types';
 
 type Props = {
   standingsRows: StandingRow[];
   /** Яка це таблиця — для заголовка: ліга / ліга-фаза / група */
-  standingsTable: LeagueDashboardResponse['standingsTable'];
+  standingsTable: LeagueDashboard['standingsTable'];
   /** `null` — турнір ще не синкали */
   seasonLabel: string | null;
   isLoading: boolean;

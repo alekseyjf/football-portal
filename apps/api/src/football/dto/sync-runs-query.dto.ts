@@ -1,8 +1,10 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 /** `GET /football/sync-runs?limit=` — журнал для адмінки. */
 export class SyncRunsQueryDto {
+  @ApiPropertyOptional({ type: 'integer' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

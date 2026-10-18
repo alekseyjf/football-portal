@@ -4,14 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LikeType, Role } from '@prisma/client';
-import { ToggleLikeDto, type LikeTargetTypeDto } from './dto/toggle-like.dto';
+import type { LikeStatsDto } from './dto/like-stats-response.dto';
+import {
+  LIKE_TARGET_TYPES,
+  ToggleLikeDto,
+  type LikeTargetTypeDto,
+} from './dto/toggle-like.dto';
 import { LikeAntiAbuseService } from './like-anti-abuse.service';
 import { LikeRepository } from './like.repository';
-
-export type LikeStatsResponse = {
-  likesCount: number;
-  myReaction: 'LIKE' | 'DISLIKE' | null;
-};
 
 @Injectable()
 export class LikeService {
@@ -24,7 +24,7 @@ export class LikeService {
     targetTypeParam: string,
     targetId: string,
     userId?: string,
-  ): Promise<LikeStatsResponse> {
+  ): Promise<LikeStatsDto> {
     const targetType = this.parseTargetType(targetTypeParam);
     await this.ensureTargetExists(targetType, targetId);
 
@@ -33,7 +33,7 @@ export class LikeService {
       targetId,
     );
 
-    let myReaction: 'LIKE' | 'DISLIKE' | null = null;
+    let myReaction: LikeType | null = null;
     if (userId) {
       const reaction = await this.likeRepository.findUserReaction(
         targetType,
@@ -50,7 +50,7 @@ export class LikeService {
     userId: string,
     userRole: Role,
     dto: ToggleLikeDto,
-  ): Promise<LikeStatsResponse> {
+  ): Promise<LikeStatsDto> {
     const isAdmin = userRole === Role.ADMIN;
     const targetType = dto.targetType;
     await this.ensureTargetExists(targetType, dto.targetId);
@@ -60,13 +60,11 @@ export class LikeService {
       isAdmin,
     );
 
-    const action = dto.action === 'LIKE' ? LikeType.LIKE : LikeType.DISLIKE;
-
     const outcome = await this.likeRepository.applyToggleWithCounterUpdate(
       targetType,
       userId,
       dto.targetId,
-      action,
+      dto.action,
     );
     // Ціль зникла між перевіркою і транзакцією (purge коментаря)
     if (!outcome) throw new NotFoundException('Target not found');
@@ -75,10 +73,11 @@ export class LikeService {
   }
 
   private parseTargetType(param: string): LikeTargetTypeDto {
-    if (param === 'post' || param === 'comment' || param === 'match') {
-      return param;
-    }
-    throw new BadRequestException('Invalid target type');
+    const targetType = LIKE_TARGET_TYPES.find(
+      (knownType) => knownType === param,
+    );
+    if (!targetType) throw new BadRequestException('Invalid target type');
+    return targetType;
   }
 
   private async ensureTargetExists(

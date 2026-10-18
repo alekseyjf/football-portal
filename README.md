@@ -27,7 +27,7 @@ football-portal/
 │   ├── admin/        # Адмін-панель (:3001)
 │   └── api/          # REST API (:4000), Prisma, NestJS
 ├── packages/
-│   ├── types/        # Спільні типи API
+│   ├── types/        # Типи API для web і admin — згенеровані з OpenAPI
 │   ├── validation/   # Спільні межі валідації (DTO API + zod-схеми форм)
 │   ├── config/       # Спільний tsconfig
 │   └── ui/           # Спільний UI web і admin (з'явиться в M1.5)
@@ -89,6 +89,23 @@ pnpm dev
 pnpm --filter @football-portal/api dev
 ```
 
+Типи API для web / admin — згенеровані й не в git: їх створює `pnpm install`. Змінив відповідь чи роут API — онови їх (без сервера й БД, ~5 с):
+
+```bash
+pnpm gen:api-types    # packages/types/openapi.json + packages/types/src/generated/openapi.ts
+```
+
+Команди з кореня:
+
+| Команда | Що робить |
+|---------|-----------|
+| `pnpm dev` / `pnpm build` | Усі застосунки (turbo) |
+| `pnpm lint` / `pnpm typecheck` | ESLint і кінці рядків / TypeScript (api, web, admin, `packages/types`) |
+| `pnpm test` | Unit: jest (API) + Vitest (web) |
+| `pnpm test:e2e [-- модуль]` | E2E API (окрема схема `e2e`, потрібна БД) |
+| `pnpm db:migrate` / `pnpm db:seed` | Міграції (`prisma migrate deploy`) / seed |
+| `pnpm gen:api-types` | Контракт API → типи web / admin |
+
 Football-дані: після seed у БД 9 турнірів; перший синк — кнопка **«Синк»** в адмінці (потрібен `FOOTBALL_API_KEY`) — див. [`docs/architecture.md`](docs/architecture.md), «Типовий потік „перший запуск“».
 
 ---
@@ -102,3 +119,5 @@ Football-дані: після seed у БД 9 турнірів; перший си
 | API | 4000 |
 
 Усі маршрути Nest мають префікс **`/api/v1`**. Фронти звертаються до `NEXT_PUBLIC_API_URL`, наприклад `http://localhost:4000/api/v1`.
+
+Документація API (Swagger UI, лише не на проді): <http://localhost:4000/api/docs>, JSON — `/api/docs-json`.

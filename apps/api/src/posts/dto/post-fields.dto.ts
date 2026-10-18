@@ -1,4 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PostStatus } from '@prisma/client';
 import {
   ArrayMaxSize,
@@ -37,6 +38,7 @@ const LANGUAGE_CODE_PATTERN = /^[a-z]{2,8}$/;
 const RELATION_ID_MAX_LENGTH = 64;
 
 export class PostTranslationDto {
+  /** Код мови (`en`, `uk`); мова має бути увімкнена */
   @IsString()
   @Matches(LANGUAGE_CODE_PATTERN, { message: 'languageCode must be like "en"' })
   languageCode!: string;
@@ -73,33 +75,46 @@ const RelationIds = () =>
  * для URL `null` — очистити. Переходи статусу / дати — `resolvePostPublication` (P3-2).
  */
 export class PostFieldsDto {
+  /** ARCHIVED — лише для наявної новини */
+  @ApiPropertyOptional({ enum: PostStatus, enumName: 'PostStatus' })
   @IsOptional()
   @IsEnum(PostStatus)
   status?: PostStatus;
 
-  /** `null` — те саме, що не передано (сервіс не перетворює його на `new Date(null)` = 1970) */
+  /**
+   * ISO з поясом (`2026-10-18T09:00:00Z`): SCHEDULED — коли вийде (у майбутньому), PUBLISHED —
+   * дата в минулому (без неї — зараз), DRAFT — без дати; `null` — те саме, що не передано
+   */
+  // `null` сервіс не перетворює на `new Date(null)` = 1970 (backdating)
+  @ApiPropertyOptional({ format: 'date-time' })
   @IsOptional()
   @IsIsoDateTimeWithZone('publishedAt')
   publishedAt?: string | null;
 
+  /** Обкладинка — лише https; `null` — прибрати */
   @IsOptional()
   @IsMediaUrl()
   coverImageUrl?: string | null;
 
+  /** Лише https; `null` — прибрати */
   @IsOptional()
   @IsMediaUrl()
   videoUrl?: string | null;
 
+  /** Посилання на джерело — http(s); `null` — прибрати */
   @IsOptional()
   @IsSourceUrl()
   sourceUrl?: string | null;
 
+  /** Переданий масив замінює наявні зв'язки, відсутній — не змінює */
   @RelationIds()
   tagIds?: string[];
 
+  /** Як `tagIds` */
   @RelationIds()
   clubIds?: string[];
 
+  /** Як `tagIds` */
   @RelationIds()
   competitionIds?: string[];
 }

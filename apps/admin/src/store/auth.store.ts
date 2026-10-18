@@ -1,10 +1,10 @@
 "use client";
 import { create } from 'zustand';
-import type { AdminUser } from '@/lib/api/types';
+import type { UserAccount } from '@/lib/api/types';
 
 interface AuthState {
-  user: AdminUser | null;
-  setUser: (user: AdminUser | null) => void;
+  user: UserAccount | null;
+  setUser: (user: UserAccount | null) => void;
   logout: () => void;
 }
 

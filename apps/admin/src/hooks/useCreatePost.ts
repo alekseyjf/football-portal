@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiPost } from '@/lib/api/http';
-import type { AdminPostRow, CreatePostPayload } from '@/lib/api/types';
+import type { AdminPost, CreatePostRequest } from '@/lib/api/types';
 
 export function useCreatePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: CreatePostPayload) => apiPost<AdminPostRow>('/posts', body),
+    mutationFn: (body: CreatePostRequest) => apiPost<AdminPost>('/posts', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'posts'] });
     },
