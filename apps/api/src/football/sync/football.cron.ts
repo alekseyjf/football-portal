@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { SyncTrigger } from '@prisma/client';
+import { envConfig } from '../../config/env.config';
+import type { AppEnv } from '../../config/env.schema';
 import { FootballLiveSyncService } from './football-live-sync.service';
 import { FootballSyncService } from './football-sync.service';
 import { describeSyncError } from './football-sync-stats';
@@ -8,11 +10,15 @@ import { describeSyncError } from './football-sync-stats';
 @Injectable()
 export class FootballCronService {
   private readonly log = new Logger(FootballCronService.name);
+  private readonly liveCronEnabled: boolean;
 
   constructor(
     private readonly fullSync: FootballSyncService,
     private readonly liveSync: FootballLiveSyncService,
-  ) {}
+    @Inject(envConfig.KEY) env: AppEnv,
+  ) {
+    this.liveCronEnabled = env.FOOTBALL_LIVE_CRON_ENABLED;
+  }
 
   /**
    * Повний синк активних турнірів кожні 2 год (P5-14): LIVE-cron за замовчуванням вимкнено,
@@ -30,7 +36,7 @@ export class FootballCronService {
   /** Опційно (`FOOTBALL_LIVE_CRON_ENABLED=true`): лише турніри з матчем у LIVE-вікні. */
   @Cron('*/5 * * * *')
   async syncLiveCompetitions(): Promise<void> {
-    if (process.env.FOOTBALL_LIVE_CRON_ENABLED !== 'true') return;
+    if (!this.liveCronEnabled) return;
     try {
       await this.liveSync.syncCompetitionsInLiveWindow();
     } catch (error) {

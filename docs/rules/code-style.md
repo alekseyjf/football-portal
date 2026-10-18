@@ -26,4 +26,4 @@
 ## Кінці рядків (👤 2026-10-17)
 - **Усі текстові файли — CRLF**, і код, і `docs/`. Виняток — LF лише там, де файл пише інструмент або CR щось ламає: `pnpm-lock.yaml` (pnpm переписує його в LF при кожній зміні залежностей), `apps/api/prisma/migrations/**` (генерує Prisma; контрольна сума застосованої міграції — у `_prisma_migrations`), `*.sh` (shell не розуміє CR).
 - Перевірка — `pnpm lint:eol` (входить у `pnpm lint`), виправлення — `pnpm fix:eol`; список винятків — `scripts/line-endings.mjs`, для редакторів — `.editorconfig`.
-- LF з'являється від генераторів: `prisma format` з CLI, нові файли від create-next-app / AI — після них `pnpm fix:eol`. pnpm у `package.json` CRLF зберігає.
+- LF з'являється від генераторів: `prisma format` з CLI, нові файли від create-next-app / AI, `pnpm add` (переписує `package.json` застосунку в LF; `pnpm install` CRLF зберігає) — після них `pnpm fix:eol`.

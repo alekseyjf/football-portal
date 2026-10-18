@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EmailBlockReason, type Prisma } from '@prisma/client';
 import { createHmac } from 'node:crypto';
+import { envConfig } from '../../config/env.config';
+import type { AppEnv } from '../../config/env.schema';
 import {
   BlockedEmailRepository,
   type BlockedEmailRow,
@@ -9,9 +11,6 @@ import { canonicalizeEmail } from './canonical-email';
 
 /** Скільки пошта того, хто видалив акаунт сам, недоступна для нової реєстрації. */
 export const SELF_DELETED_EMAIL_BLOCK_MS = 30 * 24 * 60 * 60 * 1000;
-
-/** Коротший секрет легко перебрати офлайн за витоком таблиці. */
-const EMAIL_HASH_SECRET_MIN_LENGTH = 32;
 
 export type AccountDeletedBy = 'ADMIN' | 'OWNER';
 
@@ -24,15 +23,11 @@ export type AccountDeletedBy = 'ADMIN' | 'OWNER';
 export class EmailBlocklistService {
   private readonly hashSecret: string;
 
-  constructor(private blockedEmailRepository: BlockedEmailRepository) {
-    // Падаємо на старті, а не на першому видаленні акаунта
-    const hashSecret = process.env.EMAIL_HASH_SECRET ?? '';
-    if (hashSecret.length < EMAIL_HASH_SECRET_MIN_LENGTH) {
-      throw new Error(
-        `EMAIL_HASH_SECRET is missing or shorter than ${EMAIL_HASH_SECRET_MIN_LENGTH} characters`,
-      );
-    }
-    this.hashSecret = hashSecret;
+  constructor(
+    private blockedEmailRepository: BlockedEmailRepository,
+    @Inject(envConfig.KEY) env: AppEnv,
+  ) {
+    this.hashSecret = env.EMAIL_HASH_SECRET;
   }
 
   /** `normalizedEmail` — уже `toLowerCase().trim()`. */

@@ -53,7 +53,15 @@ corepack enable
 pnpm install          # після install виконається prisma generate (prepare / скрипти workspace)
 ```
 
-Створи **`apps/api/.env`** (не коміть у git): мінімум `DATABASE_URL`, `DIRECT_URL` (для міграцій через Supabase — див. `apps/api/prisma.config.ts`), `JWT_SECRET`, `EMAIL_HASH_SECRET`, `CORS_ORIGINS`. Повний перелік змінних — `CLAUDE.md` («Environment Variables») і [`docs/architecture.md`](docs/architecture.md); `.env.example` з'явиться в M1.3.
+Скопіюй шаблони змінних середовища (самі `.env` / `.env.local` у git не потрапляють) — пояснення до кожної змінної є в шаблоні:
+
+```bash
+cp apps/api/.env.example apps/api/.env            # заповни DATABASE_URL, DIRECT_URL, JWT_SECRET, EMAIL_HASH_SECRET
+cp apps/web/.env.example apps/web/.env.local      # опційно: без файлу — ті самі дефолти localhost
+cp apps/admin/.env.example apps/admin/.env.local  # опційно
+```
+
+Секрети — випадкові, свої для кожного середовища: `openssl rand -base64 48`. Без обов'язкової змінної або з невалідним значенням API не стартує й перелічує всі проблеми (схема — `apps/api/src/config/env.schema.ts`).
 
 Міграції БД (з кореня або з `apps/api`):
 

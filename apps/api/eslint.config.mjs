@@ -32,4 +32,20 @@ export default tseslint.config(
       "prettier/prettier": ["error", { endOfLine: "crlf" }],
     },
   },
+  {
+    // Rule 13: змінні середовища — лише через перевірену схему (src/config/env.schema.ts)
+    files: ['src/**/*.ts'],
+    ignores: ['src/config/env.config.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'process',
+          property: 'env',
+          message:
+            'Read env only via the validated schema: @Inject(envConfig.KEY) env: AppEnv (src/config/env.schema.ts).',
+        },
+      ],
+    },
+  },
 );

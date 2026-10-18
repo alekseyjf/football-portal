@@ -1,5 +1,13 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import type { Prisma, RateLimitAction } from '@prisma/client';
+import { envConfig } from '../config/env.config';
+import type { AppEnv } from '../config/env.schema';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ABUSE_STRIKES_LOCK_ACCOUNT,
@@ -14,27 +22,31 @@ import { UserSanctionRepository } from './user-sanction.repository';
 type BurstOutcome = 'SUSPENDED' | 'LOCKED';
 
 /**
- * Спільний анти-абуз для всіх дій (P2-9); політика — `getRateLimitPolicy(action)`.
+ * Спільний анти-абуз для всіх дій (P2-9); політика — `getRateLimitPolicy(action, …)`.
  * Адмінів пропускають обгортки (`LikeAntiAbuseService`, `CommentAntiAbuseService`).
  * Блок акаунта тут не перевіряємо — це робить `JwtStrategy` (P2-12).
  */
 @Injectable()
 export class AbuseProtectionService {
   private readonly log = new Logger(AbuseProtectionService.name);
+  private readonly commentCooldownMs: number;
 
   constructor(
     private prisma: PrismaService,
     private rateLimitRepository: RateLimitRepository,
     private sanctionRepository: UserSanctionRepository,
     private accountModeration: AccountModerationService,
-  ) {}
+    @Inject(envConfig.KEY) env: AppEnv,
+  ) {
+    this.commentCooldownMs = env.COMMENT_COOLDOWN_MS;
+  }
 
   /** До дії: активна санкція → 403, не минув cooldown → 429. */
   async assertActionAllowed(
     userId: string,
     action: RateLimitAction,
   ): Promise<void> {
-    const policy = getRateLimitPolicy(action);
+    const policy = getRateLimitPolicy(action, this.commentCooldownMs);
     const now = new Date();
 
     const isSuspended = await this.sanctionRepository.hasActive(
@@ -72,7 +84,7 @@ export class AbuseProtectionService {
     userId: string,
     action: RateLimitAction,
   ): Promise<void> {
-    const policy = getRateLimitPolicy(action);
+    const policy = getRateLimitPolicy(action, this.commentCooldownMs);
     const occurredAt = new Date();
 
     await this.rateLimitRepository.recordEvent(userId, action, occurredAt);
