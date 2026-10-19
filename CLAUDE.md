@@ -163,4 +163,4 @@ All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/
 
 **Зараз — M1 «Тестовий реліз»**, по черзі: M1.1 документація (правила підключено нижче; власник дочитує `docs/rules/`) → M1.2 мова `uk` скрізь → M1.3 інфраструктурний мінімум (ESLint адмінки, `/health`, `@CurrentUser()`, strict TS, Swagger + `openapi-typescript`) → M1.4–M1.6 новини (API, адмінка, web: URL `{slug}-{номер}`, Markdown, джерела, теги, фільтри) → M1.7 коментарі як на YouTube → M1.8 SEO-база → M1.9 UI-мінімум → M1.10 CI → M1.11 тестовий деплой (закритий, `noindex`).
 
-**Процес:** гілка на етап → PR у `master`; коміти робить власник — AI в кінці етапу пропонує назву (Conventional Commits) і підсумок та оновлює план.
+**Процес** (`docs/rules/process.md`): гілку етапу створює AI (від `origin/master`, `--no-track`); коміти, push і PR — лише власник, AI в кінці етапу пропонує назву (Conventional Commits) і підсумок, оновлює план і дає передачу для нового діалогу.
