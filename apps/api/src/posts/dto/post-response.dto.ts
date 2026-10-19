@@ -39,6 +39,7 @@ export class PostSummaryDto {
   /** Мова, якою віддано текст */
   resolvedLanguage!: string;
   title!: string;
+  /** Анонс — простий текст, без Markdown */
   excerpt!: string;
   author!: PublicAuthorDto;
   tags!: PostTagDto[];
@@ -46,6 +47,10 @@ export class PostSummaryDto {
 
 /** Новина з текстом. Коментарі — окремо: `GET /comments/post/{postId}`. */
 export class PostDetailDto extends PostSummaryDto {
+  /**
+   * Текст новини — Markdown (D25), як його зберегла редакція. Рендерить клієнт:
+   * сирий HTML ігнорує, зображення — лише https
+   */
   content!: string;
   videoUrl!: string | null;
   sourceUrl!: string | null;
