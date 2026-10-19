@@ -43,6 +43,11 @@ export const POST_EXCERPT_MAX_LENGTH = 500;
 export const POST_CONTENT_MIN_LENGTH = 20;
 export const POST_CONTENT_MAX_LENGTH = 100_000;
 
+/** Slug поста — з EN-заголовка або явний з адмінки (D24). */
+export const POST_SLUG_MAX_LENGTH = 80;
+/** Номер поста в URL `{slug}-{number}` (D24): `Post.number` — Postgres INTEGER. */
+export const POST_NUMBER_MAX = 2_147_483_647;
+
 /** Скільки тегів / клубів / турнірів можна прив'язати до одного поста. */
 export const POST_RELATION_IDS_MAX = 20;
 

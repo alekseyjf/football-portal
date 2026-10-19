@@ -16,6 +16,7 @@ import { ContentLanguageQueryDto } from '../languages/dto/content-language-query
 import { AdminPostDto, DeletedPostDto } from './dto/admin-post-response.dto';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ListPostsQueryDto } from './dto/list-posts-query.dto';
+import { PostNumberParamDto } from './dto/post-number-param.dto';
 import { PaginatedPostsDto, PostDetailDto } from './dto/post-response.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostService } from './post.service';
@@ -32,7 +33,6 @@ export class PostController {
   }
 
   /** Усі новини для адмінки (крім видалених), заголовки всіма мовами. */
-  // ⚠️ admin/all ОБОВ'ЯЗКОВО перед :slug — інакше NestJS думає що 'admin' це slug
   @Get('admin/all')
   @AdminOnly()
   getAllForAdmin(): Promise<AdminPostDto[]> {
@@ -40,15 +40,17 @@ export class PostController {
   }
 
   /**
-   * Опублікована новина з текстом.
+   * Опублікована новина з текстом — за номером з URL `{slug}-{number}`. Slug у відповіді — канонічний:
+   * інший slug в адресі сайт перенаправляє (308) на нього.
+   * @throws {400} Номер — не ціле число від 1 до 2147483647
    * @throws {404} POST_NOT_FOUND — немає, ще не опублікована або видалена
    */
-  @Get(':slug')
-  getPostBySlug(
-    @Param('slug') slug: string,
+  @Get(':number')
+  getPostByNumber(
+    @Param() params: PostNumberParamDto,
     @Query() query: ContentLanguageQueryDto,
   ): Promise<PostDetailDto> {
-    return this.postService.getPublicPostBySlug(slug, query.lang);
+    return this.postService.getPublicPostByNumber(params.number, query.lang);
   }
 
   /**

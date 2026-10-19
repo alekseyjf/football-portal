@@ -21,7 +21,7 @@ const TRANSLATION_UK = {
 
 interface CreatedPost {
   id: string;
-  slug: string;
+  number: number;
 }
 
 /** Відповіді постів — за `packages/types/openapi.json`: з нього типи web і адмінки (D28). */
@@ -75,10 +75,10 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
     expect(list.body).toMatchObject({ total: 1, data: [{ id: post.id }] });
 
     const detail = await request(e2e.app.getHttpServer())
-      .get(apiPath(`/posts/${post.slug}`))
+      .get(apiPath(`/posts/${post.number}`))
       .query({ lang: 'uk' })
       .expect(200);
-    expectMatchesContract(detail, 'get', '/posts/{slug}');
+    expectMatchesContract(detail, 'get', '/posts/{number}');
     expect(detail.body).toMatchObject({
       resolvedLanguage: 'uk',
       tags: [{ slug: 'derby', name: 'Дербі' }],
@@ -87,9 +87,9 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
     });
 
     const missing = await request(e2e.app.getHttpServer())
-      .get(apiPath('/posts/no-such-post'))
+      .get(apiPath(`/posts/${post.number + 1}`))
       .expect(404);
-    expectMatchesContract(missing, 'get', '/posts/{slug}');
+    expectMatchesContract(missing, 'get', '/posts/{number}');
   });
 
   it('адмінка: список, зміна, помилка валідації, видалення', async () => {
@@ -98,10 +98,14 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
 
     const updated = await admin
       .put(apiPath(`/posts/${post.id}`))
-      .send({ status: 'DRAFT', coverImageUrl: null })
+      .send({ status: 'DRAFT', coverImageUrl: null, slug: 'london-derby' })
       .expect(200);
     expectMatchesContract(updated, 'put', '/posts/{id}');
-    expect(updated.body).toMatchObject({ status: 'DRAFT', publishedAt: null });
+    expect(updated.body).toMatchObject({
+      status: 'DRAFT',
+      publishedAt: null,
+      slug: 'london-derby',
+    });
 
     const invalid = await admin
       .post(apiPath('/posts'))

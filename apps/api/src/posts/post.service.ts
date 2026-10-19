@@ -3,12 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import {
   LanguageService,
   type ContentLanguageChoice,
   type ContentLanguages,
 } from '../languages/language.service';
+import { isRecordNotFound } from '../prisma/prisma-errors';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ListPostsQueryDto } from './dto/list-posts-query.dto';
 import type { PostFieldsDto, PostTranslationDto } from './dto/post-fields.dto';
@@ -28,15 +28,12 @@ import {
   toPublicPostDetail,
   toPublicPostSummary,
 } from './post-response';
-import { slugifyTitle, withRandomSlugSuffix } from './post-slug';
+import { resolveUpdatedPostSlug, slugifyTitle } from './post-slug';
 import {
   PostRepository,
-  type AdminPostRow,
+  type PostEditStateRow,
   type PublicPostScope,
 } from './post.repository';
-
-/** Спроб створити пост з випадковим суфіксом slug-а після колізії (P3-6). */
-const SLUG_COLLISION_RETRIES = 5;
 
 function languageCodesToLoad(languageChoice: ContentLanguageChoice): string[] {
   return [
@@ -49,12 +46,6 @@ function publicScope(
   now: Date,
 ): PublicPostScope {
   return { now, defaultLanguageCode: languageChoice.defaultCode };
-}
-
-function isPrismaError(error: unknown, code: string): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError && error.code === code
-  );
 }
 
 @Injectable()
@@ -84,8 +75,8 @@ export class PostService {
     };
   }
 
-  async getPublicPostBySlug(
-    slug: string,
+  async getPublicPostByNumber(
+    postNumber: number,
     requestedLang: unknown,
   ): Promise<PostDetailDto> {
     const [languageChoice, { activeCodes }] = await Promise.all([
@@ -94,12 +85,12 @@ export class PostService {
     ]);
     const scope = publicScope(languageChoice, new Date());
     const [postRow, translationLanguages] = await Promise.all([
-      this.postRepository.findPublicBySlug(
-        slug,
+      this.postRepository.findPublicByNumber(
+        postNumber,
         scope,
         languageCodesToLoad(languageChoice),
       ),
-      this.postRepository.findPublicTranslationLanguages(slug, scope),
+      this.postRepository.findPublicTranslationLanguages(postNumber, scope),
     ]);
     if (!postRow) throw new NotFoundException('POST_NOT_FOUND');
 
@@ -136,36 +127,41 @@ export class PostService {
     const publication = this.resolvePublication(dto, null, now);
     await this.assertRelationsExist(dto);
 
-    const slugBase = slugifyTitle(defaultTranslation.title);
-    const postRow = await this.createWithUniqueSlug(slugBase, (slug) =>
-      this.postRepository.create({
-        slug,
-        ...publication,
-        coverImageUrl: dto.coverImageUrl,
-        videoUrl: dto.videoUrl,
-        sourceUrl: dto.sourceUrl,
-        authorId,
-        translations: dto.translations.map(toTranslationInput),
-        tagIds: dto.tagIds,
-        clubIds: dto.clubIds,
-        competitionIds: dto.competitionIds,
-      }),
-    );
+    const postRow = await this.postRepository.create({
+      // Унікальність не потрібна: новину визначає номер (D24)
+      slug: dto.slug ?? slugifyTitle(defaultTranslation.title),
+      ...publication,
+      coverImageUrl: dto.coverImageUrl,
+      videoUrl: dto.videoUrl,
+      sourceUrl: dto.sourceUrl,
+      authorId,
+      translations: dto.translations.map(toTranslationInput),
+      tagIds: dto.tagIds,
+      clubIds: dto.clubIds,
+      competitionIds: dto.competitionIds,
+    });
     return toAdminPostView(postRow, now);
   }
 
   async updatePost(id: string, dto: UpdatePostDto): Promise<AdminPostDto> {
-    const currentPublication =
-      await this.postRepository.findPublicationState(id);
-    if (!currentPublication) throw new NotFoundException('POST_NOT_FOUND');
+    const languages = await this.languageService.getContentLanguages();
+    const currentPost = await this.postRepository.findEditState(
+      id,
+      languages.defaultCode,
+    );
+    if (!currentPost) throw new NotFoundException('POST_NOT_FOUND');
 
     if (dto.translations) {
-      const languages = await this.languageService.getContentLanguages();
       this.assertTranslationsSupported(dto.translations, languages);
     }
     const now = new Date();
+    const currentPublication: PostPublication = {
+      status: currentPost.status,
+      publishedAt: currentPost.publishedAt,
+    };
     const publication = this.resolvePublication(dto, currentPublication, now);
     await this.assertRelationsExist(dto);
+    const slug = updatedSlug(currentPost, dto, languages.defaultCode);
 
     try {
       const postRow = await this.postRepository.update(id, {
@@ -174,6 +170,7 @@ export class PostService {
         ...(isSamePublication(publication, currentPublication)
           ? {}
           : publication),
+        slug,
         coverImageUrl: dto.coverImageUrl,
         videoUrl: dto.videoUrl,
         sourceUrl: dto.sourceUrl,
@@ -185,7 +182,7 @@ export class PostService {
       return toAdminPostView(postRow, now);
     } catch (error) {
       // Пост видалили між читанням і записом
-      if (isPrismaError(error, 'P2025')) {
+      if (isRecordNotFound(error)) {
         throw new NotFoundException('POST_NOT_FOUND');
       }
       throw error;
@@ -255,30 +252,6 @@ export class PostService {
       throw new BadRequestException('UNKNOWN_COMPETITION');
     }
   }
-
-  /**
-   * Унікальність slug-а тримає `@unique` (без check-then-insert гонки): `P2002` →
-   * повтор із випадковим суфіксом. Інших unique-обмежень у вставці немає — переклади
-   * без дублів мов, зв'язки без дублів id (DTO + `assertTranslationsSupported`).
-   */
-  private async createWithUniqueSlug(
-    slugBase: string,
-    createPost: (slug: string) => Promise<AdminPostRow>,
-  ): Promise<AdminPostRow> {
-    for (let attempt = 0; ; attempt++) {
-      const slug = attempt === 0 ? slugBase : withRandomSlugSuffix(slugBase);
-      try {
-        return await createPost(slug);
-      } catch (error) {
-        if (
-          !isPrismaError(error, 'P2002') ||
-          attempt >= SLUG_COLLISION_RETRIES
-        ) {
-          throw error;
-        }
-      }
-    }
-  }
 }
 
 function isSamePublication(
@@ -289,6 +262,25 @@ function isSamePublication(
     first.status === second.status &&
     first.publishedAt?.getTime() === second.publishedAt?.getTime()
   );
+}
+
+/** Новий slug (D24) або `undefined` — не змінювати. */
+function updatedSlug(
+  currentPost: PostEditStateRow,
+  dto: UpdatePostDto,
+  defaultLanguageCode: string,
+): string | undefined {
+  return resolveUpdatedPostSlug({
+    current: {
+      slug: currentPost.slug,
+      publishedAt: currentPost.publishedAt,
+      defaultTitle: currentPost.translations[0]?.title,
+    },
+    requestedSlug: dto.slug,
+    requestedDefaultTitle: dto.translations?.find(
+      (translation) => translation.languageCode === defaultLanguageCode,
+    )?.title,
+  });
 }
 
 function toTranslationInput(translation: PostTranslationDto) {

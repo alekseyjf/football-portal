@@ -11,6 +11,7 @@ import {
   Length,
   Matches,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import {
   POST_CONTENT_MAX_LENGTH,
@@ -18,6 +19,7 @@ import {
   POST_EXCERPT_MAX_LENGTH,
   POST_EXCERPT_MIN_LENGTH,
   POST_RELATION_IDS_MAX,
+  POST_SLUG_MAX_LENGTH,
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
 } from '@football-portal/validation';
@@ -27,6 +29,7 @@ import {
   IsMediaUrl,
   IsSourceUrl,
 } from '../../common/validation/url-field.decorators';
+import { POST_SLUG_PATTERN } from '../post-slug';
 
 /** Максимум перекладів в одному запиті — захист від величезних тіл, не бізнес-правило. */
 export const POST_TRANSLATIONS_MAX = 10;
@@ -90,6 +93,21 @@ export class PostFieldsDto {
   @IsOptional()
   @IsIsoDateTimeWithZone('publishedAt')
   publishedAt?: string | null;
+
+  /**
+   * Slug для URL `{slug}-{number}`: латиниця в нижньому регістрі, цифри, дефіси. Без нього — з EN-заголовка,
+   * і поки в новини немає дати публікації, slug іде за заголовком; далі змінюється лише так, явно
+   */
+  // `null` → 400 (а не «не передано»): slug у новини є завжди, прибрати його не можна
+  @ApiPropertyOptional({ pattern: POST_SLUG_PATTERN.source })
+  @ValidateIf((_dto, value) => value !== undefined)
+  @IsString()
+  @MaxLength(POST_SLUG_MAX_LENGTH)
+  @Matches(POST_SLUG_PATTERN, {
+    message:
+      'slug must be lowercase latin letters and digits joined by single hyphens',
+  })
+  slug?: string;
 
   /** Обкладинка — лише https; `null` — прибрати */
   @IsOptional()

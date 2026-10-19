@@ -11,7 +11,7 @@ import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { LikeBar } from '@/components/features/LikeBar';
 import { CommentSection } from './CommentSection';
 
-export function NewsPostView({ slug }: { slug: string }) {
+export function NewsPostView({ postNumber }: { postNumber: number }) {
   const contentLang = useApiContentLang();
   const locale = useLocale();
   const formatDate = useDateTimeFormat();
@@ -19,7 +19,7 @@ export function NewsPostView({ slug }: { slug: string }) {
   const authorDisplayName = useAuthorDisplayName();
 
   const { data: post, isLoading, isError } = useQuery(
-    postDetailQueryOptions(slug, contentLang),
+    postDetailQueryOptions(postNumber, contentLang),
   );
 
   if (isLoading) {

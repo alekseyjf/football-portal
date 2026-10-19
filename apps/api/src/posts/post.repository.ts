@@ -15,6 +15,7 @@ function translationsIn(languageCodes: string[]) {
 function postSummarySelect(languageCodes: string[]) {
   return {
     id: true,
+    number: true,
     slug: true,
     publishedAt: true,
     coverImageUrl: true,
@@ -82,6 +83,7 @@ function postDetailSelect(languageCodes: string[]) {
 
 const ADMIN_POST_SELECT = {
   id: true,
+  number: true,
   slug: true,
   status: true,
   publishedAt: true,
@@ -97,10 +99,18 @@ const ADMIN_POST_SELECT = {
   },
 } satisfies Prisma.PostSelect;
 
-const POST_PUBLICATION_SELECT = {
-  status: true,
-  publishedAt: true,
-} satisfies Prisma.PostSelect;
+/** Що треба знати про пост перед оновленням: публікацію і slug з EN-заголовком (D24). */
+function postEditStateSelect(defaultLanguageCode: string) {
+  return {
+    status: true,
+    publishedAt: true,
+    slug: true,
+    translations: {
+      where: { languageCode: defaultLanguageCode },
+      select: { title: true },
+    },
+  } satisfies Prisma.PostSelect;
+}
 
 export type PostSummaryRow = Prisma.PostGetPayload<{
   select: ReturnType<typeof postSummarySelect>;
@@ -111,8 +121,8 @@ export type PostDetailRow = Prisma.PostGetPayload<{
 export type AdminPostRow = Prisma.PostGetPayload<{
   select: typeof ADMIN_POST_SELECT;
 }>;
-export type PostPublicationRow = Prisma.PostGetPayload<{
-  select: typeof POST_PUBLICATION_SELECT;
+export type PostEditStateRow = Prisma.PostGetPayload<{
+  select: ReturnType<typeof postEditStateSelect>;
 }>;
 
 /** Що бачить публіка: живий пост (P3-1) з перекладом default-мови (P3-5). */
@@ -149,6 +159,8 @@ export interface UpdatePostData extends PostRelationIds {
   /** Відсутні — публікація не змінюється (не перезаписуємо чужу зміну) */
   status?: PostStatus;
   publishedAt?: Date | null;
+  /** Відсутній — slug не змінюється */
+  slug?: string;
   coverImageUrl?: string | null;
   videoUrl?: string | null;
   sourceUrl?: string | null;
@@ -202,24 +214,24 @@ export class PostRepository {
     return { posts, total };
   }
 
-  findPublicBySlug(
-    slug: string,
+  findPublicByNumber(
+    postNumber: number,
     scope: PublicPostScope,
     languageCodes: string[],
   ): Promise<PostDetailRow | null> {
     return this.prisma.post.findFirst({
-      where: { slug, ...publicPostWhere(scope) },
+      where: { number: postNumber, ...publicPostWhere(scope) },
       select: postDetailSelect(languageCodes),
     });
   }
 
   /** Мови, якими є переклад поста (для `hreflang`) — без самого контенту. */
   async findPublicTranslationLanguages(
-    slug: string,
+    postNumber: number,
     scope: PublicPostScope,
   ): Promise<string[]> {
     const translations = await this.prisma.postTranslation.findMany({
-      where: { post: { slug, ...publicPostWhere(scope) } },
+      where: { post: { number: postNumber, ...publicPostWhere(scope) } },
       select: { languageCode: true },
       orderBy: { language: { sortOrder: 'asc' } },
     });
@@ -234,10 +246,13 @@ export class PostRepository {
     });
   }
 
-  findPublicationState(id: string): Promise<PostPublicationRow | null> {
+  findEditState(
+    id: string,
+    defaultLanguageCode: string,
+  ): Promise<PostEditStateRow | null> {
     return this.prisma.post.findFirst({
       where: { id, deletedAt: null },
-      select: POST_PUBLICATION_SELECT,
+      select: postEditStateSelect(defaultLanguageCode),
     });
   }
 
@@ -272,6 +287,7 @@ export class PostRepository {
       data: {
         status: data.status,
         publishedAt: data.publishedAt,
+        slug: data.slug,
         coverImageUrl: data.coverImageUrl,
         videoUrl: data.videoUrl,
         sourceUrl: data.sourceUrl,

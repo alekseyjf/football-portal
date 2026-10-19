@@ -49,6 +49,11 @@ export function isForeignKeyViolation(error: unknown): boolean {
   );
 }
 
+/** Рядка для `update` уже немає (`P2025`): напр. його видалили між читанням і записом. */
+export function isRecordNotFound(error: unknown): boolean {
+  return prismaErrorCodeOf(error) === 'P2025';
+}
+
 /** Унікальний ключ моделі `modelName` уже зайнятий (`P2002`). */
 export function isUniqueViolationOn(
   error: unknown,
