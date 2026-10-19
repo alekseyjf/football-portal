@@ -12,6 +12,7 @@ interface TranslationInput {
 }
 
 interface PostSummaryBody {
+  number: number;
   slug: string;
   title: string;
   resolvedLanguage: string;
@@ -38,50 +39,50 @@ const TRANSFER_EN: TranslationInput = {
     'The new contract runs until the summer of 2029, the club announced.',
 };
 
-/** Пост публікує адмін через API — так, як адмінка. */
+/** Пост публікує адмін через API — так, як адмінка; повертає номер новини. */
 async function publishPost(
   admin: request.Agent,
   translations: TranslationInput[],
-): Promise<string> {
+): Promise<number> {
   const response = await admin
     .post(apiPath('/posts'))
     .send({ status: 'PUBLISHED', translations })
     .expect(201);
-  return (response.body as { slug: string }).slug;
+  return (response.body as { number: number }).number;
 }
 
 describe('Мова контенту постів (?lang, D22 / D23)', () => {
   let e2e: E2eApp;
-  let derbySlug: string;
-  let transferSlug: string;
+  let derbyNumber: number;
+  let transferNumber: number;
 
   async function listPosts(
     lang: string,
-  ): Promise<Map<string, PostSummaryBody>> {
+  ): Promise<Map<number, PostSummaryBody>> {
     const response = await request(e2e.app.getHttpServer())
       .get(apiPath('/posts'))
       .query({ lang })
       .expect(200);
     const { data } = response.body as { data: PostSummaryBody[] };
-    return new Map(data.map((post) => [post.slug, post]));
+    return new Map(data.map((post) => [post.number, post]));
   }
 
   beforeAll(async () => {
     e2e = await createE2eApp();
     await resetE2eData(e2e.prisma);
     const admin = await loginAs(e2e, await createUser(e2e, Role.ADMIN));
-    derbySlug = await publishPost(admin, [DERBY_EN, DERBY_UK]);
-    transferSlug = await publishPost(admin, [TRANSFER_EN]);
+    derbyNumber = await publishPost(admin, [DERBY_EN, DERBY_UK]);
+    transferNumber = await publishPost(admin, [TRANSFER_EN]);
   });
   afterAll(() => e2e.close());
 
   it('?lang=uk → український переклад; пост без нього — англійською з resolvedLanguage en', async () => {
     const posts = await listPosts('uk');
-    expect(posts.get(derbySlug)).toMatchObject({
+    expect(posts.get(derbyNumber)).toMatchObject({
       title: DERBY_UK.title,
       resolvedLanguage: 'uk',
     });
-    expect(posts.get(transferSlug)).toMatchObject({
+    expect(posts.get(transferNumber)).toMatchObject({
       title: TRANSFER_EN.title,
       resolvedLanguage: 'en',
     });
@@ -89,25 +90,27 @@ describe('Мова контенту постів (?lang, D22 / D23)', () => {
 
   it('?lang=ua (старий код української) → default-мова, а не 400', async () => {
     const posts = await listPosts('ua');
-    expect(posts.get(derbySlug)).toMatchObject({
+    expect(posts.get(derbyNumber)).toMatchObject({
       title: DERBY_EN.title,
       resolvedLanguage: 'en',
     });
   });
 
-  it('пост ?lang=uk → український текст і обидві мови в availableLanguages', async () => {
+  it('пост ?lang=uk → український текст, slug з EN-заголовка й обидві мови в availableLanguages', async () => {
     const response = await request(e2e.app.getHttpServer())
-      .get(apiPath(`/posts/${derbySlug}`))
+      .get(apiPath(`/posts/${derbyNumber}`))
       .query({ lang: 'uk' })
       .expect(200);
     const post = response.body as PostSummaryBody & {
       content: string;
       availableLanguages: string[];
     };
+    // Slug один на всі мови — мову задає локаль в URL (D24)
     expect(post).toMatchObject({
       title: DERBY_UK.title,
       content: DERBY_UK.content,
       resolvedLanguage: 'uk',
+      slug: 'derby-ends-in-a-late-draw',
     });
     expect([...post.availableLanguages].sort()).toEqual(['en', 'uk']);
   });

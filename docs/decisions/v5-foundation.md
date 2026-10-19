@@ -8,7 +8,7 @@
 | Рішення | Стан | Що тепер |
 |---|---|---|
 | D8 | ✅ діє, уточнено | Код української мови — `uk` скрізь (не `ua`) — [D22](D22-ukrainian-language-code.md) |
-| D9 | 🔁 змінено | «`slug` один на пост» → свій slug для кожної мови + номер в URL — [D24](D24-news-url-slug-number.md); fallback на EN лишається — [D23](D23-content-languages.md) |
+| D9 | ✅ діє, уточнено | `slug` один на пост (з EN-заголовка), але не унікальний — новину визначає номер в URL `{slug}-{number}` — [D24](D24-news-url-slug-number.md); fallback на EN лишається — [D23](D23-content-languages.md) |
 | D10 | ✅ діє, уточнено | `ARCHIVED` = знято з публікації (404) — [D43](D43-archived-posts.md) |
 | D12 | 🔁 змінено | Відповіді — одним рівнем, як на YouTube — [D27](D27-youtube-style-comments.md) |
 | Розділ 9 | 🔁 оновлено | Актуальна таблиця «Спроєктовано, але ще не створено» — `docs/football-plan.md`, розділ 10 |

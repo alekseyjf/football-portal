@@ -11,6 +11,8 @@ export class AdminPostTranslationDto {
 /** Новина в адмінці: будь-який статус, крім видалених. */
 export class AdminPostDto {
   id!: string;
+  /** Номер новини: URL на сайті — `/{locale}/news/{slug}-{number}` (D24) */
+  number!: number;
   slug!: string;
 
   @ApiProperty({ enum: PostStatus, enumName: 'PostStatus' })

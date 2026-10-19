@@ -5,6 +5,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { contentLanguageName } from '@/lib/i18n/content-lang';
+import { postPathSegment } from '@/lib/news/post-path';
 import { postsQueryOptions } from '@/hooks/usePosts';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
@@ -53,7 +54,7 @@ export function HomeFeed() {
             return (
               <Link
                 key={post.id}
-                href={`/news/${post.slug}`}
+                href={`/news/${postPathSegment(post)}`}
                 className="block bg-gray-900 rounded-xl overflow-hidden hover:bg-gray-800 transition-colors"
               >
                 {post.coverImageUrl && (

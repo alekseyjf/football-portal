@@ -96,10 +96,10 @@ export default function PostsPage() {
                   >
                     {statusLabel}
                   </span>
-                  {/* Лише для живих: чернетка / запланований на сайті — 404 */}
+                  {/* Лише для живих: чернетка / запланований на сайті — 404. URL — `{slug}-{number}` (D24) */}
                   {post.isLive && (
                     <a
-                      href={`${PUBLIC_WEB_URL}/news/${encodeURIComponent(post.slug)}`}
+                      href={`${PUBLIC_WEB_URL}/news/${encodeURIComponent(post.slug)}-${post.number}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-green-400 hover:text-green-300 transition-colors"

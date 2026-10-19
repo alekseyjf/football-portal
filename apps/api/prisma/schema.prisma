@@ -262,8 +262,10 @@ model Language {
 
 model Post {
   id            String     @id @default(cuid())
-  /// Один slug на всі мови (генерується з EN-заголовка)
-  slug          String     @unique
+  /// Публічний номер: URL `/{locale}/news/{slug}-{number}`, пост шукаємо за ним (D24)
+  number        Int        @unique @default(autoincrement())
+  /// Один slug на всі мови, з EN-заголовка; не унікальний — унікальність тримає `number` (D24)
+  slug          String
   status        PostStatus @default(DRAFT)
   publishedAt   DateTime?
   coverImageUrl String?

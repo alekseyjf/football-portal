@@ -47,6 +47,8 @@ const LANGUAGES: LanguageSeed[] = [
 
 /** Експорт Фази 0 (formatVersion 1) писав українську як `ua` — до D22. */
 const LEGACY_LANGUAGE_CODES: Record<string, string> = { ua: 'uk' };
+/** …і slug із суфіксом-таймстемпом (`new-post-1775515992287`) — прибираємо, як міграція 0006 (D24). */
+const LEGACY_SLUG_TIMESTAMP_SUFFIX = /^(.+)-\d{13}$/;
 
 interface CompetitionSeed {
   slug: string;
@@ -400,17 +402,24 @@ async function seedPosts(
 ): Promise<void> {
   for (const post of posts) {
     const createdAt = new Date(post.createdAt);
-    await transaction.post.upsert({
-      where: { slug: post.slug },
-      create: {
-        slug: post.slug,
+    const authorId = userIdByEmail.get(normalizeEmail(post.authorEmail))!;
+    // Slug не унікальний (D24) — пост з експорту впізнаємо за автором і моментом створення
+    const existingPost = await transaction.post.findFirst({
+      where: { authorId, createdAt },
+      select: { id: true },
+    });
+    if (existingPost) continue;
+
+    await transaction.post.create({
+      data: {
+        slug: post.slug.replace(LEGACY_SLUG_TIMESTAMP_SUFFIX, '$1'),
         // v4 published → v5 status; дата публікації = дата створення
         status: post.published ? PostStatus.PUBLISHED : PostStatus.DRAFT,
         publishedAt: post.published ? createdAt : null,
         coverImageUrl: post.coverImageUrl,
         videoUrl: post.videoUrl,
         sourceUrl: post.sourceUrl,
-        authorId: userIdByEmail.get(normalizeEmail(post.authorEmail))!,
+        authorId,
         createdAt,
         updatedAt: new Date(post.updatedAt),
         deletedAt: post.deletedAt ? new Date(post.deletedAt) : null,
@@ -428,7 +437,6 @@ async function seedPosts(
           })),
         },
       },
-      update: {},
     });
   }
 }

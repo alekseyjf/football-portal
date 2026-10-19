@@ -30,6 +30,9 @@ export class PostClubDto {
  */
 export class PostSummaryDto {
   id!: string;
+  /** Номер новини: URL — `/{locale}/news/{slug}-{number}` (D24) */
+  number!: number;
+  /** Канонічний slug — один на всі мови, з EN-заголовка */
   slug!: string;
   publishedAt!: Date;
   coverImageUrl!: string | null;

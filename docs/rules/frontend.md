@@ -38,8 +38,8 @@
 
 **Rule 6 — Locale передається через URL**
 ```typescript
-// /en/news/[slug]
-// /uk/news/[slug]  — код мови `uk` (не `ua` — це код країни), D22
+// /en/news/{slug}-{number}
+// /uk/news/{slug}-{number}  — код мови `uk` (не `ua` — це код країни), D22; slug один на всі мови (D24)
 // next-intl у src/proxy.ts (Next 16 — proxy замість middleware) визначає мову
 ```
 
@@ -54,7 +54,7 @@
 **Rule 8 — Сторінка з параметром у URL**
 ```typescript
 // Сутність за slug / id → fetchQuery (не prefetchQuery — той ковтає помилки) + notFound() лише на 404 від API;
-// інші збої — рендер без кешу, клієнт зробить refetch (news/[slug], matches/[id])
+// інші збої — рендер без кешу, клієнт зробить refetch (news/[slugAndNumber], matches/[id])
 // generateMetadata і сторінка читають ту саму сутність → одна функція в React cache(), без двох запитів до API
 //   (matches/[id]: const getMatchDetail = cache(fetchMatchDetail))
 // 404 (з 2026-09-28) — ОДНА загальна app/not-found.tsx: свій <html>/<body> (кореневий layout повертає лише children),

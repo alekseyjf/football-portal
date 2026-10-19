@@ -12,10 +12,10 @@ const POST_TRANSLATION_EN = {
 /** Опублікована новина — через API адміном, як в адмінці. */
 export async function publishPost(
   admin: request.Agent,
-): Promise<{ id: string; slug: string }> {
+): Promise<{ id: string; number: number }> {
   const response = await admin
     .post(apiPath('/posts'))
     .send({ status: 'PUBLISHED', translations: [POST_TRANSLATION_EN] })
     .expect(201);
-  return response.body as { id: string; slug: string };
+  return response.body as { id: string; number: number };
 }

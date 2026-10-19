@@ -155,7 +155,7 @@ function jsonSchemaOf(response: ResponseObject | undefined) {
 /**
  * Відповідь відповідає документу: статус описано в операції, тіло — за його схемою
  * (помилки — за `default`, `ApiErrorDto`), без незадокументованих полів.
- * `pathTemplate` — як у документі: `/posts/{slug}`.
+ * `pathTemplate` — як у документі: `/posts/{number}`.
  */
 export function expectMatchesContract(
   response: ContractResponse,

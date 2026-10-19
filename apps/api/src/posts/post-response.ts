@@ -78,6 +78,7 @@ export function toPublicPostSummary(
   const translation = requireTranslation(postRow, languageChoice);
   return {
     id: postRow.id,
+    number: postRow.number,
     slug: postRow.slug,
     publishedAt: requirePublishedAt(postRow),
     coverImageUrl: postRow.coverImageUrl,
@@ -114,6 +115,7 @@ export function toAdminPostView(
 ): AdminPostDto {
   return {
     id: postRow.id,
+    number: postRow.number,
     slug: postRow.slug,
     status: postRow.status,
     publishedAt: postRow.publishedAt,
