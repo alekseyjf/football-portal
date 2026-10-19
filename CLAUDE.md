@@ -45,10 +45,10 @@ All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/
 - `GET /posts/admin/all` — ADMIN, усі крім видалених: `status`, `publishedAt`, `isLive`, `translations: [{ languageCode, title }]`
 - `GET /posts/:number?lang=en` — public, живий пост **за номером** (ціле 1…2³¹−1, інакше 400) + `content`, `availableLanguages`, `tags`, `competitions`, `clubs` (коментарі — окремо, `GET /comments/post/:postId`); `slug` у відповіді — канонічний (web робить 308)
 - **Slug** (`post-slug.ts`, D24): один на всі мови, з EN-заголовка; поки `publishedAt` порожній — іде за EN-заголовком, щойно дата є — лише явний `slug` у `POST` / `PUT` (`resolveUpdatedPostSlug`)
-- `POST /posts` — **ADMIN only**, body: `{ translations: [{ languageCode, title, excerpt, content }], slug?, status?, publishedAt?, coverImageUrl?, videoUrl?, sourceUrl?, tagIds?, clubIds?, competitionIds? }`; переклад default-мови (en) обов'язковий; без `status` — DRAFT. Правила статусу / дати — `post-publication.ts` (`resolvePostPublication`)
+- `POST /posts` — **ADMIN only**, body: `{ translations: [{ languageCode, title, excerpt, content }], slug?, status?, publishedAt?, coverImageUrl?, videoUrl?, sourceUrl?, tagIds?, clubIds?, competitionIds? }`; переклад default-мови (`Language.isDefault`, en) обов'язковий, решта — опційні (D23; `post-translations.ts`, `findPostTranslationsError`); без `status` — DRAFT. Правила статусу / дати — `post-publication.ts` (`resolvePostPublication`)
 - `PUT /posts/:id` — **ADMIN only**; переклади — upsert за мовою, масив зв'язків замінює повністю
 - `DELETE /posts/:id` — ADMIN only, soft delete (sets deletedAt) → `{ id }`
-- Files: `post.controller.ts`, `post.service.ts`, `post.repository.ts`, `post.module.ts`, `post-response.ts` (форма відповідей), `post-publication.ts`, `post-slug.ts`, `post-visibility.ts`
+- Files: `post.controller.ts`, `post.service.ts`, `post.repository.ts`, `post.module.ts`, `post-response.ts` (форма відповідей), `post-publication.ts`, `post-slug.ts`, `post-translations.ts`, `post-visibility.ts`
 - DTOs: `post-fields.dto.ts` (спільні поля + `PostTranslationDto`), `create-post.dto.ts`, `update-post.dto.ts`, `list-posts-query.dto.ts`, `post-number-param.dto.ts`
 
 ### Languages — `src/languages/`
@@ -128,7 +128,7 @@ All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/
 - `lib/publicWebUrl.ts`, `hooks/useAdminLogout.ts`, `hooks/useAdminSessionExpiry.ts` (refresh відхилено → `/login`)
 - `app/login/AdminLoginForm.tsx` — `useAdminLogin` (mutation, `POST /auth/login/admin`)
 - `app/dashboard/posts/page.tsx` — клієнтська сторінка, `useAdminPosts`; посилання «View on site» (`/news/{slug}-{number}`) через `NEXT_PUBLIC_PUBLIC_WEB_URL` (fallback `http://localhost:3000`)
-- `app/dashboard/posts/create/CreatePostForm.tsx` — `useCreatePost`, тіло `CreatePostDto` (EN обов'язково, UK опційно; статус Draft / Publish now / Schedule + дата)
+- `app/dashboard/posts/create/CreatePostForm.tsx` — `useCreatePost`, тіло `CreatePostDto` (EN обов'язково, UK опційно — публікація без UK лише з попередженням; статус Draft / Publish now / Schedule + дата)
 - `hooks/useAdminPosts.ts`, `useCreatePost.ts`, `useAdminLogin.ts`
 - `lib/api/http.ts` (та сама refresh-логіка, що й у web — міняти разом), `lib/api/types.ts` — згенеровані типи (`AdminPost`, `CreatePostRequest`, `SyncRun`) + підписи `adminPostTitle`, `adminAuthorName`
 - `lib/query/queryClient.ts`, `providers/QueryProvider.tsx`

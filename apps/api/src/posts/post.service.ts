@@ -6,7 +6,6 @@ import {
 import {
   LanguageService,
   type ContentLanguageChoice,
-  type ContentLanguages,
 } from '../languages/language.service';
 import { isRecordNotFound } from '../prisma/prisma-errors';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -29,6 +28,10 @@ import {
   toPublicPostSummary,
 } from './post-response';
 import { resolveUpdatedPostSlug, slugifyTitle } from './post-slug';
+import {
+  findPostTranslationsError,
+  type PostTranslationsInput,
+} from './post-translations';
 import {
   PostRepository,
   type PostEditStateRow,
@@ -115,13 +118,15 @@ export class PostService {
     authorId: string,
   ): Promise<AdminPostDto> {
     const languages = await this.languageService.getContentLanguages();
-    this.assertTranslationsSupported(dto.translations, languages);
+    this.assertTranslationsAllowed({
+      translations: dto.translations,
+      isNewPost: true,
+      languages,
+    });
+    // Переклад default-мови є: без нього assertTranslationsAllowed кидає 400
     const defaultTranslation = dto.translations.find(
       (translation) => translation.languageCode === languages.defaultCode,
-    );
-    if (!defaultTranslation) {
-      throw new BadRequestException('DEFAULT_TRANSLATION_REQUIRED');
-    }
+    )!;
 
     const now = new Date();
     const publication = this.resolvePublication(dto, null, now);
@@ -152,7 +157,11 @@ export class PostService {
     if (!currentPost) throw new NotFoundException('POST_NOT_FOUND');
 
     if (dto.translations) {
-      this.assertTranslationsSupported(dto.translations, languages);
+      this.assertTranslationsAllowed({
+        translations: dto.translations,
+        isNewPost: false,
+        languages,
+      });
     }
     const now = new Date();
     const currentPublication: PostPublication = {
@@ -213,21 +222,10 @@ export class PostService {
     return result.publication;
   }
 
-  /** Лише активні мови (P3-3), кожна — не більше одного разу. */
-  private assertTranslationsSupported(
-    translations: PostTranslationDto[],
-    languages: ContentLanguages,
-  ): void {
-    const seenLanguageCodes = new Set<string>();
-    for (const { languageCode } of translations) {
-      if (seenLanguageCodes.has(languageCode)) {
-        throw new BadRequestException('DUPLICATE_TRANSLATION_LANGUAGE');
-      }
-      seenLanguageCodes.add(languageCode);
-      if (!languages.activeCodes.has(languageCode)) {
-        throw new BadRequestException('UNSUPPORTED_LANGUAGE');
-      }
-    }
+  /** Мови перекладів — за правилом `findPostTranslationsError` (D23, P3-3). */
+  private assertTranslationsAllowed(input: PostTranslationsInput): void {
+    const errorCode = findPostTranslationsError(input);
+    if (errorCode) throw new BadRequestException(errorCode);
   }
 
   /** Неіснуючий id → 400 з кодом, а не 500 на FK (P3-8). Масиви вже унікальні (DTO). */
