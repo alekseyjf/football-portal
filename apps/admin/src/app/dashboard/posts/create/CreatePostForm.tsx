@@ -29,6 +29,14 @@ const UK_FIELD_SCHEMAS = {
   excerptUk: postExcerptSchema,
   contentUk: postContentSchema,
 } as const;
+const UK_FIELD_NAMES = Object.keys(UK_FIELD_SCHEMAS) as Array<
+  keyof typeof UK_FIELD_SCHEMAS
+>;
+
+/** Хоч одне українське поле заповнене — переклад піде в запит (а форма вимагатиме всі поля). */
+function hasUkText(ukFieldValues: readonly string[]): boolean {
+  return ukFieldValues.some((value) => value.trim());
+}
 
 const schema = z
   .object({
@@ -46,12 +54,8 @@ const schema = z
     scheduledAt: z.string(),
   })
   .superRefine((values, ctx) => {
-    const ukFieldNames = Object.keys(UK_FIELD_SCHEMAS) as Array<
-      keyof typeof UK_FIELD_SCHEMAS
-    >;
-    const hasAnyUk = ukFieldNames.some((fieldName) => values[fieldName].trim());
-    if (hasAnyUk) {
-      for (const fieldName of ukFieldNames) {
+    if (hasUkText(UK_FIELD_NAMES.map((fieldName) => values[fieldName]))) {
+      for (const fieldName of UK_FIELD_NAMES) {
         const fieldResult = UK_FIELD_SCHEMAS[fieldName].safeParse(values[fieldName]);
         if (!fieldResult.success) {
           ctx.addIssue({
@@ -141,6 +145,9 @@ export function CreatePostForm() {
   });
 
   const publication: PublicationChoice = useWatch({ control, name: 'publication' });
+  const ukFieldValues = useWatch({ control, name: UK_FIELD_NAMES });
+  // Лише попередження, не блок (D23): без UK новина виходить, а термінова не чекає перекладу
+  const isPublishingWithoutUk = publication !== 'DRAFT' && !hasUkText(ukFieldValues);
 
   const onSubmit = async (data: FormData) => {
     setServerError(null);
@@ -281,6 +288,16 @@ export function CreatePostForm() {
               <p className="text-red-400 text-xs">{errors.scheduledAt.message}</p>
             )}
           </div>
+        )}
+
+        {isPublishingWithoutUk && (
+          <p
+            role="status"
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300"
+          >
+            No Ukrainian translation: on /uk/ the post will be shown in English, marked
+            “translation unavailable”.
+          </p>
         )}
       </fieldset>
 

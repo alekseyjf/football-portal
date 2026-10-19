@@ -5,7 +5,9 @@ import { LanguageRepository } from './language.repository';
 const LANGUAGE_CACHE_TTL_MS = 60 * 1000;
 
 export interface ContentLanguages {
+  /** `Language.isDefault`: переклад нею обов'язковий, на неї — fallback (D23) */
   defaultCode: string;
+  /** Увімкнені мови; default-мова — завжди, навіть вимкнена */
   activeCodes: ReadonlySet<string>;
 }
 
@@ -69,7 +71,8 @@ export class LanguageService {
         .filter((language) => language.isActive)
         .map((language) => language.code),
     );
-    // Default-мова завжди доступна для читання, навіть якщо її помилково вимкнули
+    // Default-мова завжди доступна — і для читання, і для запису: без неї не створити жодного поста
+    // (її переклад обов'язковий, D23), навіть якщо її помилково вимкнули
     activeCodes.add(defaultLanguage.code);
 
     this.cachedLanguages = { defaultCode: defaultLanguage.code, activeCodes };
