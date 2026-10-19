@@ -3,6 +3,7 @@ import request from 'supertest';
 import { apiPath, createE2eApp, type E2eApp } from '../support/e2e-app';
 import { createUser, loginAs } from '../support/e2e-auth';
 import { resetE2eData } from '../support/e2e-database';
+import { expectMatchesContract } from '../support/openapi-contract';
 
 interface TranslationInput {
   languageCode: string;
@@ -39,22 +40,43 @@ const TRANSFER_EN: TranslationInput = {
     'The new contract runs until the summer of 2029, the club announced.',
 };
 
-/** Пост публікує адмін через API — так, як адмінка; повертає номер новини. */
+/** Мова є в `Language`, але вимкнена (`isActive: false`) — переклад нею не зберігається (P3-3). */
+const DISABLED_LANGUAGE = {
+  code: 'es',
+  name: 'Español',
+  isActive: false,
+  sortOrder: 3,
+};
+const TRANSFER_ES: TranslationInput = {
+  languageCode: DISABLED_LANGUAGE.code,
+  title: 'El centrocampista renueva su contrato',
+  excerpt: 'El club amplió el contrato de su capitán hasta 2029.',
+  content:
+    'El nuevo contrato se extiende hasta el verano de 2029, anunció el club.',
+};
+
+interface CreatedPostBody {
+  id: string;
+  number: number;
+}
+
+/** Пост публікує адмін через API — так, як адмінка. */
 async function publishPost(
   admin: request.Agent,
   translations: TranslationInput[],
-): Promise<number> {
+): Promise<CreatedPostBody> {
   const response = await admin
     .post(apiPath('/posts'))
     .send({ status: 'PUBLISHED', translations })
     .expect(201);
-  return (response.body as { number: number }).number;
+  return response.body as CreatedPostBody;
 }
 
-describe('Мова контенту постів (?lang, D22 / D23)', () => {
+describe('Мови контенту постів: читання (?lang) і переклади (D22 / D23)', () => {
   let e2e: E2eApp;
+  let admin: request.Agent;
   let derbyNumber: number;
-  let transferNumber: number;
+  let transferPost: CreatedPostBody;
 
   async function listPosts(
     lang: string,
@@ -70,9 +92,11 @@ describe('Мова контенту постів (?lang, D22 / D23)', () => {
   beforeAll(async () => {
     e2e = await createE2eApp();
     await resetE2eData(e2e.prisma);
-    const admin = await loginAs(e2e, await createUser(e2e, Role.ADMIN));
-    derbyNumber = await publishPost(admin, [DERBY_EN, DERBY_UK]);
-    transferNumber = await publishPost(admin, [TRANSFER_EN]);
+    // До першого запиту, що читає мови: LanguageService кешує їх на 60 с
+    await e2e.prisma.language.create({ data: DISABLED_LANGUAGE });
+    admin = await loginAs(e2e, await createUser(e2e, Role.ADMIN));
+    derbyNumber = (await publishPost(admin, [DERBY_EN, DERBY_UK])).number;
+    transferPost = await publishPost(admin, [TRANSFER_EN]);
   });
   afterAll(() => e2e.close());
 
@@ -82,7 +106,7 @@ describe('Мова контенту постів (?lang, D22 / D23)', () => {
       title: DERBY_UK.title,
       resolvedLanguage: 'uk',
     });
-    expect(posts.get(transferNumber)).toMatchObject({
+    expect(posts.get(transferPost.number)).toMatchObject({
       title: TRANSFER_EN.title,
       resolvedLanguage: 'en',
     });
@@ -113,5 +137,38 @@ describe('Мова контенту постів (?lang, D22 / D23)', () => {
       slug: 'derby-ends-in-a-late-draw',
     });
     expect([...post.availableLanguages].sort()).toEqual(['en', 'uk']);
+  });
+
+  it('новий пост без перекладу default-мови (лише UK) → 400 DEFAULT_TRANSLATION_REQUIRED', async () => {
+    const response = await admin
+      .post(apiPath('/posts'))
+      .send({ status: 'PUBLISHED', translations: [DERBY_UK] })
+      .expect(400);
+    expectMatchesContract(response, 'post', '/posts');
+    expect(response.body).toMatchObject({
+      message: 'DEFAULT_TRANSLATION_REQUIRED',
+    });
+  });
+
+  it('переклад вимкненою мовою → 400 UNSUPPORTED_LANGUAGE і при створенні, і при оновленні', async () => {
+    const created = await admin
+      .post(apiPath('/posts'))
+      .send({ translations: [TRANSFER_EN, TRANSFER_ES] })
+      .expect(400);
+    expectMatchesContract(created, 'post', '/posts');
+    expect(created.body).toMatchObject({ message: 'UNSUPPORTED_LANGUAGE' });
+
+    const updated = await admin
+      .put(apiPath(`/posts/${transferPost.id}`))
+      .send({ translations: [TRANSFER_ES] })
+      .expect(400);
+    expectMatchesContract(updated, 'put', '/posts/{id}');
+    expect(updated.body).toMatchObject({ message: 'UNSUPPORTED_LANGUAGE' });
+    // Рядок мови в `Language` є, тож FK переклад пропустив би — не пускає саме правило мов
+    const storedTranslations = await e2e.prisma.postTranslation.findMany({
+      where: { postId: transferPost.id },
+      select: { languageCode: true },
+    });
+    expect(storedTranslations).toEqual([{ languageCode: 'en' }]);
   });
 });

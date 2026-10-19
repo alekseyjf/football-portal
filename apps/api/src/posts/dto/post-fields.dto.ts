@@ -51,11 +51,18 @@ export class PostTranslationDto {
   @Length(POST_TITLE_MIN_LENGTH, POST_TITLE_MAX_LENGTH)
   title!: string;
 
+  /** Анонс — простий текст, без Markdown: іде в стрічку й у `meta description` */
   @TrimString()
   @IsString()
   @Length(POST_EXCERPT_MIN_LENGTH, POST_EXCERPT_MAX_LENGTH)
   excerpt!: string;
 
+  /**
+   * Текст новини — Markdown (D25): заголовки h2–h4, списки, цитати, посилання, жирний і курсив,
+   * зображення (https), таблиці. API зберігає текст як є й перевіряє лише довжину; решту правил
+   * (сирий HTML не показується, зображення лише https) застосовує рендерер сайту
+   */
+  // Markdown не парсимо (D25): правила безпеки — в одному місці, рендерері, а не у двох копіях, що розійдуться
   @TrimString()
   @IsString()
   @Length(POST_CONTENT_MIN_LENGTH, POST_CONTENT_MAX_LENGTH)
