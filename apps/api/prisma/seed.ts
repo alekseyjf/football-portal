@@ -429,6 +429,8 @@ async function seedPosts(
             title: translation.title,
             excerpt: translation.excerpt,
             content: translation.content,
+            // Опису фото в експорті немає — із заголовка, як міграція 0007; підпис вписує редакція (D44)
+            coverImageAlt: post.coverImageUrl ? translation.title : null,
           })),
         },
         tags: {

@@ -22,7 +22,12 @@ function postSummarySelect(languageCodes: string[]) {
     author: { select: PUBLIC_AUTHOR_SELECT },
     translations: {
       where: translationsIn(languageCodes),
-      select: { languageCode: true, title: true, excerpt: true },
+      select: {
+        languageCode: true,
+        title: true,
+        excerpt: true,
+        coverImageAlt: true,
+      },
     },
     tags: {
       select: {
@@ -45,6 +50,7 @@ function postSummarySelect(languageCodes: string[]) {
 function postDetailSelect(languageCodes: string[]) {
   return {
     ...postSummarySelect(languageCodes),
+    coverImageCredit: true,
     videoUrl: true,
     sourceUrl: true,
     translations: {
@@ -54,6 +60,7 @@ function postDetailSelect(languageCodes: string[]) {
         title: true,
         excerpt: true,
         content: true,
+        coverImageAlt: true,
       },
     },
     competitions: {
@@ -99,18 +106,20 @@ const ADMIN_POST_SELECT = {
   },
 } satisfies Prisma.PostSelect;
 
-/** Що треба знати про пост перед оновленням: публікацію і slug з EN-заголовком (D24). */
-function postEditStateSelect(defaultLanguageCode: string) {
-  return {
-    status: true,
-    publishedAt: true,
-    slug: true,
-    translations: {
-      where: { languageCode: defaultLanguageCode },
-      select: { title: true },
-    },
-  } satisfies Prisma.PostSelect;
-}
+/**
+ * Що треба знати про пост перед оновленням: публікацію, slug з EN-заголовком (D24) і обкладинку
+ * з описом у кожному перекладі (D44).
+ */
+const POST_EDIT_STATE_SELECT = {
+  status: true,
+  publishedAt: true,
+  slug: true,
+  coverImageUrl: true,
+  coverImageCredit: true,
+  translations: {
+    select: { languageCode: true, title: true, coverImageAlt: true },
+  },
+} satisfies Prisma.PostSelect;
 
 export type PostSummaryRow = Prisma.PostGetPayload<{
   select: ReturnType<typeof postSummarySelect>;
@@ -122,7 +131,7 @@ export type AdminPostRow = Prisma.PostGetPayload<{
   select: typeof ADMIN_POST_SELECT;
 }>;
 export type PostEditStateRow = Prisma.PostGetPayload<{
-  select: ReturnType<typeof postEditStateSelect>;
+  select: typeof POST_EDIT_STATE_SELECT;
 }>;
 
 /** Що бачить публіка: живий пост (P3-1) з перекладом default-мови (P3-5). */
@@ -136,6 +145,8 @@ export interface PostTranslationInput {
   title: string;
   excerpt: string;
   content: string;
+  /** Відсутній — при оновленні не змінюється */
+  coverImageAlt?: string | null;
 }
 
 export interface PostRelationIds {
@@ -149,6 +160,7 @@ export interface CreatePostData extends PostRelationIds {
   status: PostStatus;
   publishedAt: Date | null;
   coverImageUrl?: string | null;
+  coverImageCredit?: string | null;
   videoUrl?: string | null;
   sourceUrl?: string | null;
   authorId: string;
@@ -162,10 +174,13 @@ export interface UpdatePostData extends PostRelationIds {
   /** Відсутній — slug не змінюється */
   slug?: string;
   coverImageUrl?: string | null;
+  coverImageCredit?: string | null;
   videoUrl?: string | null;
   sourceUrl?: string | null;
   /** Upsert за мовою; переклади, яких немає в масиві, не чіпаємо */
   translations?: PostTranslationInput[];
+  /** Фото обкладинки змінилось чи прибране — прибрати опис у перекладах, яких немає в масиві (D44) */
+  clearCoverImageAlts?: boolean;
 }
 
 function publicPostWhere(scope: PublicPostScope): Prisma.PostWhereInput {
@@ -188,6 +203,43 @@ function replaceRelation<Link>(
   toLink: (id: string) => Link,
 ) {
   return ids ? { deleteMany: {}, create: ids.map(toLink) } : undefined;
+}
+
+/**
+ * Переклади з масиву — upsert за мовою; решті — лише прибрати опис старого фото (D44). Переклади
+ * з масиву `updateMany` не чіпає: їхній опис пише upsert, тож порядок nested-операцій неважливий.
+ */
+function updateTranslations(
+  postId: string,
+  data: UpdatePostData,
+): Prisma.PostTranslationUpdateManyWithoutPostNestedInput | undefined {
+  if (!data.translations && !data.clearCoverImageAlts) return undefined;
+  const listedLanguageCodes = (data.translations ?? []).map(
+    (translation) => translation.languageCode,
+  );
+  return {
+    updateMany: data.clearCoverImageAlts
+      ? {
+          where: {
+            coverImageAlt: { not: null },
+            languageCode: { notIn: listedLanguageCodes },
+          },
+          data: { coverImageAlt: null },
+        }
+      : undefined,
+    upsert: data.translations?.map((translation) => ({
+      where: {
+        postId_languageCode: { postId, languageCode: translation.languageCode },
+      },
+      create: translation,
+      update: {
+        title: translation.title,
+        excerpt: translation.excerpt,
+        content: translation.content,
+        coverImageAlt: translation.coverImageAlt,
+      },
+    })),
+  };
 }
 
 @Injectable()
@@ -246,13 +298,10 @@ export class PostRepository {
     });
   }
 
-  findEditState(
-    id: string,
-    defaultLanguageCode: string,
-  ): Promise<PostEditStateRow | null> {
+  findEditState(id: string): Promise<PostEditStateRow | null> {
     return this.prisma.post.findFirst({
       where: { id, deletedAt: null },
-      select: postEditStateSelect(defaultLanguageCode),
+      select: POST_EDIT_STATE_SELECT,
     });
   }
 
@@ -263,6 +312,7 @@ export class PostRepository {
         status: data.status,
         publishedAt: data.publishedAt,
         coverImageUrl: data.coverImageUrl,
+        coverImageCredit: data.coverImageCredit,
         videoUrl: data.videoUrl,
         sourceUrl: data.sourceUrl,
         authorId: data.authorId,
@@ -289,26 +339,10 @@ export class PostRepository {
         publishedAt: data.publishedAt,
         slug: data.slug,
         coverImageUrl: data.coverImageUrl,
+        coverImageCredit: data.coverImageCredit,
         videoUrl: data.videoUrl,
         sourceUrl: data.sourceUrl,
-        translations: data.translations
-          ? {
-              upsert: data.translations.map((translation) => ({
-                where: {
-                  postId_languageCode: {
-                    postId: id,
-                    languageCode: translation.languageCode,
-                  },
-                },
-                create: translation,
-                update: {
-                  title: translation.title,
-                  excerpt: translation.excerpt,
-                  content: translation.content,
-                },
-              })),
-            }
-          : undefined,
+        translations: updateTranslations(id, data),
         tags: replaceRelation(data.tagIds, (tagId) => ({ tagId })),
         clubs: replaceRelation(data.clubIds, (clubId) => ({ clubId })),
         competitions: replaceRelation(data.competitionIds, (competitionId) => ({

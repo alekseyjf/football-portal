@@ -79,8 +79,8 @@ email = dto.email.toLowerCase().trim();
 
 **Rule 9 — i18n через Translation таблиці**
 ```typescript
-// Контент (title, excerpt, content) → PostTranslation (languageCode → таблиця Language)
-// Мета-дані (slug, status, publishedAt, coverImageUrl) → Post
+// Контент (title, excerpt, content, coverImageAlt) → PostTranslation (languageCode → таблиця Language)
+// Мета-дані (slug, status, publishedAt, coverImageUrl, coverImageCredit) → Post  (D44: alt — текст для читача, тож мовою сторінки)
 // Запит завжди з `lang`; fallback на default-мову (en) робить API, відповідь несе `resolvedLanguage`;
 // невідома / неактивна мова → default без 400 (LanguageService, кеш 60 с)
 ```

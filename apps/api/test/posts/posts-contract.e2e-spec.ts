@@ -11,12 +11,14 @@ const TRANSLATION_EN = {
   title: 'Arsenal win the derby',
   excerpt: 'A late winner settled a tense London derby.',
   content: 'The hosts scored in stoppage time to take all three points.',
+  coverImageAlt: 'Arsenal players celebrate the late winner',
 };
 const TRANSLATION_UK = {
   languageCode: 'uk',
   title: 'Арсенал виграв дербі',
   excerpt: 'Пізній гол вирішив напружене лондонське дербі.',
   content: 'Господарі забили в компенсований час і взяли три очки.',
+  coverImageAlt: 'Гравці «Арсенала» святкують пізній переможний гол',
 };
 
 interface CreatedPost {
@@ -53,6 +55,7 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
         status: 'PUBLISHED',
         translations: [TRANSLATION_EN, TRANSLATION_UK],
         coverImageUrl: 'https://e2e.test/cover.jpg',
+        coverImageCredit: 'Getty Images',
         videoUrl: 'https://e2e.test/video',
         sourceUrl: 'https://e2e.test/source',
         tagIds: [tag.id],
@@ -81,6 +84,8 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
     expectMatchesContract(detail, 'get', '/posts/{number}');
     expect(detail.body).toMatchObject({
       resolvedLanguage: 'uk',
+      coverImageAlt: TRANSLATION_UK.coverImageAlt,
+      coverImageCredit: 'Getty Images',
       tags: [{ slug: 'derby', name: 'Дербі' }],
       competitions: [{ slug: 'PL' }],
       clubs: [{ slug: 'arsenal' }],

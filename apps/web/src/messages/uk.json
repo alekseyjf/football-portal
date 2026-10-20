@@ -38,7 +38,8 @@
     "loading": "Завантаження статті…",
     "loadError": "Не вдалося завантажити пост",
     "by": "Автор",
-    "translationUnavailable": "Переклад недоступний — показуємо оригінал ({language})."
+    "translationUnavailable": "Переклад недоступний — показуємо оригінал ({language}).",
+    "photoCredit": "Фото: {credit}"
   },
   "likes": {
     "ariaGroup": "Реакції",

@@ -6,5 +6,5 @@ import type { ApiSchemas } from '../api-schemas';
  */
 export type PaginatedPosts = ApiSchemas['PaginatedPostsDto'];
 
-/** `GET /posts/{slug}`. Коментарі — окремо: `GET /comments/post/{postId}`. */
+/** `GET /posts/{number}`. Коментарі — окремо: `GET /comments/post/{postId}`. */
 export type PostDetail = ApiSchemas['PostDetailDto'];

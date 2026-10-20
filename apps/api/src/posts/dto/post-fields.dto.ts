@@ -6,6 +6,7 @@ import {
   ArrayUnique,
   IsArray,
   IsEnum,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Length,
@@ -16,6 +17,8 @@ import {
 import {
   POST_CONTENT_MAX_LENGTH,
   POST_CONTENT_MIN_LENGTH,
+  POST_COVER_IMAGE_ALT_MAX_LENGTH,
+  POST_COVER_IMAGE_CREDIT_MAX_LENGTH,
   POST_EXCERPT_MAX_LENGTH,
   POST_EXCERPT_MIN_LENGTH,
   POST_RELATION_IDS_MAX,
@@ -67,6 +70,19 @@ export class PostTranslationDto {
   @IsString()
   @Length(POST_CONTENT_MIN_LENGTH, POST_CONTENT_MAX_LENGTH)
   content!: string;
+
+  /**
+   * Опис обкладинки для незрячих цією мовою (`alt`): що на фото, без «Фото…» на початку. Обов'язковий
+   * у кожному перекладі, коли опублікована чи запланована новина має обкладинку. Не передано —
+   * лишається, поки адреса фото та сама; нове фото чи прибрана обкладинка старого опису не лишають.
+   * `null` — прибрати
+   */
+  @IsOptional()
+  @TrimString()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(POST_COVER_IMAGE_ALT_MAX_LENGTH)
+  coverImageAlt?: string | null;
 }
 
 /** `tagIds` / `clubIds` / `competitionIds`: чи існують — перевіряє сервіс (P3-8). */
@@ -116,10 +132,25 @@ export class PostFieldsDto {
   })
   slug?: string;
 
-  /** Обкладинка — лише https; `null` — прибрати */
+  /**
+   * Обкладинка — лише https; `null` — прибрати разом з описом і підписом. Інша адреса — інше фото:
+   * опис і підпис передати знову, старі не переносяться
+   */
   @IsOptional()
   @IsMediaUrl()
   coverImageUrl?: string | null;
+
+  /**
+   * Підпис автора фото обкладинки — фотограф і звідки фото: `Ім'я автора / Unsplash`,
+   * `Stuart MacFarlane / Getty Images` (слово «Фото:» додає сайт). Обов'язковий, коли опублікована
+   * чи запланована новина має обкладинку; не передано — лишається, поки адреса фото та сама. `null` — прибрати
+   */
+  @IsOptional()
+  @TrimString()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(POST_COVER_IMAGE_CREDIT_MAX_LENGTH)
+  coverImageCredit?: string | null;
 
   /** Лише https; `null` — прибрати */
   @IsOptional()

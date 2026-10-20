@@ -261,23 +261,25 @@ model Language {
 }
 
 model Post {
-  id            String     @id @default(cuid())
+  id               String     @id @default(cuid())
   /// Публічний номер: URL `/{locale}/news/{slug}-{number}`, пост шукаємо за ним (D24)
-  number        Int        @unique @default(autoincrement())
+  number           Int        @unique @default(autoincrement())
   /// Один slug на всі мови, з EN-заголовка; не унікальний — унікальність тримає `number` (D24)
-  slug          String
-  status        PostStatus @default(DRAFT)
-  publishedAt   DateTime?
-  coverImageUrl String?
-  videoUrl      String?
-  sourceUrl     String?
-  authorId      String
+  slug             String
+  status           PostStatus @default(DRAFT)
+  publishedAt      DateTime?
+  coverImageUrl    String?
+  /// Підпис автора фото обкладинки («Stuart MacFarlane / Getty Images»), без «Фото:» — його додає сайт (D44)
+  coverImageCredit String?
+  videoUrl         String?
+  sourceUrl        String?
+  authorId         String
   /// Денормалізовано з PostLike — оновлюється в тій самій транзакції
-  likeCount     Int        @default(0)
-  dislikeCount  Int        @default(0)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  deletedAt     DateTime?
+  likeCount        Int        @default(0)
+  dislikeCount     Int        @default(0)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
 
   author        User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
   translations  PostTranslation[]
@@ -292,13 +294,15 @@ model Post {
 }
 
 model PostTranslation {
-  postId       String
-  languageCode String
-  title        String
-  excerpt      String
-  content      String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  postId        String
+  languageCode  String
+  title         String
+  excerpt       String
+  content       String
+  /// Опис обкладинки для незрячих — мовою перекладу (D44)
+  coverImageAlt String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   language Language @relation(fields: [languageCode], references: [code])

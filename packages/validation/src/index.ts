@@ -43,6 +43,13 @@ export const POST_EXCERPT_MAX_LENGTH = 500;
 export const POST_CONTENT_MIN_LENGTH = 20;
 export const POST_CONTENT_MAX_LENGTH = 100_000;
 
+/**
+ * Обкладинка поста (D44), після trim: опис для незрячих (`alt`) — у кожному перекладі,
+ * підпис автора фото — один на пост («Stuart MacFarlane / Getty Images»).
+ */
+export const POST_COVER_IMAGE_ALT_MAX_LENGTH = 250;
+export const POST_COVER_IMAGE_CREDIT_MAX_LENGTH = 100;
+
 /** Slug поста — з EN-заголовка або явний з адмінки (D24). */
 export const POST_SLUG_MAX_LENGTH = 80;
 /** Номер поста в URL `{slug}-{number}` (D24): `Post.number` — Postgres INTEGER. */

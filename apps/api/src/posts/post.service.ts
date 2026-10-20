@@ -13,6 +13,12 @@ import { ListPostsQueryDto } from './dto/list-posts-query.dto';
 import type { PostFieldsDto, PostTranslationDto } from './dto/post-fields.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import {
+  coverImageTextToStore,
+  resolvePostCoverImage,
+  type PostCoverImageInput,
+  type PostCoverImagePhoto,
+} from './post-cover-image';
+import {
   resolvePostPublication,
   type PostPublication,
   type PostPublicationInput,
@@ -35,6 +41,7 @@ import {
 import {
   PostRepository,
   type PostEditStateRow,
+  type PostTranslationInput,
   type PublicPostScope,
 } from './post.repository';
 
@@ -130,6 +137,12 @@ export class PostService {
 
     const now = new Date();
     const publication = this.resolvePublication(dto, null, now);
+    const coverPhoto = this.resolveCoverImage({
+      current: null,
+      requested: dto,
+      status: publication.status,
+      activeLanguageCodes: languages.activeCodes,
+    });
     await this.assertRelationsExist(dto);
 
     const postRow = await this.postRepository.create({
@@ -137,10 +150,13 @@ export class PostService {
       slug: dto.slug ?? slugifyTitle(defaultTranslation.title),
       ...publication,
       coverImageUrl: dto.coverImageUrl,
+      coverImageCredit: coverImageTextToStore(dto.coverImageCredit, coverPhoto),
       videoUrl: dto.videoUrl,
       sourceUrl: dto.sourceUrl,
       authorId,
-      translations: dto.translations.map(toTranslationInput),
+      translations: dto.translations.map((translation) =>
+        toTranslationInput(translation, coverPhoto),
+      ),
       tagIds: dto.tagIds,
       clubIds: dto.clubIds,
       competitionIds: dto.competitionIds,
@@ -150,10 +166,7 @@ export class PostService {
 
   async updatePost(id: string, dto: UpdatePostDto): Promise<AdminPostDto> {
     const languages = await this.languageService.getContentLanguages();
-    const currentPost = await this.postRepository.findEditState(
-      id,
-      languages.defaultCode,
-    );
+    const currentPost = await this.postRepository.findEditState(id);
     if (!currentPost) throw new NotFoundException('POST_NOT_FOUND');
 
     if (dto.translations) {
@@ -169,6 +182,12 @@ export class PostService {
       publishedAt: currentPost.publishedAt,
     };
     const publication = this.resolvePublication(dto, currentPublication, now);
+    const coverPhoto = this.resolveCoverImage({
+      current: currentPost,
+      requested: dto,
+      status: publication.status,
+      activeLanguageCodes: languages.activeCodes,
+    });
     await this.assertRelationsExist(dto);
     const slug = updatedSlug(currentPost, dto, languages.defaultCode);
 
@@ -181,9 +200,17 @@ export class PostService {
           : publication),
         slug,
         coverImageUrl: dto.coverImageUrl,
+        coverImageCredit: coverImageTextToStore(
+          dto.coverImageCredit,
+          coverPhoto,
+        ),
         videoUrl: dto.videoUrl,
         sourceUrl: dto.sourceUrl,
-        translations: dto.translations?.map(toTranslationInput),
+        translations: dto.translations?.map((translation) =>
+          toTranslationInput(translation, coverPhoto),
+        ),
+        // Фото змінилось чи прибране — опис попереднього не лишаємо й у перекладах поза запитом
+        clearCoverImageAlts: !coverPhoto.isSamePhoto,
         tagIds: dto.tagIds,
         clubIds: dto.clubIds,
         competitionIds: dto.competitionIds,
@@ -220,6 +247,16 @@ export class PostService {
     });
     if (!result.isValid) throw new BadRequestException(result.errorCode);
     return result.publication;
+  }
+
+  /** Опис і підпис обкладинки — за правилом `resolvePostCoverImage` (D44). */
+  private resolveCoverImage(input: PostCoverImageInput): PostCoverImagePhoto {
+    const result = resolvePostCoverImage(input);
+    if (!result.isValid) throw new BadRequestException(result.errorCode);
+    return {
+      hasCoverImage: result.hasCoverImage,
+      isSamePhoto: result.isSamePhoto,
+    };
   }
 
   /** Мови перекладів — за правилом `findPostTranslationsError` (D23, P3-3). */
@@ -272,7 +309,9 @@ function updatedSlug(
     current: {
       slug: currentPost.slug,
       publishedAt: currentPost.publishedAt,
-      defaultTitle: currentPost.translations[0]?.title,
+      defaultTitle: currentPost.translations.find(
+        (translation) => translation.languageCode === defaultLanguageCode,
+      )?.title,
     },
     requestedSlug: dto.slug,
     requestedDefaultTitle: dto.translations?.find(
@@ -281,11 +320,15 @@ function updatedSlug(
   });
 }
 
-function toTranslationInput(translation: PostTranslationDto) {
+function toTranslationInput(
+  translation: PostTranslationDto,
+  coverPhoto: PostCoverImagePhoto,
+): PostTranslationInput {
   return {
     languageCode: translation.languageCode,
     title: translation.title,
     excerpt: translation.excerpt,
     content: translation.content,
+    coverImageAlt: coverImageTextToStore(translation.coverImageAlt, coverPhoto),
   };
 }
