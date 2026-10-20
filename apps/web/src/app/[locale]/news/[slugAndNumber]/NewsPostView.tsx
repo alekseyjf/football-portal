@@ -55,18 +55,26 @@ export function NewsPostView({ postNumber }: { postNumber: number }) {
 
       <article lang={post.resolvedLanguage}>
         {post.coverImageUrl && (
-          // `unoptimized` — як у стрічці (довільний хост, без серверного fetch); `eager` — LCP
-          <div className="relative w-full h-64 mb-6 overflow-hidden rounded-2xl">
-            <Image
-              src={post.coverImageUrl}
-              alt={post.title}
-              fill
-              unoptimized
-              loading="eager"
-              sizes="(min-width: 768px) 768px, 100vw"
-              className="object-cover"
-            />
-          </div>
+          <figure className="mb-6">
+            {/* `unoptimized` — як у стрічці (довільний хост, без серверного fetch); `eager` — LCP */}
+            <div className="relative w-full h-64 overflow-hidden rounded-2xl">
+              <Image
+                src={post.coverImageUrl}
+                // Опис — мовою тексту (D44); без нього — порожній, а не заголовок: його й так прочитає h1
+                alt={post.coverImageAlt ?? ''}
+                fill
+                unoptimized
+                loading="eager"
+                sizes="(min-width: 768px) 768px, 100vw"
+                className="object-cover"
+              />
+            </div>
+            {post.coverImageCredit && (
+              <figcaption className="mt-2 text-xs text-gray-400">
+                {t('photoCredit', { credit: post.coverImageCredit })}
+              </figcaption>
+            )}
+          </figure>
         )}
 
         <div className="mb-6">

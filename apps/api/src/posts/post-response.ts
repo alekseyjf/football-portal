@@ -82,6 +82,7 @@ export function toPublicPostSummary(
     slug: postRow.slug,
     publishedAt: requirePublishedAt(postRow),
     coverImageUrl: postRow.coverImageUrl,
+    coverImageAlt: translation.coverImageAlt,
     resolvedLanguage: translation.languageCode,
     title: translation.title,
     excerpt: translation.excerpt,
@@ -99,6 +100,7 @@ export function toPublicPostDetail(
   return {
     ...toPublicPostSummary(postRow, languageChoice),
     content: translation.content,
+    coverImageCredit: postRow.coverImageCredit,
     videoUrl: postRow.videoUrl,
     sourceUrl: postRow.sourceUrl,
     availableLanguages,

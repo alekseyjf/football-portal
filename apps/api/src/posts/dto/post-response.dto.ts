@@ -36,6 +36,8 @@ export class PostSummaryDto {
   slug!: string;
   publishedAt!: Date;
   coverImageUrl!: string | null;
+  /** Опис обкладинки для незрячих (`alt`) — мовою `resolvedLanguage`, як і текст */
+  coverImageAlt!: string | null;
   /** Мова, якою віддано текст */
   resolvedLanguage!: string;
   title!: string;
@@ -52,6 +54,8 @@ export class PostDetailDto extends PostSummaryDto {
    * сирий HTML ігнорує, зображення — лише https
    */
   content!: string;
+  /** Підпис автора фото обкладинки, без «Фото:» — його додає сайт мовою сторінки */
+  coverImageCredit!: string | null;
   videoUrl!: string | null;
   sourceUrl!: string | null;
   /** Мови, якими є переклад (для `hreflang`) */

@@ -63,7 +63,8 @@ export function HomeFeed() {
                   <div className="relative w-full h-48">
                     <Image
                       src={post.coverImageUrl}
-                      alt={post.title}
+                      // Опис з адмінки (D44); не заголовок — він і так поруч у картці
+                      alt={post.coverImageAlt ?? ''}
                       fill
                       unoptimized
                       sizes="(min-width: 768px) 50vw, 100vw"

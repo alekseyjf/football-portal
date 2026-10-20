@@ -15,6 +15,8 @@ import {
   PASSWORD_MIN_LENGTH,
   POST_CONTENT_MAX_LENGTH,
   POST_CONTENT_MIN_LENGTH,
+  POST_COVER_IMAGE_ALT_MAX_LENGTH,
+  POST_COVER_IMAGE_CREDIT_MAX_LENGTH,
   POST_EXCERPT_MAX_LENGTH,
   POST_EXCERPT_MIN_LENGTH,
   POST_TITLE_MAX_LENGTH,
@@ -86,6 +88,20 @@ export const postContentSchema = z
   .trim()
   .min(POST_CONTENT_MIN_LENGTH, `Content must be at least ${POST_CONTENT_MIN_LENGTH} characters`)
   .max(POST_CONTENT_MAX_LENGTH, `Content must be at most ${POST_CONTENT_MAX_LENGTH} characters`);
+
+/**
+ * Опис обкладинки для незрячих і підпис автора фото (D44). Порожні — можна: обов'язкові вони лише
+ * для публікації з обкладинкою, і це правило форма перевіряє разом з іншими полями.
+ */
+export const postCoverImageAltSchema = z
+  .string()
+  .trim()
+  .max(POST_COVER_IMAGE_ALT_MAX_LENGTH, `Alt text must be at most ${POST_COVER_IMAGE_ALT_MAX_LENGTH} characters`);
+
+export const postCoverImageCreditSchema = z
+  .string()
+  .trim()
+  .max(POST_COVER_IMAGE_CREDIT_MAX_LENGTH, `Credit must be at most ${POST_COVER_IMAGE_CREDIT_MAX_LENGTH} characters`);
 
 function hasAllowedProtocol(value: string, protocols: readonly string[]): boolean {
   try {

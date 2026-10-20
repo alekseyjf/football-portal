@@ -2,18 +2,20 @@
 
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import {
-  mediaUrlSchema,
-  postContentSchema,
-  postExcerptSchema,
-  postTitleSchema,
-} from '@football-portal/validation/forms';
 import { isApiError } from '@/lib/api/http';
-import type { PostTranslationRequest } from '@/lib/api/types';
 import { useCreatePost } from '@/hooks/useCreatePost';
+import { CoverImageFields } from './CoverImageFields';
+import {
+  createPostFormSchema,
+  hasCoverImage,
+  hasUkText,
+  toCreatePostRequest,
+  UK_FIELD_NAMES,
+  type CreatePostFormValues,
+} from './createPostFormSchema';
+import { inputClass } from './formStyles';
 
 const PUBLICATION_OPTIONS = [
   { value: 'DRAFT', label: 'Draft', hint: 'Not visible on the site' },
@@ -23,72 +25,6 @@ const PUBLICATION_OPTIONS = [
 
 type PublicationChoice = (typeof PUBLICATION_OPTIONS)[number]['value'];
 
-/** Українські поля: або всі порожні, або всі валідні за тими ж межами, що й англійські. */
-const UK_FIELD_SCHEMAS = {
-  titleUk: postTitleSchema,
-  excerptUk: postExcerptSchema,
-  contentUk: postContentSchema,
-} as const;
-const UK_FIELD_NAMES = Object.keys(UK_FIELD_SCHEMAS) as Array<
-  keyof typeof UK_FIELD_SCHEMAS
->;
-
-/** Хоч одне українське поле заповнене — переклад піде в запит (а форма вимагатиме всі поля). */
-function hasUkText(ukFieldValues: readonly string[]): boolean {
-  return ukFieldValues.some((value) => value.trim());
-}
-
-const schema = z
-  .object({
-    // Межі — зі спільного пакета: ті самі числа, що в CreatePostDto API
-    titleEn: postTitleSchema,
-    excerptEn: postExcerptSchema,
-    contentEn: postContentSchema,
-    titleUk: z.string(),
-    excerptUk: z.string(),
-    contentUk: z.string(),
-    // Лише https — як `@IsMediaUrl()` у DTO API
-    coverImageUrl: mediaUrlSchema.optional().or(z.literal('')),
-    publication: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']),
-    /** Значення `<input type="datetime-local">` — локальний час редактора */
-    scheduledAt: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (hasUkText(UK_FIELD_NAMES.map((fieldName) => values[fieldName]))) {
-      for (const fieldName of UK_FIELD_NAMES) {
-        const fieldResult = UK_FIELD_SCHEMAS[fieldName].safeParse(values[fieldName]);
-        if (!fieldResult.success) {
-          ctx.addIssue({
-            code: 'custom',
-            path: [fieldName],
-            message: values[fieldName].trim()
-              ? fieldResult.error.issues[0].message
-              : 'Fill all Ukrainian fields or leave all empty',
-          });
-        }
-      }
-    }
-
-    if (values.publication === 'SCHEDULED') {
-      const scheduledTime = new Date(values.scheduledAt).getTime();
-      if (!values.scheduledAt || Number.isNaN(scheduledTime)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['scheduledAt'],
-          message: 'Choose when the post goes live',
-        });
-      } else if (scheduledTime <= Date.now()) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['scheduledAt'],
-          message: 'Scheduled time must be in the future',
-        });
-      }
-    }
-  });
-
-type FormData = z.infer<typeof schema>;
-
 /** Коди помилок `POST /posts` → текст для редактора. */
 const SERVER_ERROR_MESSAGES: Record<string, string> = {
   SCHEDULED_AT_IN_PAST: 'Scheduled time is already in the past — pick a later time.',
@@ -96,6 +32,8 @@ const SERVER_ERROR_MESSAGES: Record<string, string> = {
   PUBLISHED_AT_IN_FUTURE: 'A published post cannot have a future date — use Schedule.',
   DEFAULT_TRANSLATION_REQUIRED: 'The English version is required.',
   UNSUPPORTED_LANGUAGE: 'One of the languages is not enabled.',
+  COVER_IMAGE_ALT_REQUIRED: 'Describe the cover photo in every language of the post — required to publish.',
+  COVER_IMAGE_CREDIT_REQUIRED: 'Credit the author of the cover photo — required to publish.',
   TOO_MANY_REQUESTS: 'Too many requests — try again in a minute.',
 };
 
@@ -103,11 +41,6 @@ function serverErrorMessage(error: unknown): string {
   if (!isApiError(error)) return 'Something went wrong';
   if (error.status === 403) return 'Access denied — admin account required.';
   return SERVER_ERROR_MESSAGES[error.code] ?? error.code;
-}
-
-/** `datetime-local` (без зони) → ISO з `Z`: браузер читає його в локальній зоні редактора. */
-function toIsoWithZone(localDateTime: string): string {
-  return new Date(localDateTime).toISOString();
 }
 
 /** Поточний момент у форматі `datetime-local` — нижня межа поля. */
@@ -119,9 +52,6 @@ function localDateTimeNow(): string {
     .slice(0, 16);
 }
 
-const inputClass = (hasError: boolean) =>
-  `w-full bg-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 outline-none border transition-colors ${hasError ? 'border-red-500' : 'border-gray-700 focus:border-green-500'}`;
-
 export function CreatePostForm() {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -132,13 +62,16 @@ export function CreatePostForm() {
     handleSubmit,
     control,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  } = useForm<CreatePostFormValues>({
+    resolver: zodResolver(createPostFormSchema),
     defaultValues: {
       titleUk: '',
       excerptUk: '',
       contentUk: '',
       coverImageUrl: '',
+      coverImageAltEn: '',
+      coverImageAltUk: '',
+      coverImageCredit: '',
       publication: 'DRAFT',
       scheduledAt: '',
     },
@@ -146,40 +79,14 @@ export function CreatePostForm() {
 
   const publication: PublicationChoice = useWatch({ control, name: 'publication' });
   const ukFieldValues = useWatch({ control, name: UK_FIELD_NAMES });
+  const coverImageUrl = useWatch({ control, name: 'coverImageUrl' });
   // Лише попередження, не блок (D23): без UK новина виходить, а термінова не чекає перекладу
   const isPublishingWithoutUk = publication !== 'DRAFT' && !hasUkText(ukFieldValues);
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: CreatePostFormValues) => {
     setServerError(null);
-    // Значення вже після trim (zod-схеми полів)
-    const translations: PostTranslationRequest[] = [
-      {
-        languageCode: 'en',
-        title: data.titleEn,
-        excerpt: data.excerptEn,
-        content: data.contentEn,
-      },
-    ];
-    if (data.titleUk.trim()) {
-      translations.push({
-        languageCode: 'uk',
-        title: data.titleUk.trim(),
-        excerpt: data.excerptUk.trim(),
-        content: data.contentUk.trim(),
-      });
-    }
-
     try {
-      await createPost({
-        translations,
-        status: data.publication,
-        ...(data.publication === 'SCHEDULED'
-          ? { publishedAt: toIsoWithZone(data.scheduledAt) }
-          : {}),
-        ...(data.coverImageUrl?.trim()
-          ? { coverImageUrl: data.coverImageUrl.trim() }
-          : {}),
-      });
+      await createPost(toCreatePostRequest(data));
       router.push('/dashboard/posts');
       router.refresh();
     } catch (err) {
@@ -239,13 +146,11 @@ export function CreatePostForm() {
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">
-          Cover image URL <span className="text-gray-500">(optional)</span>
-        </label>
-        <input {...register('coverImageUrl')} placeholder="https://…" className={inputClass(!!errors.coverImageUrl)} />
-        {errors.coverImageUrl && <p className="text-red-400 text-xs">{errors.coverImageUrl.message}</p>}
-      </div>
+      <CoverImageFields
+        register={register}
+        errors={errors}
+        hasCoverImage={hasCoverImage(coverImageUrl)}
+      />
 
       <fieldset className="space-y-3 border border-gray-800 rounded-xl p-4">
         <legend className="px-1 text-sm font-semibold text-gray-300">Publication</legend>
