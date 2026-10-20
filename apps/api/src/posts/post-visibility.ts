@@ -19,6 +19,11 @@ export function livePostWhere(now: Date): Prisma.PostWhereInput {
   };
 }
 
+/** Статус, з яким пост видимий, щойно настав `publishedAt`: PUBLISHED або SCHEDULED (P3-1). */
+export function isLivePostStatus(status: PostStatus): boolean {
+  return (LIVE_POST_STATUSES as readonly PostStatus[]).includes(status);
+}
+
 /** Чи живий пост (для адмінки й відповідей, де рядок уже прочитано). */
 export function isPostLive(
   post: {
@@ -30,7 +35,7 @@ export function isPostLive(
 ): boolean {
   return (
     post.deletedAt === null &&
-    (LIVE_POST_STATUSES as readonly PostStatus[]).includes(post.status) &&
+    isLivePostStatus(post.status) &&
     post.publishedAt !== null &&
     post.publishedAt.getTime() <= now.getTime()
   );

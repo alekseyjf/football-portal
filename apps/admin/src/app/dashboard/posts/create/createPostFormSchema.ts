@@ -57,6 +57,17 @@ const formFieldsSchema = z.object({
 export type CreatePostFormValues = z.infer<typeof formFieldsSchema>;
 type FormRefinementCtx = z.RefinementCtx<CreatePostFormValues>;
 
+/**
+ * Поля, чиї помилки залежать від цього (правила нижче), — для `register(…, { deps })`: після невдалої
+ * відправки React Hook Form перевіряє лише змінене поле, і без `deps` помилка «required to publish»
+ * лишалась би після зміни статусу, адреси фото чи української версії.
+ */
+export const DEPENDENT_FIELD_NAMES = {
+  publication: ['scheduledAt', ...COVER_IMAGE_TEXT_FIELD_NAMES],
+  coverImageUrl: COVER_IMAGE_TEXT_FIELD_NAMES,
+  ukTranslation: [...UK_FIELD_NAMES, 'coverImageAltUk'],
+} satisfies Record<string, Array<keyof CreatePostFormValues>>;
+
 function hasUkTranslation(values: CreatePostFormValues): boolean {
   return hasUkText(UK_FIELD_NAMES.map((fieldName) => values[fieldName]));
 }
@@ -149,7 +160,7 @@ export function toCreatePostRequest(values: CreatePostFormValues): CreatePostReq
       ...withCoverImageAlt(values.coverImageAltEn),
     },
   ];
-  if (values.titleUk.trim()) {
+  if (hasUkTranslation(values)) {
     translations.push({
       languageCode: 'uk',
       title: values.titleUk.trim(),

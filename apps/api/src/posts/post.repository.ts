@@ -211,14 +211,16 @@ function replaceRelation<Link>(
  */
 function updateTranslations(
   postId: string,
-  data: UpdatePostData,
+  postUpdate: UpdatePostData,
 ): Prisma.PostTranslationUpdateManyWithoutPostNestedInput | undefined {
-  if (!data.translations && !data.clearCoverImageAlts) return undefined;
-  const listedLanguageCodes = (data.translations ?? []).map(
+  if (!postUpdate.translations && !postUpdate.clearCoverImageAlts) {
+    return undefined;
+  }
+  const listedLanguageCodes = (postUpdate.translations ?? []).map(
     (translation) => translation.languageCode,
   );
   return {
-    updateMany: data.clearCoverImageAlts
+    updateMany: postUpdate.clearCoverImageAlts
       ? {
           where: {
             coverImageAlt: { not: null },
@@ -227,7 +229,7 @@ function updateTranslations(
           data: { coverImageAlt: null },
         }
       : undefined,
-    upsert: data.translations?.map((translation) => ({
+    upsert: postUpdate.translations?.map((translation) => ({
       where: {
         postId_languageCode: { postId, languageCode: translation.languageCode },
       },

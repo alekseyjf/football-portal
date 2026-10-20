@@ -60,10 +60,10 @@ export function HomeFeed() {
                 {post.coverImageUrl && (
                   // `unoptimized`: обкладинка — довільний https-хост із адмінки; оптимізація
                   // Next = серверний fetch чужого URL (SSRF, див. API `url-field.decorators.ts`)
-                  <div className="relative w-full h-48">
+                  <div className="relative w-full h-48" lang={post.resolvedLanguage}>
                     <Image
                       src={post.coverImageUrl}
-                      // Опис з адмінки (D44); не заголовок — він і так поруч у картці
+                      // Опис з адмінки (D44) — мовою тексту картки, звідси `lang`; не заголовок — він і так поруч
                       alt={post.coverImageAlt ?? ''}
                       fill
                       unoptimized

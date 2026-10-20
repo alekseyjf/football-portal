@@ -53,11 +53,15 @@ export function NewsPostView({ postNumber }: { postNumber: number }) {
         </p>
       )}
 
-      <article lang={post.resolvedLanguage}>
+      {/* `lang` — лише на тексті новини: без перекладу він мовою оригіналу, а «Фото:», автор і дата — мовою сторінки */}
+      <article>
         {post.coverImageUrl && (
           <figure className="mb-6">
             {/* `unoptimized` — як у стрічці (довільний хост, без серверного fetch); `eager` — LCP */}
-            <div className="relative w-full h-64 overflow-hidden rounded-2xl">
+            <div
+              className="relative w-full h-64 overflow-hidden rounded-2xl"
+              lang={post.resolvedLanguage}
+            >
               <Image
                 src={post.coverImageUrl}
                 // Опис — мовою тексту (D44); без нього — порожній, а не заголовок: його й так прочитає h1
@@ -78,7 +82,9 @@ export function NewsPostView({ postNumber }: { postNumber: number }) {
         )}
 
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-3">{post.title}</h1>
+          <h1 lang={post.resolvedLanguage} className="text-3xl font-bold mb-3">
+            {post.title}
+          </h1>
           <div className="flex items-center gap-3 text-sm text-gray-400">
             <span>
               {t('by')} {authorDisplayName(post.author)}
@@ -94,14 +100,16 @@ export function NewsPostView({ postNumber }: { postNumber: number }) {
           </div>
         </div>
 
-        <p className="text-gray-300 text-lg leading-relaxed mb-6 border-l-4 border-green-500 pl-4 italic">
-          {post.excerpt}
-        </p>
-
-        <div className="prose prose-invert max-w-none">
-          <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
-            {post.content}
+        <div lang={post.resolvedLanguage}>
+          <p className="text-gray-300 text-lg leading-relaxed mb-6 border-l-4 border-green-500 pl-4 italic">
+            {post.excerpt}
           </p>
+
+          <div className="prose prose-invert max-w-none">
+            <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
+              {post.content}
+            </p>
+          </div>
         </div>
 
         <div className="mt-8 flex items-center">
