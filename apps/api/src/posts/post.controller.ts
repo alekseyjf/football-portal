@@ -26,7 +26,11 @@ import { PostService } from './post.service';
 export class PostController {
   constructor(private postService: PostService) {}
 
-  /** Стрічка опублікованих новин, новіші першими. */
+  /**
+   * Стрічка опублікованих новин, новіші першими.
+   * @remarks Фільтри `tags`, `competition`, `club`: усередині фільтра — будь-який зі slug-ів, між фільтрами — «і»
+   * (`?tags=transfers&club=arsenal` — трансфери «Арсенала»). Невідомий slug — порожня сторінка, а не 400.
+   */
   @Get()
   getPosts(@Query() query: ListPostsQueryDto): Promise<PaginatedPostsDto> {
     return this.postService.getPublicPosts(query);

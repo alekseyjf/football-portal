@@ -3,6 +3,7 @@ import type { PostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { publicTagSelect } from '../tags/tag.repository';
 import { PUBLIC_AUTHOR_SELECT } from '../users/public-author';
+import { postFeedFilterWhere, type PostFeedFilters } from './post-feed-filter';
 import { publicPostWhere, type PublicPostScope } from './post-visibility';
 
 /**
@@ -127,6 +128,14 @@ export type PostEditStateRow = Prisma.PostGetPayload<{
   select: typeof POST_EDIT_STATE_SELECT;
 }>;
 
+export interface PublicPostPageQuery {
+  scope: PublicPostScope;
+  filters: PostFeedFilters;
+  /** Мови перекладів: запитана + default */
+  languageCodes: string[];
+  pagination: { skip: number; take: number };
+}
+
 export interface PostTranslationInput {
   languageCode: string;
   title: string;
@@ -230,20 +239,24 @@ function updateTranslations(
 export class PostRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Сторінка стрічки й кількість новин за тим самим `where` — з фільтрами (D45, D46). */
   async findPublicPage(
-    scope: PublicPostScope,
-    languageCodes: string[],
-    pagination: { skip: number; take: number },
+    pageQuery: PublicPostPageQuery,
   ): Promise<{ posts: PostSummaryRow[]; total: number }> {
-    const where = publicPostWhere(scope);
+    const where: Prisma.PostWhereInput = {
+      AND: [
+        publicPostWhere(pageQuery.scope),
+        postFeedFilterWhere(pageQuery.filters),
+      ],
+    };
     const [posts, total] = await Promise.all([
       this.prisma.post.findMany({
         where,
-        select: postSummarySelect(languageCodes),
+        select: postSummarySelect(pageQuery.languageCodes),
         // id — стабільний порядок пагінації при однаковій даті
         orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
-        skip: pagination.skip,
-        take: pagination.take,
+        skip: pageQuery.pagination.skip,
+        take: pageQuery.pagination.take,
       }),
       this.prisma.post.count({ where }),
     ]);
