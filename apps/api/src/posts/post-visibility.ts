@@ -19,6 +19,23 @@ export function livePostWhere(now: Date): Prisma.PostWhereInput {
   };
 }
 
+/** Що бачить публіка: живий пост (P3-1) з перекладом default-мови (P3-5). */
+export interface PublicPostScope {
+  now: Date;
+  defaultLanguageCode: string;
+}
+
+/**
+ * Пост, який віддають `GET /posts` і `GET /posts/{number}`: живий і з перекладом default-мови (P3-5).
+ * Те саме правило — у публічному списку тегів: тег є у фільтрі, лише якщо стрічка з ним не порожня (D45).
+ */
+export function publicPostWhere(scope: PublicPostScope): Prisma.PostWhereInput {
+  return {
+    ...livePostWhere(scope.now),
+    translations: { some: { languageCode: scope.defaultLanguageCode } },
+  };
+}
+
 /** Статус, з яким пост видимий, щойно настав `publishedAt`: PUBLISHED або SCHEDULED (P3-1). */
 export function isLivePostStatus(status: PostStatus): boolean {
   return (LIVE_POST_STATUSES as readonly PostStatus[]).includes(status);

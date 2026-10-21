@@ -27,27 +27,21 @@ import {
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
 } from '@football-portal/validation';
+import { SLUG_PATTERN } from '../../common/slug';
 import { IsIsoDateTimeWithZone } from '../../common/validation/iso-date-time.decorator';
 import { TrimString } from '../../common/validation/trim-string.transform';
 import {
   IsMediaUrl,
   IsSourceUrl,
 } from '../../common/validation/url-field.decorators';
-import { POST_SLUG_PATTERN } from '../post-slug';
-
-/** Максимум перекладів в одному запиті — захист від величезних тіл, не бізнес-правило. */
-export const POST_TRANSLATIONS_MAX = 10;
-
-/** Формат `Language.code` (`en`, `uk`); чи мова активна — перевіряє сервіс (P3-3). */
-const LANGUAGE_CODE_PATTERN = /^[a-z]{2,8}$/;
+import { IsTranslationLanguageCode } from '../../languages/dto/translation-fields';
 
 /** Максимальна довжина id (cuid) у масивах зв'язків. */
 const RELATION_ID_MAX_LENGTH = 64;
 
 export class PostTranslationDto {
   /** Код мови (`en`, `uk`); мова має бути увімкнена */
-  @IsString()
-  @Matches(LANGUAGE_CODE_PATTERN, { message: 'languageCode must be like "en"' })
+  @IsTranslationLanguageCode()
   languageCode!: string;
 
   @TrimString()
@@ -123,11 +117,11 @@ export class PostFieldsDto {
    * і поки в новини немає дати публікації, slug іде за заголовком; далі змінюється лише так, явно
    */
   // `null` → 400 (а не «не передано»): slug у новини є завжди, прибрати його не можна
-  @ApiPropertyOptional({ pattern: POST_SLUG_PATTERN.source })
+  @ApiPropertyOptional({ pattern: SLUG_PATTERN.source })
   @ValidateIf((_dto, value) => value !== undefined)
   @IsString()
   @MaxLength(POST_SLUG_MAX_LENGTH)
-  @Matches(POST_SLUG_PATTERN, {
+  @Matches(SLUG_PATTERN, {
     message:
       'slug must be lowercase latin letters and digits joined by single hyphens',
   })

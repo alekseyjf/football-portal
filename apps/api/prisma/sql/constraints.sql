@@ -23,6 +23,17 @@ ALTER TABLE "Post"
   ADD CONSTRAINT "Post_published_has_date_check"
   CHECK ("status" NOT IN ('PUBLISHED', 'SCHEDULED') OR "publishedAt" IS NOT NULL);
 
+-- Tag: slug — адреса сторінки тегу, не змінюється (D45): латиниця в нижньому регістрі й цифри,
+-- слова через один дефіс, до 50 символів — як SLUG_PATTERN і TAG_SLUG_MAX_LENGTH в API
+ALTER TABLE "Tag"
+  ADD CONSTRAINT "Tag_slug_format_check"
+  CHECK ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length("slug") <= 50);
+
+-- TagTranslation: назва — не з самих пробілів і до 50 символів (TAG_NAME_MAX_LENGTH); мінімум (2) і trim — в API
+ALTER TABLE "TagTranslation"
+  ADD CONSTRAINT "TagTranslation_name_check"
+  CHECK (btrim("name") <> '' AND char_length("name") <= 50);
+
 -- Рівно одна мова за замовчуванням
 CREATE UNIQUE INDEX "Language_single_default_idx"
   ON "Language" ("isDefault") WHERE "isDefault" = true;

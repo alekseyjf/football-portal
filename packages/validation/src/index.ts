@@ -60,6 +60,12 @@ export const POST_NUMBER_MAX = 2_147_483_647;
 /** Скільки тегів / клубів / турнірів можна прив'язати до одного поста. */
 export const POST_RELATION_IDS_MAX = 20;
 
+/** Назва тегу кожною мовою, після trim: коротка тема для чипа («Трансфери», «Звіти з матчів»), D45. */
+export const TAG_NAME_MIN_LENGTH = 2;
+export const TAG_NAME_MAX_LENGTH = 50;
+/** Slug тегу — з EN-назви або явний при створенні; адреса сторінки тегу, не змінюється (D45). */
+export const TAG_SLUG_MAX_LENGTH = 50;
+
 /** Сторінка публічної стрічки (`GET /posts?limit=`). */
 export const POSTS_PAGE_LIMIT_MAX = 50;
 
