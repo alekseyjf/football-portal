@@ -1,11 +1,5 @@
+import { TagDto } from '../../tags/dto/tag-response.dto';
 import { PublicAuthorDto } from '../../users/dto/public-author-response.dto';
-
-/** Тег; назва — запитаною мовою (немає — default-мовою, далі slug). */
-export class PostTagDto {
-  id!: string;
-  slug!: string;
-  name!: string;
-}
 
 /** Турнір, до якого прив'язана новина. */
 export class PostCompetitionDto {
@@ -44,7 +38,7 @@ export class PostSummaryDto {
   /** Анонс — простий текст, без Markdown */
   excerpt!: string;
   author!: PublicAuthorDto;
-  tags!: PostTagDto[];
+  tags!: TagDto[];
 }
 
 /** Новина з текстом. Коментарі — окремо: `GET /comments/post/{postId}`. */

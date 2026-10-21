@@ -6,11 +6,8 @@ import {
   IsOptional,
   ValidateNested,
 } from 'class-validator';
-import {
-  POST_TRANSLATIONS_MAX,
-  PostFieldsDto,
-  PostTranslationDto,
-} from './post-fields.dto';
+import { TRANSLATIONS_PER_REQUEST_MAX } from '../../languages/dto/translation-fields';
+import { PostFieldsDto, PostTranslationDto } from './post-fields.dto';
 
 /**
  * `PUT /posts/:id` (ADMIN). Переклади — upsert за мовою (кожен повністю: title, excerpt,
@@ -25,7 +22,7 @@ export class UpdatePostDto extends PostFieldsDto {
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(POST_TRANSLATIONS_MAX)
+  @ArrayMaxSize(TRANSLATIONS_PER_REQUEST_MAX)
   @ValidateNested({ each: true })
   @Type(() => PostTranslationDto)
   translations?: PostTranslationDto[];

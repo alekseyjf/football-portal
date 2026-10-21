@@ -5,6 +5,7 @@ import { envConfig } from './config/env.config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { PostModule } from './posts/post.module';
+import { TagModule } from './tags/tag.module';
 import { CommentModule } from './comments/comment.module';
 import { FootballModule } from './football/football.module';
 import { HealthModule } from './health/health.module';
@@ -28,6 +29,7 @@ import { UserManagementModule } from './users/management/user-management.module'
     SecurityModule,
     UserManagementModule,
     PostModule,
+    TagModule,
     CommentModule,
     FootballModule,
     LikeModule,

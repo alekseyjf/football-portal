@@ -7,7 +7,15 @@ import {
   LanguageService,
   type ContentLanguageChoice,
 } from '../languages/language.service';
-import { isRecordNotFound } from '../prisma/prisma-errors';
+import { languageCodesToLoad } from '../languages/translation-fallback';
+import {
+  findTranslationLanguagesError,
+  type TranslationLanguagesInput,
+} from '../languages/translation-languages';
+import {
+  isForeignKeyViolation,
+  isRecordNotFound,
+} from '../prisma/prisma-errors';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ListPostsQueryDto } from './dto/list-posts-query.dto';
 import type { PostFieldsDto, PostTranslationDto } from './dto/post-fields.dto';
@@ -39,22 +47,12 @@ import {
   type PostSourceInput,
   type PostSourceWrite,
 } from './post-source';
-import {
-  findPostTranslationsError,
-  type PostTranslationsInput,
-} from './post-translations';
+import type { PublicPostScope } from './post-visibility';
 import {
   PostRepository,
   type PostEditStateRow,
   type PostTranslationInput,
-  type PublicPostScope,
 } from './post.repository';
-
-function languageCodesToLoad(languageChoice: ContentLanguageChoice): string[] {
-  return [
-    ...new Set([languageChoice.requestedCode, languageChoice.defaultCode]),
-  ];
-}
 
 function publicScope(
   languageChoice: ContentLanguageChoice,
@@ -132,7 +130,7 @@ export class PostService {
     const languages = await this.languageService.getContentLanguages();
     this.assertTranslationsAllowed({
       translations: dto.translations,
-      isNewPost: true,
+      isNew: true,
       languages,
     });
     // Переклад default-мови є: без нього assertTranslationsAllowed кидає 400
@@ -151,24 +149,32 @@ export class PostService {
     const source = this.resolveSource({ current: null, requested: dto });
     await this.assertRelationsExist(dto);
 
-    const postRow = await this.postRepository.create({
-      // Унікальність не потрібна: новину визначає номер (D24)
-      slug: dto.slug ?? slugifyTitle(defaultTranslation.title),
-      ...publication,
-      coverImageUrl: dto.coverImageUrl,
-      coverImageCredit: coverImageTextToStore(dto.coverImageCredit, coverPhoto),
-      videoUrl: dto.videoUrl,
-      sourceUrl: source.sourceUrl,
-      sourceName: source.sourceName,
-      authorId,
-      translations: dto.translations.map((translation) =>
-        toTranslationInput(translation, coverPhoto),
-      ),
-      tagIds: dto.tagIds,
-      clubIds: dto.clubIds,
-      competitionIds: dto.competitionIds,
-    });
-    return toAdminPostView(postRow, now);
+    try {
+      const postRow = await this.postRepository.create({
+        // Унікальність не потрібна: новину визначає номер (D24)
+        slug: dto.slug ?? slugifyTitle(defaultTranslation.title),
+        ...publication,
+        coverImageUrl: dto.coverImageUrl,
+        coverImageCredit: coverImageTextToStore(
+          dto.coverImageCredit,
+          coverPhoto,
+        ),
+        videoUrl: dto.videoUrl,
+        sourceUrl: source.sourceUrl,
+        sourceName: source.sourceName,
+        authorId,
+        translations: dto.translations.map((translation) =>
+          toTranslationInput(translation, coverPhoto),
+        ),
+        tagIds: dto.tagIds,
+        clubIds: dto.clubIds,
+        competitionIds: dto.competitionIds,
+      });
+      return toAdminPostView(postRow, now);
+    } catch (error) {
+      await this.throwIfRelationVanished(error, dto);
+      throw error;
+    }
   }
 
   async updatePost(id: string, dto: UpdatePostDto): Promise<AdminPostDto> {
@@ -179,7 +185,7 @@ export class PostService {
     if (dto.translations) {
       this.assertTranslationsAllowed({
         translations: dto.translations,
-        isNewPost: false,
+        isNew: false,
         languages,
       });
     }
@@ -230,6 +236,7 @@ export class PostService {
       if (isRecordNotFound(error)) {
         throw new NotFoundException('POST_NOT_FOUND');
       }
+      await this.throwIfRelationVanished(error, dto);
       throw error;
     }
   }
@@ -275,9 +282,9 @@ export class PostService {
     return result.source;
   }
 
-  /** Мови перекладів — за правилом `findPostTranslationsError` (D23, P3-3). */
-  private assertTranslationsAllowed(input: PostTranslationsInput): void {
-    const errorCode = findPostTranslationsError(input);
+  /** Мови перекладів — за правилом `findTranslationLanguagesError` (D23, P3-3). */
+  private assertTranslationsAllowed(input: TranslationLanguagesInput): void {
+    const errorCode = findTranslationLanguagesError(input);
     if (errorCode) throw new BadRequestException(errorCode);
   }
 
@@ -302,6 +309,17 @@ export class PostService {
     if (existingCounts.competitions !== competitionIds.length) {
       throw new BadRequestException('UNKNOWN_COMPETITION');
     }
+  }
+
+  /**
+   * Запис упав на FK, бо тег видалили між `assertRelationsExist` і записом (D45): повторна перевірка дає
+   * ту саму відповідь, що й без гонки, — 400 UNKNOWN_TAG. Інша помилка — далі кидає той, хто викликав.
+   */
+  private async throwIfRelationVanished(
+    error: unknown,
+    dto: PostFieldsDto,
+  ): Promise<void> {
+    if (isForeignKeyViolation(error)) await this.assertRelationsExist(dto);
   }
 }
 

@@ -1,11 +1,9 @@
 import type { ContentLanguageChoice } from '../languages/language.service';
+import { pickTranslation } from '../languages/translation-fallback';
+import { toPublicTag } from '../tags/tag-response';
 import { toPublicAuthor } from '../users/public-author';
 import type { AdminPostDto } from './dto/admin-post-response.dto';
-import type {
-  PostDetailDto,
-  PostSummaryDto,
-  PostTagDto,
-} from './dto/post-response.dto';
+import type { PostDetailDto, PostSummaryDto } from './dto/post-response.dto';
 import { isPostLive } from './post-visibility';
 import type {
   AdminPostRow,
@@ -18,22 +16,6 @@ import type {
  * розгорнуто з fallback на default-мову (P3-4); `resolvedLanguage` ≠ запитаній → UI показує
  * «переклад недоступний».
  */
-
-/** Запитана мова → default (розділ 8). */
-function pickTranslation<Translation extends { languageCode: string }>(
-  translations: Translation[],
-  languageChoice: ContentLanguageChoice,
-): Translation | undefined {
-  return (
-    translations.find(
-      (translation) =>
-        translation.languageCode === languageChoice.requestedCode,
-    ) ??
-    translations.find(
-      (translation) => translation.languageCode === languageChoice.defaultCode,
-    )
-  );
-}
 
 function requireTranslation<Translation extends { languageCode: string }>(
   postRow: { id: string; translations: Translation[] },
@@ -58,19 +40,6 @@ function requirePublishedAt(postRow: {
   return postRow.publishedAt;
 }
 
-function toTagView(
-  tagLink: PostSummaryRow['tags'][number],
-  languageChoice: ContentLanguageChoice,
-): PostTagDto {
-  const { tag } = tagLink;
-  return {
-    id: tag.id,
-    slug: tag.slug,
-    // Тег без перекладу жодною з двох мов — показуємо slug, а не порожнє місце (D17)
-    name: pickTranslation(tag.translations, languageChoice)?.name ?? tag.slug,
-  };
-}
-
 export function toPublicPostSummary(
   postRow: PostSummaryRow,
   languageChoice: ContentLanguageChoice,
@@ -87,7 +56,9 @@ export function toPublicPostSummary(
     title: translation.title,
     excerpt: translation.excerpt,
     author: toPublicAuthor(postRow.author),
-    tags: postRow.tags.map((tagLink) => toTagView(tagLink, languageChoice)),
+    tags: postRow.tags.map((tagLink) =>
+      toPublicTag(tagLink.tag, languageChoice),
+    ),
   };
 }
 

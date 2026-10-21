@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { PostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { publicTagSelect } from '../tags/tag.repository';
 import { PUBLIC_AUTHOR_SELECT } from '../users/public-author';
-import { livePostWhere } from './post-visibility';
+import { publicPostWhere, type PublicPostScope } from './post-visibility';
 
 /**
  * Переклади лише потрібних мов (запитана + default, розділ 8): з N мовами
@@ -30,18 +31,7 @@ function postSummarySelect(languageCodes: string[]) {
       },
     },
     tags: {
-      select: {
-        tag: {
-          select: {
-            id: true,
-            slug: true,
-            translations: {
-              where: translationsIn(languageCodes),
-              select: { languageCode: true, name: true },
-            },
-          },
-        },
-      },
+      select: { tag: { select: publicTagSelect(languageCodes) } },
       orderBy: { tag: { slug: 'asc' } },
     },
   } satisfies Prisma.PostSelect;
@@ -137,12 +127,6 @@ export type PostEditStateRow = Prisma.PostGetPayload<{
   select: typeof POST_EDIT_STATE_SELECT;
 }>;
 
-/** Що бачить публіка: живий пост (P3-1) з перекладом default-мови (P3-5). */
-export interface PublicPostScope {
-  now: Date;
-  defaultLanguageCode: string;
-}
-
 export interface PostTranslationInput {
   languageCode: string;
   title: string;
@@ -186,13 +170,6 @@ export interface UpdatePostData extends PostRelationIds {
   translations?: PostTranslationInput[];
   /** Фото обкладинки змінилось чи прибране — прибрати опис у перекладах, яких немає в масиві (D44) */
   clearCoverImageAlts?: boolean;
-}
-
-function publicPostWhere(scope: PublicPostScope): Prisma.PostWhereInput {
-  return {
-    ...livePostWhere(scope.now),
-    translations: { some: { languageCode: scope.defaultLanguageCode } },
-  };
 }
 
 function createRelation<Link>(

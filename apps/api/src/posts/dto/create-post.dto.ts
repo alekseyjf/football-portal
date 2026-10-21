@@ -5,11 +5,8 @@ import {
   IsArray,
   ValidateNested,
 } from 'class-validator';
-import {
-  POST_TRANSLATIONS_MAX,
-  PostFieldsDto,
-  PostTranslationDto,
-} from './post-fields.dto';
+import { TRANSLATIONS_PER_REQUEST_MAX } from '../../languages/dto/translation-fields';
+import { PostFieldsDto, PostTranslationDto } from './post-fields.dto';
 
 export { PostTranslationDto } from './post-fields.dto';
 
@@ -21,7 +18,7 @@ export class CreatePostDto extends PostFieldsDto {
   /** Переклади, кожна мова — один раз; англійський (default) — обов'язковий */
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(POST_TRANSLATIONS_MAX)
+  @ArrayMaxSize(TRANSLATIONS_PER_REQUEST_MAX)
   @ValidateNested({ each: true })
   @Type(() => PostTranslationDto)
   translations!: PostTranslationDto[];
