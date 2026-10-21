@@ -11,6 +11,7 @@ export type {
   FootballSyncAccepted,
   LoginRequest,
   MessageResponse,
+  PaginatedAdminPosts,
   PostTranslationRequest,
   SyncRun,
   SyncRunStats,

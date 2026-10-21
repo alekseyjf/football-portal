@@ -8,12 +8,11 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { PAGE_NUMBER_MAX } from '@football-portal/validation';
 import { SeasonQueryDto } from './season-query.dto';
 
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;
-/** `skip` у межах int64 (як у `ListPostsQueryDto`) */
-const MAX_PAGE = 100_000;
 
 /** `GET /football/leagues/:slug/matches?season=&stage=&page=&limit=` */
 export class LeagueMatchesQueryDto extends SeasonQueryDto {
@@ -29,7 +28,7 @@ export class LeagueMatchesQueryDto extends SeasonQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(MAX_PAGE)
+  @Max(PAGE_NUMBER_MAX)
   page: number = 1;
 
   @ApiPropertyOptional({ type: 'integer' })

@@ -27,6 +27,7 @@ const SIGNED_IN_ROUTES: Route[] = [
 /** Лише для ADMIN (`@AdminOnly()`). */
 const ADMIN_ROUTES: Route[] = [
   { method: 'get', path: '/posts/admin/all' },
+  { method: 'get', path: '/posts/admin/{id}' },
   { method: 'post', path: '/posts' },
   { method: 'put', path: '/posts/{id}' },
   { method: 'delete', path: '/posts/{id}' },

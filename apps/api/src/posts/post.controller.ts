@@ -13,18 +13,30 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AdminOnly } from '../auth/guards/access.decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { ContentLanguageQueryDto } from '../languages/dto/content-language-query.dto';
-import { AdminPostDto, DeletedPostDto } from './dto/admin-post-response.dto';
+import {
+  AdminPostDetailDto,
+  AdminPostDto,
+  DeletedPostDto,
+  PaginatedAdminPostsDto,
+} from './dto/admin-post-response.dto';
 import { CreatePostDto } from './dto/create-post.dto';
+import { ListAdminPostsQueryDto } from './dto/list-admin-posts-query.dto';
 import { ListPostsQueryDto } from './dto/list-posts-query.dto';
 import { PostNumberParamDto } from './dto/post-number-param.dto';
 import { PaginatedPostsDto, PostDetailDto } from './dto/post-response.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { PostService } from './post.service';
+import { AdminPostService } from './admin-post.service';
+import { PostEditorService } from './post-editor.service';
+import { PublicPostService } from './public-post.service';
 
 @ApiTags('posts')
 @Controller('posts')
 export class PostController {
-  constructor(private postService: PostService) {}
+  constructor(
+    private publicPostService: PublicPostService,
+    private adminPostService: AdminPostService,
+    private postEditorService: PostEditorService,
+  ) {}
 
   /**
    * Стрічка опублікованих новин, новіші першими.
@@ -33,14 +45,31 @@ export class PostController {
    */
   @Get()
   getPosts(@Query() query: ListPostsQueryDto): Promise<PaginatedPostsDto> {
-    return this.postService.getPublicPosts(query);
+    return this.publicPostService.getPublicPosts(query);
   }
 
-  /** Усі новини для адмінки (крім видалених), заголовки всіма мовами. */
+  /**
+   * Список новин для адмінки — сторінками, нові першими: будь-який статус, крім видалених, заголовки всіма мовами.
+   * @remarks `status` — як показує адмінка: запланована новина, чия дата настала, — серед PUBLISHED.
+   * `search` — частина заголовка будь-якою мовою, без урахування регістру. Фільтри разом — «і».
+   */
+  // Раніше за `admin/:id`: інакше `all` дістався б йому як id
   @Get('admin/all')
   @AdminOnly()
-  getAllForAdmin(): Promise<AdminPostDto[]> {
-    return this.postService.getAllForAdmin();
+  getAdminPostPage(
+    @Query() query: ListAdminPostsQueryDto,
+  ): Promise<PaginatedAdminPostsDto> {
+    return this.adminPostService.getAdminPostPage(query);
+  }
+
+  /**
+   * Новина для форми редагування — будь-якого статусу: усі переклади з текстом, медіа, джерело, теги, турніри, клуби.
+   * @throws {404} POST_NOT_FOUND — немає або видалена
+   */
+  @Get('admin/:id')
+  @AdminOnly()
+  getAdminPostById(@Param('id') id: string): Promise<AdminPostDetailDto> {
+    return this.adminPostService.getAdminPostById(id);
   }
 
   /**
@@ -54,7 +83,10 @@ export class PostController {
     @Param() params: PostNumberParamDto,
     @Query() query: ContentLanguageQueryDto,
   ): Promise<PostDetailDto> {
-    return this.postService.getPublicPostByNumber(params.number, query.lang);
+    return this.publicPostService.getPublicPostByNumber(
+      params.number,
+      query.lang,
+    );
   }
 
   /**
@@ -67,7 +99,7 @@ export class PostController {
     @Body() dto: CreatePostDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AdminPostDto> {
-    return this.postService.createPost(dto, user.id);
+    return this.postEditorService.createPost(dto, user.id);
   }
 
   /**
@@ -82,7 +114,7 @@ export class PostController {
     @Param('id') id: string,
     @Body() dto: UpdatePostDto,
   ): Promise<AdminPostDto> {
-    return this.postService.updatePost(id, dto);
+    return this.postEditorService.updatePost(id, dto);
   }
 
   /**
@@ -92,6 +124,6 @@ export class PostController {
   @Delete(':id')
   @AdminOnly()
   deletePost(@Param('id') id: string): Promise<DeletedPostDto> {
-    return this.postService.deletePost(id);
+    return this.postEditorService.deletePost(id);
   }
 }

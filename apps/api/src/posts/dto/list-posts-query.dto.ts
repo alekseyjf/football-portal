@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import {
+  PAGE_NUMBER_MAX,
   POSTS_FILTER_VALUES_MAX,
   POSTS_PAGE_LIMIT_MAX,
   TAG_SLUG_MAX_LENGTH,
@@ -14,8 +15,6 @@ import {
 import { ContentLanguageQueryDto } from '../../languages/dto/content-language-query.dto';
 
 const DEFAULT_PAGE_LIMIT = 10;
-/** `?page=1e20` → `skip` не влазить в int64 → 500 у Prisma; 100 000 сторінок — з запасом. */
-const MAX_PAGE = 100_000;
 
 /** Slug тегу — як у `GET /tags/{slug}` (D45). */
 const TAG_FILTER: SlugListRule = {
@@ -47,7 +46,7 @@ export class ListPostsQueryDto extends ContentLanguageQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(MAX_PAGE)
+  @Max(PAGE_NUMBER_MAX)
   page: number = 1;
 
   @ApiPropertyOptional({ type: 'integer' })

@@ -22,6 +22,17 @@ export class SeasonDto {
   endDate!: string;
 }
 
+/**
+ * Турнір-посилання — формат чипа в адмінці: прив'язка новини, вибір турнірів, турніри клубу в пошуку
+ * (M1.4.8). Не плутати з `CompetitionExternalRef` — id турніру в провайдера.
+ */
+export class CompetitionRefDto {
+  id!: string;
+  /** Наш код турніру (`PL`, `CL`) */
+  slug!: string;
+  name!: string;
+}
+
 /** Турнір. */
 export class LeagueDto {
   id!: string;

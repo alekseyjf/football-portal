@@ -3,11 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  LanguageService,
-  type ContentLanguageChoice,
-} from '../languages/language.service';
-import { languageCodesToLoad } from '../languages/translation-fallback';
+import { LanguageService } from '../languages/language.service';
 import {
   findTranslationLanguagesError,
   type TranslationLanguagesInput,
@@ -16,8 +12,12 @@ import {
   isForeignKeyViolation,
   isRecordNotFound,
 } from '../prisma/prisma-errors';
+import {
+  AdminPostRepository,
+  type PostEditStateRow,
+  type PostTranslationInput,
+} from './admin-post.repository';
 import { CreatePostDto } from './dto/create-post.dto';
-import { ListPostsQueryDto } from './dto/list-posts-query.dto';
 import type { PostFieldsDto, PostTranslationDto } from './dto/post-fields.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import {
@@ -35,94 +35,24 @@ import type {
   AdminPostDto,
   DeletedPostDto,
 } from './dto/admin-post-response.dto';
-import type { PaginatedPostsDto, PostDetailDto } from './dto/post-response.dto';
-import {
-  toAdminPostView,
-  toPublicPostDetail,
-  toPublicPostSummary,
-} from './post-response';
+import { toAdminPostView } from './post-response';
 import { resolveUpdatedPostSlug, slugifyTitle } from './post-slug';
 import {
   resolvePostSource,
   type PostSourceInput,
   type PostSourceWrite,
 } from './post-source';
-import type { PublicPostScope } from './post-visibility';
-import {
-  PostRepository,
-  type PostEditStateRow,
-  type PostTranslationInput,
-} from './post.repository';
 
-function publicScope(
-  languageChoice: ContentLanguageChoice,
-  now: Date,
-): PublicPostScope {
-  return { now, defaultLanguageCode: languageChoice.defaultCode };
-}
-
+/**
+ * Редагування новин адміном: створення, зміна, видалення. Правила полів — чисті функції
+ * (`resolvePostPublication`, `resolvePostCoverImage`, `resolvePostSource`, `resolveUpdatedPostSlug`).
+ */
 @Injectable()
-export class PostService {
+export class PostEditorService {
   constructor(
-    private readonly postRepository: PostRepository,
+    private readonly adminPostRepository: AdminPostRepository,
     private readonly languageService: LanguageService,
   ) {}
-
-  async getPublicPosts(query: ListPostsQueryDto): Promise<PaginatedPostsDto> {
-    const languageChoice = await this.languageService.chooseContentLanguage(
-      query.lang,
-    );
-    const { posts, total } = await this.postRepository.findPublicPage({
-      scope: publicScope(languageChoice, new Date()),
-      filters: query,
-      languageCodes: languageCodesToLoad(languageChoice),
-      pagination: { skip: (query.page - 1) * query.limit, take: query.limit },
-    });
-    return {
-      data: posts.map((postRow) =>
-        toPublicPostSummary(postRow, languageChoice),
-      ),
-      total,
-      page: query.page,
-      limit: query.limit,
-      totalPages: Math.ceil(total / query.limit),
-    };
-  }
-
-  async getPublicPostByNumber(
-    postNumber: number,
-    requestedLang: unknown,
-  ): Promise<PostDetailDto> {
-    const [languageChoice, { activeCodes }] = await Promise.all([
-      this.languageService.chooseContentLanguage(requestedLang),
-      this.languageService.getContentLanguages(),
-    ]);
-    const scope = publicScope(languageChoice, new Date());
-    const [postRow, translationLanguages] = await Promise.all([
-      this.postRepository.findPublicByNumber(
-        postNumber,
-        scope,
-        languageCodesToLoad(languageChoice),
-      ),
-      this.postRepository.findPublicTranslationLanguages(postNumber, scope),
-    ]);
-    if (!postRow) throw new NotFoundException('POST_NOT_FOUND');
-
-    return toPublicPostDetail(
-      postRow,
-      languageChoice,
-      // Переклад вимкненою мовою не рекламуємо в hreflang
-      translationLanguages.filter((languageCode) =>
-        activeCodes.has(languageCode),
-      ),
-    );
-  }
-
-  async getAllForAdmin(): Promise<AdminPostDto[]> {
-    const now = new Date();
-    const postRows = await this.postRepository.findAllForAdmin();
-    return postRows.map((postRow) => toAdminPostView(postRow, now));
-  }
 
   async createPost(
     dto: CreatePostDto,
@@ -151,7 +81,7 @@ export class PostService {
     await this.assertRelationsExist(dto);
 
     try {
-      const postRow = await this.postRepository.create({
+      const postRow = await this.adminPostRepository.create({
         // Унікальність не потрібна: новину визначає номер (D24)
         slug: dto.slug ?? slugifyTitle(defaultTranslation.title),
         ...publication,
@@ -180,7 +110,7 @@ export class PostService {
 
   async updatePost(id: string, dto: UpdatePostDto): Promise<AdminPostDto> {
     const languages = await this.languageService.getContentLanguages();
-    const currentPost = await this.postRepository.findEditState(id);
+    const currentPost = await this.adminPostRepository.findEditState(id);
     if (!currentPost) throw new NotFoundException('POST_NOT_FOUND');
 
     if (dto.translations) {
@@ -207,7 +137,7 @@ export class PostService {
     const slug = updatedSlug(currentPost, dto, languages.defaultCode);
 
     try {
-      const postRow = await this.postRepository.update(id, {
+      const postRow = await this.adminPostRepository.update(id, {
         // Лише якщо змінюється: інакше правка заголовка з давно відкритої форми
         // перезаписала б статус, який інший адмін встиг змінити (lost update)
         ...(isSamePublication(publication, currentPublication)
@@ -244,7 +174,7 @@ export class PostService {
 
   async deletePost(id: string): Promise<DeletedPostDto> {
     // Soft delete — рядок лишається для модерації й аудиту
-    const isDeleted = await this.postRepository.softDelete(id, new Date());
+    const isDeleted = await this.adminPostRepository.softDelete(id, new Date());
     if (!isDeleted) throw new NotFoundException('POST_NOT_FOUND');
     return { id };
   }
@@ -296,11 +226,12 @@ export class PostService {
     const competitionIds = dto.competitionIds ?? [];
     if (!tagIds.length && !clubIds.length && !competitionIds.length) return;
 
-    const existingCounts = await this.postRepository.countExistingRelations({
-      tagIds,
-      clubIds,
-      competitionIds,
-    });
+    const existingCounts =
+      await this.adminPostRepository.countExistingRelations({
+        tagIds,
+        clubIds,
+        competitionIds,
+      });
     if (existingCounts.tags !== tagIds.length) {
       throw new BadRequestException('UNKNOWN_TAG');
     }

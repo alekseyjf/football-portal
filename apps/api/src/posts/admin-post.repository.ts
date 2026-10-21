@@ -1,84 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import type { PostStatus, Prisma } from '@prisma/client';
+import {
+  CLUB_REF_SELECT,
+  COMPETITION_REF_SELECT,
+} from '../football/football-refs';
 import { PrismaService } from '../prisma/prisma.service';
-import { publicTagSelect } from '../tags/tag.repository';
+import { ADMIN_TAG_REF_SELECT } from '../tags/tag.repository';
 import { PUBLIC_AUTHOR_SELECT } from '../users/public-author';
-import { postFeedFilterWhere, type PostFeedFilters } from './post-feed-filter';
-import { publicPostWhere, type PublicPostScope } from './post-visibility';
-
-/**
- * Переклади лише потрібних мов (запитана + default, розділ 8): з N мовами
- * не тягнемо весь контент усіх перекладів.
- */
-function translationsIn(languageCodes: string[]) {
-  return { languageCode: { in: languageCodes } };
-}
-
-function postSummarySelect(languageCodes: string[]) {
-  return {
-    id: true,
-    number: true,
-    slug: true,
-    publishedAt: true,
-    coverImageUrl: true,
-    author: { select: PUBLIC_AUTHOR_SELECT },
-    translations: {
-      where: translationsIn(languageCodes),
-      select: {
-        languageCode: true,
-        title: true,
-        excerpt: true,
-        coverImageAlt: true,
-      },
-    },
-    tags: {
-      select: { tag: { select: publicTagSelect(languageCodes) } },
-      orderBy: { tag: { slug: 'asc' } },
-    },
-  } satisfies Prisma.PostSelect;
-}
-
-function postDetailSelect(languageCodes: string[]) {
-  return {
-    ...postSummarySelect(languageCodes),
-    coverImageCredit: true,
-    videoUrl: true,
-    sourceUrl: true,
-    sourceName: true,
-    translations: {
-      where: translationsIn(languageCodes),
-      select: {
-        languageCode: true,
-        title: true,
-        excerpt: true,
-        content: true,
-        coverImageAlt: true,
-      },
-    },
-    competitions: {
-      select: {
-        competition: {
-          select: { id: true, slug: true, name: true, emblemUrl: true },
-        },
-      },
-      orderBy: { competition: { sortOrder: 'asc' } },
-    },
-    clubs: {
-      select: {
-        club: {
-          select: {
-            id: true,
-            slug: true,
-            name: true,
-            shortName: true,
-            crestUrl: true,
-          },
-        },
-      },
-      orderBy: { club: { name: 'asc' } },
-    },
-  } satisfies Prisma.PostSelect;
-}
+import {
+  adminPostListWhere,
+  type AdminPostListFilters,
+} from './admin-post-filter';
 
 const ADMIN_POST_SELECT = {
   id: true,
@@ -95,6 +27,37 @@ const ADMIN_POST_SELECT = {
   translations: {
     select: { languageCode: true, title: true },
     orderBy: { language: { sortOrder: 'asc' } },
+  },
+} satisfies Prisma.PostSelect;
+
+/** Усе для форми редагування: поля, переклади з текстом, зв'язки у форматі чипів. */
+const ADMIN_POST_DETAIL_SELECT = {
+  ...ADMIN_POST_SELECT,
+  coverImageCredit: true,
+  videoUrl: true,
+  sourceUrl: true,
+  sourceName: true,
+  translations: {
+    select: {
+      languageCode: true,
+      title: true,
+      excerpt: true,
+      content: true,
+      coverImageAlt: true,
+    },
+    orderBy: { language: { sortOrder: 'asc' } },
+  },
+  tags: {
+    select: { tag: { select: ADMIN_TAG_REF_SELECT } },
+    orderBy: { tag: { slug: 'asc' } },
+  },
+  competitions: {
+    select: { competition: { select: COMPETITION_REF_SELECT } },
+    orderBy: { competition: { sortOrder: 'asc' } },
+  },
+  clubs: {
+    select: { club: { select: CLUB_REF_SELECT } },
+    orderBy: { club: { name: 'asc' } },
   },
 } satisfies Prisma.PostSelect;
 
@@ -115,24 +78,20 @@ const POST_EDIT_STATE_SELECT = {
   },
 } satisfies Prisma.PostSelect;
 
-export type PostSummaryRow = Prisma.PostGetPayload<{
-  select: ReturnType<typeof postSummarySelect>;
-}>;
-export type PostDetailRow = Prisma.PostGetPayload<{
-  select: ReturnType<typeof postDetailSelect>;
-}>;
 export type AdminPostRow = Prisma.PostGetPayload<{
   select: typeof ADMIN_POST_SELECT;
+}>;
+export type AdminPostDetailRow = Prisma.PostGetPayload<{
+  select: typeof ADMIN_POST_DETAIL_SELECT;
 }>;
 export type PostEditStateRow = Prisma.PostGetPayload<{
   select: typeof POST_EDIT_STATE_SELECT;
 }>;
 
-export interface PublicPostPageQuery {
-  scope: PublicPostScope;
-  filters: PostFeedFilters;
-  /** Мови перекладів: запитана + default */
-  languageCodes: string[];
+export interface AdminPostPageQuery {
+  filters: AdminPostListFilters;
+  /** Від нього рахується статус «як бачить редактор» */
+  now: Date;
   pagination: { skip: number; take: number };
 }
 
@@ -235,26 +194,22 @@ function updateTranslations(
   };
 }
 
+/** Новини в адмінці: читання будь-якого статусу (крім видалених) і записи. */
 @Injectable()
-export class PostRepository {
+export class AdminPostRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Сторінка стрічки й кількість новин за тим самим `where` — з фільтрами (D45, D46). */
-  async findPublicPage(
-    pageQuery: PublicPostPageQuery,
-  ): Promise<{ posts: PostSummaryRow[]; total: number }> {
-    const where: Prisma.PostWhereInput = {
-      AND: [
-        publicPostWhere(pageQuery.scope),
-        postFeedFilterWhere(pageQuery.filters),
-      ],
-    };
+  /** Сторінка списку й кількість новин за тим самим `where` — з фільтрами статусу й пошуку. */
+  async findAdminPage(
+    pageQuery: AdminPostPageQuery,
+  ): Promise<{ posts: AdminPostRow[]; total: number }> {
+    const where = adminPostListWhere(pageQuery.filters, pageQuery.now);
     const [posts, total] = await Promise.all([
       this.prisma.post.findMany({
         where,
-        select: postSummarySelect(pageQuery.languageCodes),
+        select: ADMIN_POST_SELECT,
         // id — стабільний порядок пагінації при однаковій даті
-        orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: pageQuery.pagination.skip,
         take: pageQuery.pagination.take,
       }),
@@ -263,35 +218,10 @@ export class PostRepository {
     return { posts, total };
   }
 
-  findPublicByNumber(
-    postNumber: number,
-    scope: PublicPostScope,
-    languageCodes: string[],
-  ): Promise<PostDetailRow | null> {
+  findAdminDetail(id: string): Promise<AdminPostDetailRow | null> {
     return this.prisma.post.findFirst({
-      where: { number: postNumber, ...publicPostWhere(scope) },
-      select: postDetailSelect(languageCodes),
-    });
-  }
-
-  /** Мови, якими є переклад поста (для `hreflang`) — без самого контенту. */
-  async findPublicTranslationLanguages(
-    postNumber: number,
-    scope: PublicPostScope,
-  ): Promise<string[]> {
-    const translations = await this.prisma.postTranslation.findMany({
-      where: { post: { number: postNumber, ...publicPostWhere(scope) } },
-      select: { languageCode: true },
-      orderBy: { language: { sortOrder: 'asc' } },
-    });
-    return translations.map((translation) => translation.languageCode);
-  }
-
-  findAllForAdmin(): Promise<AdminPostRow[]> {
-    return this.prisma.post.findMany({
-      where: { deletedAt: null },
-      select: ADMIN_POST_SELECT,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      where: { id, deletedAt: null },
+      select: ADMIN_POST_DETAIL_SELECT,
     });
   }
 
