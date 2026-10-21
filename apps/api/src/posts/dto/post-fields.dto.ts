@@ -23,6 +23,7 @@ import {
   POST_EXCERPT_MIN_LENGTH,
   POST_RELATION_IDS_MAX,
   POST_SLUG_MAX_LENGTH,
+  POST_SOURCE_NAME_MAX_LENGTH,
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
 } from '@football-portal/validation';
@@ -157,10 +158,25 @@ export class PostFieldsDto {
   @IsMediaUrl()
   videoUrl?: string | null;
 
-  /** Посилання на джерело — http(s); `null` — прибрати */
+  /**
+   * Посилання на джерело новини — http(s), одне на новину; `null` — прибрати джерело разом з назвою.
+   * Інша адреса — інше джерело: стара назва не переноситься, назву передати знову
+   */
   @IsOptional()
   @IsSourceUrl()
   sourceUrl?: string | null;
+
+  /**
+   * Назва джерела для читачів: `BBC Sport`, `The Athletic`; без неї сайт покаже домен адреси. Лише разом
+   * з адресою: назва без `sourceUrl` → 400 SOURCE_URL_REQUIRED. Не передано — лишається, поки адреса
+   * та сама; `null` — прибрати
+   */
+  @IsOptional()
+  @TrimString()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(POST_SOURCE_NAME_MAX_LENGTH)
+  sourceName?: string | null;
 
   /** Переданий масив замінює наявні зв'язки, відсутній — не змінює */
   @RelationIds()

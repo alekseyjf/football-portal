@@ -24,7 +24,7 @@
 | [D23](D23-content-languages.md) | EN обов'язкова, UK — з fallback на EN | M1.4 |
 | [D24](D24-news-url-slug-number.md) | URL новини `{slug}-{номер}`: новину визначає номер, slug один на всі мови | M1.4.1 ✅ |
 | [D25](D25-markdown-content.md) | Текст новин у Markdown: API зберігає як є, рендер і правила безпеки — у спільному рендерері | M1.4.3 ✅, M1.5, M1.6 |
-| [D26](D26-post-sources.md) | Джерела новини — таблиця `PostSource` | M1.4 |
+| [D26](D26-post-sources.md) | Джерело новини — одне на пост (адреса й назва); кілька — таблиця `PostSource`, відкладено | M1.4.5 ✅ |
 | [D27](D27-youtube-style-comments.md) | Коментарі як на YouTube | M1.7 |
 | [D28](D28-openapi-contract.md) | OpenAPI (Swagger) як джерело правди контракту; типи web / admin — з нього | M1.3.4–M1.3.5 ✅ |
 | [D29](D29-strict-typescript-api.md) | Суворий TypeScript в API | M1.3 |

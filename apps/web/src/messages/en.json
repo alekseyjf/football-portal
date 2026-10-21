@@ -39,7 +39,9 @@
     "loadError": "Failed to load post",
     "by": "By",
     "translationUnavailable": "Translation not available — showing the original ({language}).",
-    "photoCredit": "Photo: {credit}"
+    "photoCredit": "Photo: {credit}",
+    "source": "Source:",
+    "opensInNewTab": "(opens in a new tab)"
   },
   "likes": {
     "ariaGroup": "Reactions",

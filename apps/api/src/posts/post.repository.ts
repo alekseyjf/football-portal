@@ -53,6 +53,7 @@ function postDetailSelect(languageCodes: string[]) {
     coverImageCredit: true,
     videoUrl: true,
     sourceUrl: true,
+    sourceName: true,
     translations: {
       where: translationsIn(languageCodes),
       select: {
@@ -107,8 +108,8 @@ const ADMIN_POST_SELECT = {
 } satisfies Prisma.PostSelect;
 
 /**
- * Що треба знати про пост перед оновленням: публікацію, slug з EN-заголовком (D24) і обкладинку
- * з описом у кожному перекладі (D44).
+ * Що треба знати про пост перед оновленням: публікацію, slug з EN-заголовком (D24), обкладинку
+ * з описом у кожному перекладі (D44) і джерело (D26).
  */
 const POST_EDIT_STATE_SELECT = {
   status: true,
@@ -116,6 +117,8 @@ const POST_EDIT_STATE_SELECT = {
   slug: true,
   coverImageUrl: true,
   coverImageCredit: true,
+  sourceUrl: true,
+  sourceName: true,
   translations: {
     select: { languageCode: true, title: true, coverImageAlt: true },
   },
@@ -163,6 +166,7 @@ export interface CreatePostData extends PostRelationIds {
   coverImageCredit?: string | null;
   videoUrl?: string | null;
   sourceUrl?: string | null;
+  sourceName?: string | null;
   authorId: string;
   translations: PostTranslationInput[];
 }
@@ -177,6 +181,7 @@ export interface UpdatePostData extends PostRelationIds {
   coverImageCredit?: string | null;
   videoUrl?: string | null;
   sourceUrl?: string | null;
+  sourceName?: string | null;
   /** Upsert за мовою; переклади, яких немає в масиві, не чіпаємо */
   translations?: PostTranslationInput[];
   /** Фото обкладинки змінилось чи прибране — прибрати опис у перекладах, яких немає в масиві (D44) */
@@ -317,6 +322,7 @@ export class PostRepository {
         coverImageCredit: data.coverImageCredit,
         videoUrl: data.videoUrl,
         sourceUrl: data.sourceUrl,
+        sourceName: data.sourceName,
         authorId: data.authorId,
         translations: { create: data.translations },
         tags: createRelation(data.tagIds, (tagId) => ({ tagId })),
@@ -344,6 +350,7 @@ export class PostRepository {
         coverImageCredit: data.coverImageCredit,
         videoUrl: data.videoUrl,
         sourceUrl: data.sourceUrl,
+        sourceName: data.sourceName,
         translations: updateTranslations(id, data),
         tags: replaceRelation(data.tagIds, (tagId) => ({ tagId })),
         clubs: replaceRelation(data.clubIds, (clubId) => ({ clubId })),

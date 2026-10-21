@@ -34,6 +34,8 @@ export const MEDIA_URL_PROTOCOLS = ['https'];
 /** Посилання на джерело новини (`sourceUrl`). */
 export const SOURCE_URL_PROTOCOLS = ['http', 'https'];
 export const URL_MAX_LENGTH = 2048;
+/** Назва джерела новини («BBC Sport»), після trim (D26). */
+export const POST_SOURCE_NAME_MAX_LENGTH = 100;
 
 /** Переклад поста — після trim. */
 export const POST_TITLE_MIN_LENGTH = 5;

@@ -10,6 +10,7 @@ import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
 import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { LikeBar } from '@/components/features/LikeBar';
 import { CommentSection } from './CommentSection';
+import { PostSourceLine } from './PostSourceLine';
 
 export function NewsPostView({ postNumber }: { postNumber: number }) {
   const contentLang = useApiContentLang();
@@ -111,6 +112,8 @@ export function NewsPostView({ postNumber }: { postNumber: number }) {
             </p>
           </div>
         </div>
+
+        <PostSourceLine sourceUrl={post.sourceUrl} sourceName={post.sourceName} />
 
         <div className="mt-8 flex items-center">
           <LikeBar targetType="post" targetId={post.id} />

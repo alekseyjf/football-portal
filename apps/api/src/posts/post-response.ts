@@ -103,6 +103,7 @@ export function toPublicPostDetail(
     coverImageCredit: postRow.coverImageCredit,
     videoUrl: postRow.videoUrl,
     sourceUrl: postRow.sourceUrl,
+    sourceName: postRow.sourceName,
     availableLanguages,
     competitions: postRow.competitions.map(
       (competitionLink) => competitionLink.competition,

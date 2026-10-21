@@ -272,7 +272,10 @@ model Post {
   /// Підпис автора фото обкладинки («Stuart MacFarlane / Getty Images»), без «Фото:» — його додає сайт (D44)
   coverImageCredit String?
   videoUrl         String?
+  /// Джерело новини — одне на пост (D26, спрощено; кілька — `PostSource`, відкладено)
   sourceUrl        String?
+  /// Назва джерела («BBC Sport»); без неї сайт показує домен `sourceUrl`. Лише разом з адресою (D26)
+  sourceName       String?
   authorId         String
   /// Денормалізовано з PostLike — оновлюється в тій самій транзакції
   likeCount        Int        @default(0)

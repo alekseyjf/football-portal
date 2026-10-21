@@ -1,4 +1,5 @@
 import type { PostStatus } from '@prisma/client';
+import { requestedOrCurrent } from './post-field-update';
 import { isLivePostStatus } from './post-visibility';
 
 export type PostCoverImageErrorCode =
@@ -91,14 +92,6 @@ export function coverImageTextToStore(
 ): string | null | undefined {
   if (!photo.hasCoverImage) return photo.isSamePhoto ? undefined : null;
   return photo.isSamePhoto ? requestedValue : (requestedValue ?? null);
-}
-
-/** Значення після запиту: передане (і `null` теж) — з запиту, інакше наявне. */
-function requestedOrCurrent(
-  requestedValue: string | null | undefined,
-  currentValue: string | null | undefined,
-): string | null {
-  return requestedValue === undefined ? (currentValue ?? null) : requestedValue;
 }
 
 /**
