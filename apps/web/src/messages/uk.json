@@ -39,7 +39,9 @@
     "loadError": "Не вдалося завантажити пост",
     "by": "Автор",
     "translationUnavailable": "Переклад недоступний — показуємо оригінал ({language}).",
-    "photoCredit": "Фото: {credit}"
+    "photoCredit": "Фото: {credit}",
+    "source": "Джерело:",
+    "opensInNewTab": "(відкривається в новій вкладці)"
   },
   "likes": {
     "ariaGroup": "Реакції",

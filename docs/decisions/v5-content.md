@@ -9,7 +9,7 @@
 | Розділ 8: «`Language` seed: `en`, `ua`» | 🔁 змінено | `en`, `uk` — [D22](D22-ukrainian-language-code.md) |
 | Розділ 8: «`slug` один … не змінюється після публікації» | ✅ діє, уточнено | Slug один на всі мови; фіксується, щойно в новини є дата публікації, далі — лише явно з адмінки (старий → 308 за номером) — [D24](D24-news-url-slug-number.md) |
 | Розділ 8: «SEO: `hreflang` … `canonical` на EN» | ✅ діє, уточнено | [D34](D34-seo-multilingual.md) |
-| P3-4: `sourceUrl` | 🔁 змінено | Джерела — таблиця `PostSource` — [D26](D26-post-sources.md) |
+| P3-4: `sourceUrl` | 🔁 змінено | Джерело — `sourceUrl` + `sourceName`, одне на пост; кілька (`PostSource`) — відкладено — [D26](D26-post-sources.md) |
 | P3-5: EN обов'язковий | ✅ діє | UK — опційний, з fallback на EN — [D23](D23-content-languages.md) |
 | P3-6: slug із суфіксом колізії | 🔁 змінено | Номер в URL — slug не унікальний, суфіксів немає (M1.4.1) — [D24](D24-news-url-slug-number.md) |
 | «Свідомо не робимо»: hreflang, редагування, пагінація `admin/all` | ⏳ | M1.8, M1.5, M1.4.8 |

@@ -9,6 +9,7 @@ import { useCreatePost } from '@/hooks/useCreatePost';
 import { CoverImageFields } from './CoverImageFields';
 import {
   createPostFormSchema,
+  DEPENDENT_FIELD_NAMES,
   hasCoverImage,
   hasUkText,
   toCreatePostRequest,
@@ -131,17 +132,17 @@ export function CreatePostForm() {
         </h2>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-300">Title</label>
-          <input {...register('titleUk')} className={inputClass(!!errors.titleUk)} />
+          <input {...register('titleUk', { deps: DEPENDENT_FIELD_NAMES.ukTranslation })} className={inputClass(!!errors.titleUk)} />
           {errors.titleUk && <p className="text-red-400 text-xs">{errors.titleUk.message}</p>}
         </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-300">Excerpt</label>
-          <textarea {...register('excerptUk')} rows={2} className={inputClass(!!errors.excerptUk)} />
+          <textarea {...register('excerptUk', { deps: DEPENDENT_FIELD_NAMES.ukTranslation })} rows={2} className={inputClass(!!errors.excerptUk)} />
           {errors.excerptUk && <p className="text-red-400 text-xs">{errors.excerptUk.message}</p>}
         </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-gray-300">Content</label>
-          <textarea {...register('contentUk')} rows={6} className={inputClass(!!errors.contentUk)} />
+          <textarea {...register('contentUk', { deps: DEPENDENT_FIELD_NAMES.ukTranslation })} rows={6} className={inputClass(!!errors.contentUk)} />
           {errors.contentUk && <p className="text-red-400 text-xs">{errors.contentUk.message}</p>}
         </div>
       </div>
@@ -166,7 +167,7 @@ export function CreatePostForm() {
             >
               <span className="flex items-center gap-2 text-sm text-gray-200">
                 <input
-                  {...register('publication')}
+                  {...register('publication', { deps: DEPENDENT_FIELD_NAMES.publication })}
                   type="radio"
                   value={option.value}
                   className="accent-green-500"

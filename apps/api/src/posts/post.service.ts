@@ -35,6 +35,11 @@ import {
 } from './post-response';
 import { resolveUpdatedPostSlug, slugifyTitle } from './post-slug';
 import {
+  resolvePostSource,
+  type PostSourceInput,
+  type PostSourceWrite,
+} from './post-source';
+import {
   findPostTranslationsError,
   type PostTranslationsInput,
 } from './post-translations';
@@ -143,6 +148,7 @@ export class PostService {
       status: publication.status,
       activeLanguageCodes: languages.activeCodes,
     });
+    const source = this.resolveSource({ current: null, requested: dto });
     await this.assertRelationsExist(dto);
 
     const postRow = await this.postRepository.create({
@@ -152,7 +158,8 @@ export class PostService {
       coverImageUrl: dto.coverImageUrl,
       coverImageCredit: coverImageTextToStore(dto.coverImageCredit, coverPhoto),
       videoUrl: dto.videoUrl,
-      sourceUrl: dto.sourceUrl,
+      sourceUrl: source.sourceUrl,
+      sourceName: source.sourceName,
       authorId,
       translations: dto.translations.map((translation) =>
         toTranslationInput(translation, coverPhoto),
@@ -188,6 +195,7 @@ export class PostService {
       status: publication.status,
       activeLanguageCodes: languages.activeCodes,
     });
+    const source = this.resolveSource({ current: currentPost, requested: dto });
     await this.assertRelationsExist(dto);
     const slug = updatedSlug(currentPost, dto, languages.defaultCode);
 
@@ -205,7 +213,8 @@ export class PostService {
           coverPhoto,
         ),
         videoUrl: dto.videoUrl,
-        sourceUrl: dto.sourceUrl,
+        sourceUrl: source.sourceUrl,
+        sourceName: source.sourceName,
         translations: dto.translations?.map((translation) =>
           toTranslationInput(translation, coverPhoto),
         ),
@@ -257,6 +266,13 @@ export class PostService {
       hasCoverImage: result.hasCoverImage,
       isSamePhoto: result.isSamePhoto,
     };
+  }
+
+  /** Що записати в адресу й назву джерела — за правилом `resolvePostSource` (D26). */
+  private resolveSource(input: PostSourceInput): PostSourceWrite {
+    const result = resolvePostSource(input);
+    if (!result.isValid) throw new BadRequestException(result.errorCode);
+    return result.source;
   }
 
   /** Мови перекладів — за правилом `findPostTranslationsError` (D23, P3-3). */

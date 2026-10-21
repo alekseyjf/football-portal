@@ -1,5 +1,5 @@
 import type { FieldErrors, UseFormRegister } from 'react-hook-form';
-import type { CreatePostFormValues } from './createPostFormSchema';
+import { DEPENDENT_FIELD_NAMES, type CreatePostFormValues } from './createPostFormSchema';
 import { inputClass } from './formStyles';
 
 interface CoverImageFieldsProps {
@@ -20,7 +20,12 @@ export function CoverImageFields({ register, errors, hasCoverImage }: CoverImage
         <label htmlFor="coverImageUrl" className="text-sm font-medium text-gray-300">
           Image URL
         </label>
-        <input id="coverImageUrl" {...register('coverImageUrl')} placeholder="https://…" className={inputClass(!!errors.coverImageUrl)} />
+        <input
+          id="coverImageUrl"
+          {...register('coverImageUrl', { deps: DEPENDENT_FIELD_NAMES.coverImageUrl })}
+          placeholder="https://…"
+          className={inputClass(!!errors.coverImageUrl)}
+        />
         {errors.coverImageUrl && <p className="text-red-400 text-xs">{errors.coverImageUrl.message}</p>}
       </div>
 

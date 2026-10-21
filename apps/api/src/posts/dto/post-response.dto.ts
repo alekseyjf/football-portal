@@ -57,7 +57,10 @@ export class PostDetailDto extends PostSummaryDto {
   /** Підпис автора фото обкладинки, без «Фото:» — його додає сайт мовою сторінки */
   coverImageCredit!: string | null;
   videoUrl!: string | null;
+  /** Посилання на джерело новини (http або https); `null` — джерела немає */
   sourceUrl!: string | null;
+  /** Назва джерела («BBC Sport»); `null` — показати домен із `sourceUrl`. Без адреси назви не буває */
+  sourceName!: string | null;
   /** Мови, якими є переклад (для `hreflang`) */
   availableLanguages!: string[];
   competitions!: PostCompetitionDto[];

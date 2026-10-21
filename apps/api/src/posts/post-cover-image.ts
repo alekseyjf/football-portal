@@ -1,5 +1,6 @@
 import type { PostStatus } from '@prisma/client';
-import { LIVE_POST_STATUSES } from './post-visibility';
+import { requestedOrCurrent } from './post-field-update';
+import { isLivePostStatus } from './post-visibility';
 
 export type PostCoverImageErrorCode =
   | 'COVER_IMAGE_ALT_REQUIRED'
@@ -60,16 +61,14 @@ export function resolvePostCoverImage(
 ): PostCoverImageResult {
   const { current, requested, status } = input;
   const currentUrl = current?.coverImageUrl ?? null;
-  const coverImageUrl =
-    requested.coverImageUrl === undefined
-      ? currentUrl
-      : requested.coverImageUrl;
+  const coverImageUrl = requestedOrCurrent(requested.coverImageUrl, currentUrl);
   const photo: PostCoverImagePhoto = {
     hasCoverImage: coverImageUrl !== null,
     isSamePhoto: coverImageUrl === currentUrl,
   };
-  const isLive = (LIVE_POST_STATUSES as readonly PostStatus[]).includes(status);
-  if (!photo.hasCoverImage || !isLive) return { isValid: true, ...photo };
+  if (!photo.hasCoverImage || !isLivePostStatus(status)) {
+    return { isValid: true, ...photo };
+  }
 
   if (resultingAlts(input, photo.isSamePhoto).includes(null)) {
     return invalid('COVER_IMAGE_ALT_REQUIRED');
@@ -93,14 +92,6 @@ export function coverImageTextToStore(
 ): string | null | undefined {
   if (!photo.hasCoverImage) return photo.isSamePhoto ? undefined : null;
   return photo.isSamePhoto ? requestedValue : (requestedValue ?? null);
-}
-
-/** Значення після запиту: передане (і `null` теж) — з запиту, інакше наявне. */
-function requestedOrCurrent(
-  requestedValue: string | null | undefined,
-  currentValue: string | null | undefined,
-): string | null {
-  return requestedValue === undefined ? (currentValue ?? null) : requestedValue;
 }
 
 /**
