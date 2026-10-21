@@ -66,10 +66,22 @@ export const TAG_NAME_MAX_LENGTH = 50;
 /** Slug тегу — з EN-назви або явний при створенні; адреса сторінки тегу, не змінюється (D45). */
 export const TAG_SLUG_MAX_LENGTH = 50;
 
+/**
+ * Номер сторінки в списках (`?page=`): `?page=1e20` → `skip` не влазить в int64 → 500 у Prisma;
+ * 100 000 сторінок — з запасом.
+ */
+export const PAGE_NUMBER_MAX = 100_000;
+
 /** Сторінка публічної стрічки (`GET /posts?limit=`). */
 export const POSTS_PAGE_LIMIT_MAX = 50;
 /** Значень в одному фільтрі стрічки (`GET /posts?tags=a,b`): тегів, турнірів чи клубів — кожного до 20. */
 export const POSTS_FILTER_VALUES_MAX = 20;
+
+/** Сторінка списку новин в адмінці (`GET /posts/admin/all?limit=`): за замовчуванням і найбільша. */
+export const ADMIN_POSTS_PAGE_LIMIT_DEFAULT = 20;
+export const ADMIN_POSTS_PAGE_LIMIT_MAX = 100;
+/** Пошук новин в адмінці — частина заголовка (`?search=`), після trim. */
+export const ADMIN_POSTS_SEARCH_MAX_LENGTH = 100;
 
 /**
  * Довжина рядка в байтах UTF-8 — так її рахує bcrypt. `TextEncoder`, а не `encodeURI`:

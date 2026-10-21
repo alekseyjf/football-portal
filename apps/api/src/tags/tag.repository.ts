@@ -18,7 +18,8 @@ export function publicTagSelect(languageCodes: string[]) {
   } satisfies Prisma.TagSelect;
 }
 
-const ADMIN_TAG_SELECT = {
+/** Тег в адмінці (`AdminTagRefDto`): у новині для форми редагування й у списку тегів — один формат чипа. */
+export const ADMIN_TAG_REF_SELECT = {
   id: true,
   slug: true,
   // В адмінці — усі мови: видно, якої назви бракує
@@ -26,6 +27,10 @@ const ADMIN_TAG_SELECT = {
     select: { languageCode: true, name: true },
     orderBy: { language: { sortOrder: 'asc' } },
   },
+} satisfies Prisma.TagSelect;
+
+const ADMIN_TAG_SELECT = {
+  ...ADMIN_TAG_REF_SELECT,
   // Видалення тегу прибере його з усіх цих новин, і з чернеток теж; видалені (soft delete) не рахуємо
   _count: { select: { posts: { where: { post: { deletedAt: null } } } } },
 } satisfies Prisma.TagSelect;

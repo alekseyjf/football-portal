@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useAdminPosts } from '@/hooks/useAdminPosts';
 import {
   adminAuthorName,
@@ -34,8 +35,52 @@ function adminPostDateLine(post: AdminPost): string {
   return `Created ${formatDateTime(post.createdAt)}`;
 }
 
+const PAGER_BUTTON_CLASS =
+  'text-green-400 hover:text-green-300 transition-colors disabled:text-gray-600 disabled:cursor-not-allowed';
+
+/** Сторінки списку; фільтр за статусом і пошук — у списку M1.5. */
+function PostsPager({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <nav aria-label="Posts pages" className="flex items-center justify-center gap-6 mt-6 text-sm">
+      <button
+        type="button"
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 1}
+        className={PAGER_BUTTON_CLASS}
+      >
+        ← Newer
+      </button>
+      <span className="text-gray-400">
+        Page {page} of {totalPages}
+      </span>
+      <button
+        type="button"
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages}
+        className={PAGER_BUTTON_CLASS}
+      >
+        Older →
+      </button>
+    </nav>
+  );
+}
+
 export default function PostsPage() {
-  const { data: posts, isLoading, isError } = useAdminPosts();
+  const [page, setPage] = useState(1);
+  const { data: postPage, isLoading, isError, refetch } = useAdminPosts(page);
+  const posts = postPage?.data;
+  // Новини з останніх сторінок зникли (видалили) — на останню наявну. У рендері, а не в useEffect:
+  // стан, що залежить від даних, React дозволяє виправити одразу (react.dev, «Adjusting some state when a prop changes»)
+  const lastPage = Math.max(postPage?.totalPages ?? 1, 1);
+  if (postPage && page > lastPage) setPage(lastPage);
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
@@ -54,12 +99,25 @@ export default function PostsPage() {
       )}
 
       {isError && (
-        <p className="text-red-400 text-center py-16">
-          Failed to load posts. Check that you are logged in as admin.
-        </p>
+        <div className="text-center py-16">
+          <p className="text-red-400">
+            Failed to load posts. Check that you are logged in as admin.
+          </p>
+          {/* Інакше зі сторінки, що не завантажилась, вийти можна лише перезавантаженням */}
+          <div className="flex justify-center gap-6 mt-3 text-sm">
+            <button type="button" onClick={() => void refetch()} className={PAGER_BUTTON_CLASS}>
+              Try again
+            </button>
+            {page > 1 && (
+              <button type="button" onClick={() => setPage(1)} className={PAGER_BUTTON_CLASS}>
+                ← First page
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
-      {!isLoading && !isError && posts && posts.length === 0 && (
+      {!isLoading && !isError && postPage?.total === 0 && (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-4">📭</p>
           <p>No posts yet.</p>
@@ -112,6 +170,10 @@ export default function PostsPage() {
             );
           })}
         </div>
+      )}
+
+      {!isError && postPage && postPage.totalPages > 1 && (
+        <PostsPager page={page} totalPages={postPage.totalPages} onPageChange={setPage} />
       )}
     </main>
   );

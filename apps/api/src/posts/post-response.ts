@@ -2,14 +2,14 @@ import type { ContentLanguageChoice } from '../languages/language.service';
 import { pickTranslation } from '../languages/translation-fallback';
 import { toPublicTag } from '../tags/tag-response';
 import { toPublicAuthor } from '../users/public-author';
-import type { AdminPostDto } from './dto/admin-post-response.dto';
+import type { AdminPostDetailRow, AdminPostRow } from './admin-post.repository';
+import type {
+  AdminPostDetailDto,
+  AdminPostDto,
+} from './dto/admin-post-response.dto';
 import type { PostDetailDto, PostSummaryDto } from './dto/post-response.dto';
 import { isPostLive } from './post-visibility';
-import type {
-  AdminPostRow,
-  PostDetailRow,
-  PostSummaryRow,
-} from './post.repository';
+import type { PostDetailRow, PostSummaryRow } from './public-post.repository';
 
 /*
  * Форма відповідей постів (Rule 5): рядок Prisma → response DTO. Пост у стрічці — переклад уже
@@ -99,5 +99,25 @@ export function toAdminPostView(
     updatedAt: postRow.updatedAt,
     author: toPublicAuthor(postRow.author),
     translations: postRow.translations,
+  };
+}
+
+/** Новина для форми редагування: переклади з текстом, зв'язки — у форматі чипів (select-и їхніх модулів). */
+export function toAdminPostDetail(
+  postRow: AdminPostDetailRow,
+  now: Date,
+): AdminPostDetailDto {
+  return {
+    ...toAdminPostView(postRow, now),
+    coverImageCredit: postRow.coverImageCredit,
+    videoUrl: postRow.videoUrl,
+    sourceUrl: postRow.sourceUrl,
+    sourceName: postRow.sourceName,
+    translations: postRow.translations,
+    tags: postRow.tags.map((tagLink) => tagLink.tag),
+    competitions: postRow.competitions.map(
+      (competitionLink) => competitionLink.competition,
+    ),
+    clubs: postRow.clubs.map((clubLink) => clubLink.club),
   };
 }
