@@ -72,11 +72,12 @@ export class PostService {
     const languageChoice = await this.languageService.chooseContentLanguage(
       query.lang,
     );
-    const { posts, total } = await this.postRepository.findPublicPage(
-      publicScope(languageChoice, new Date()),
-      languageCodesToLoad(languageChoice),
-      { skip: (query.page - 1) * query.limit, take: query.limit },
-    );
+    const { posts, total } = await this.postRepository.findPublicPage({
+      scope: publicScope(languageChoice, new Date()),
+      filters: query,
+      languageCodes: languageCodesToLoad(languageChoice),
+      pagination: { skip: (query.page - 1) * query.limit, take: query.limit },
+    });
     return {
       data: posts.map((postRow) =>
         toPublicPostSummary(postRow, languageChoice),

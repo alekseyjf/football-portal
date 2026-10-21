@@ -68,6 +68,8 @@ export const TAG_SLUG_MAX_LENGTH = 50;
 
 /** Сторінка публічної стрічки (`GET /posts?limit=`). */
 export const POSTS_PAGE_LIMIT_MAX = 50;
+/** Значень в одному фільтрі стрічки (`GET /posts?tags=a,b`): тегів, турнірів чи клубів — кожного до 20. */
+export const POSTS_FILTER_VALUES_MAX = 20;
 
 /**
  * Довжина рядка в байтах UTF-8 — так її рахує bcrypt. `TextEncoder`, а не `encodeURI`:

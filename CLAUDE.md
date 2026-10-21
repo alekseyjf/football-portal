@@ -41,7 +41,7 @@ All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/
 
 ### Posts — `src/posts/`
 - **Живий пост** (`post-visibility.ts`, `livePostWhere`): `deletedAt IS NULL`, `status IN (PUBLISHED, SCHEDULED)`, `publishedAt <= now` — SCHEDULED виходить сам, без cron. Чернетки за slug → 404, лайк чернетки — 404. Стрічка й новина за номером — `publicPostWhere` (+ переклад default-мови; ним же фільтрує публічний список тегів)
-- `GET /posts?page=1&limit=10&lang=en` — public, живі, `publishedAt desc`; `limit` ≤ 50. Переклад розгорнуто в пост (`title`, `excerpt`, `coverImageAlt`) з fallback на default-мову + `resolvedLanguage`; невідомий `lang` → default
+- `GET /posts?page=1&limit=10&lang=en&tags=&competition=&club=` — public, живі, `publishedAt desc`; `limit` ≤ 50. Фільтри (D46, `post-feed-filter.ts`): slug-и через кому, ≤ 20 (`IsSlugList`); усередині фільтра — АБО, між — І; турнір — лише явна прив'язка `PostCompetition`; невідомий slug → порожньо (200), не той формат / повтор параметра → 400. Переклад розгорнуто в пост (`title`, `excerpt`, `coverImageAlt`) з fallback на default-мову + `resolvedLanguage`; невідомий `lang` → default
 - `GET /posts/admin/all` — ADMIN, усі крім видалених: `status`, `publishedAt`, `isLive`, `translations: [{ languageCode, title }]`
 - `GET /posts/:number?lang=en` — public, живий пост **за номером** (ціле 1…2³¹−1, інакше 400) + `content`, `coverImageCredit`, `sourceUrl`, `sourceName`, `availableLanguages`, `tags`, `competitions`, `clubs` (коментарі — окремо, `GET /comments/post/:postId`); `slug` у відповіді — канонічний (web робить 308)
 - **Slug** (`post-slug.ts`, D24; транслітерація — спільний з тегами `slugify`, `common/slug.ts`): один на всі мови, з EN-заголовка; поки `publishedAt` порожній — іде за EN-заголовком, щойно дата є — лише явний `slug` у `POST` / `PUT` (`resolveUpdatedPostSlug`)
@@ -50,7 +50,7 @@ All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/
 - **Джерело** (`post-source.ts`, `resolvePostSource`, D26): назва без адреси → 400 `SOURCE_URL_REQUIRED`; назва — про конкретну адресу (як опис фото, D44): інша адреса старої назви не успадковує, `sourceUrl: null` прибирає джерело цілком; «передане або наявне» для правил — `requestedOrCurrent` (`post-field-update.ts`)
 - `PUT /posts/:id` — **ADMIN only**; переклади — upsert за мовою, масив зв'язків замінює повністю
 - `DELETE /posts/:id` — ADMIN only, soft delete (sets deletedAt) → `{ id }`
-- Files: `post.controller.ts`, `post.service.ts`, `post.repository.ts`, `post.module.ts`, `post-response.ts` (форма відповідей), `post-publication.ts`, `post-slug.ts`, `post-cover-image.ts`, `post-source.ts`, `post-field-update.ts`, `post-visibility.ts`
+- Files: `post.controller.ts`, `post.service.ts`, `post.repository.ts`, `post.module.ts`, `post-response.ts` (форма відповідей), `post-publication.ts`, `post-slug.ts`, `post-cover-image.ts`, `post-source.ts`, `post-field-update.ts`, `post-visibility.ts`, `post-feed-filter.ts`
 - DTOs: `post-fields.dto.ts` (спільні поля + `PostTranslationDto`), `create-post.dto.ts`, `update-post.dto.ts`, `list-posts-query.dto.ts`, `post-number-param.dto.ts`
 
 ### Tags — `src/tags/` (D45)
