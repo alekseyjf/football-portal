@@ -17,6 +17,16 @@ export const LIVE_SYNC_MATCH_STATUSES: readonly MatchStatus[] = [
   MatchStatus.SUSPENDED,
 ];
 
+/**
+ * Матч уже не буде зіграно далі: рахунок, технічний результат чи скасування. Перенесений (`POSTPONED`) і
+ * перерваний (`SUSPENDED`) — не остаточні: їх ще можуть дограти (D48, `pendingMatchWhere`).
+ */
+export const FINAL_MATCH_STATUSES: readonly MatchStatus[] = [
+  MatchStatus.FINISHED,
+  MatchStatus.AWARDED,
+  MatchStatus.CANCELLED,
+];
+
 export type LiveWindowMatch = { status: MatchStatus; kickoffAt: Date };
 
 /** Межі LIVE-вікна за часом початку — ті самі для перевірки матчу й вибірки турнірів з БД. */

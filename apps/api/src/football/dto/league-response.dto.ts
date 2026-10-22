@@ -33,6 +33,23 @@ export class CompetitionRefDto {
   name!: string;
 }
 
+// Плаский, без `extends CompetitionRefDto` — як `AdminPostDetailDto` (M1.4.8.1): поля відповіді й їхній
+// порядок у Swagger видно в самому класі
+/** Турнір у виборі турнірів новини (адмінка): поля чипа, тип і чи ввімкнений. */
+export class AdminLeagueDto {
+  id!: string;
+  /** Наш код турніру (`PL`, `CL`) */
+  slug!: string;
+  name!: string;
+
+  /** Групи вибору: `LEAGUE` — «Ліги», `CUP` — «Кубки» */
+  @ApiProperty({ enum: CompetitionType, enumName: 'CompetitionType' })
+  type!: CompetitionType;
+
+  /** `false` — вимкнено редакцією: не синкається й не показується на сайті, але новину до нього прив'язати можна */
+  isActive!: boolean;
+}
+
 /** Турнір. */
 export class LeagueDto {
   id!: string;

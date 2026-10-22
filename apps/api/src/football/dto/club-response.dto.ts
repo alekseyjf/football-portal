@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ClubKind } from '@prisma/client';
+import { CompetitionRefDto } from './league-response.dto';
 
 /**
  * Клуб-посилання — формат чипа в адмінці: прив'язка новини, пошук клубів (M1.4.8). Емблема — щоб
@@ -10,6 +11,17 @@ export class ClubRefDto {
   slug!: string;
   name!: string;
   crestUrl!: string | null;
+}
+
+// Плаский, без `extends ClubRefDto` — як `AdminLeagueDto`
+/** Клуб у пошуку для форми новини: поля чипа й турніри, з яких форма підказує турніри новини (D46, D48). */
+export class AdminClubSearchResultDto {
+  id!: string;
+  slug!: string;
+  name!: string;
+  crestUrl!: string | null;
+  /** Турніри поточного сезону, які зараз «у грі» (D48), — у порядку редакції; порожньо — таких немає */
+  competitions!: CompetitionRefDto[];
 }
 
 /** Клуб або збірна. */

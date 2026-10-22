@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SyncStatus, SyncTrigger } from '@prisma/client';
 import type { LiveTouchResultDto } from '../dto/live-touch-response.dto';
-import { LIVE_SYNC_DATE_WINDOW_DAYS } from '../football.constants';
+import { DAY_MS, LIVE_SYNC_DATE_WINDOW_DAYS } from '../football.constants';
 import { isMatchInLiveWindow } from '../football-match-status';
 import {
   FOOTBALL_PROVIDER,
@@ -23,8 +23,6 @@ import {
   type SyncStats,
 } from './football-sync-stats';
 import { FootballSyncWriter } from './football-sync.writer';
-
-const DAY_MS = 24 * 60 * 60_000;
 
 function toIsoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
