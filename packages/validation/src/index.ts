@@ -84,6 +84,15 @@ export const ADMIN_POSTS_PAGE_LIMIT_MAX = 100;
 export const ADMIN_POSTS_SEARCH_MAX_LENGTH = 100;
 
 /**
+ * Пошук клубів для форми новини (`GET /football/clubs/admin/search?search=`), після trim: від 2 символів
+ * (`FC`, `AC` — частина назви чи код) до 100 — з запасом, найдовша назва клубу на dev-БД — 29. Видає до 20 клубів:
+ * стільки форма показує одним списком, далі редактор уточнює запит.
+ */
+export const ADMIN_CLUBS_SEARCH_MIN_LENGTH = 2;
+export const ADMIN_CLUBS_SEARCH_MAX_LENGTH = 100;
+export const ADMIN_CLUBS_SEARCH_RESULTS_MAX = 20;
+
+/**
  * Довжина рядка в байтах UTF-8 — так її рахує bcrypt. `TextEncoder`, а не `encodeURI`:
  * на одиночному surrogate (`"\ud800"` у JSON) `encodeURI` кидає виняток, а тут це 3 байти (U+FFFD).
  */

@@ -1,6 +1,6 @@
 # D47 — Новини в адмінці: список сторінками з пошуком, новина для форми, формат чипів
 
-- **Статус:** ✅ прийнято · 2026-10-21 · 👤 рішення власника (два PR, пошук будь-якою мовою, формат чипів турніру й клубу, пошук клубів лише для ADMIN) + ⭐ деталі API · ✅ API постів — M1.4.8.1
+- **Статус:** ✅ прийнято · 2026-10-21 · 👤 рішення власника (два PR, пошук будь-якою мовою, формат чипів турніру й клубу, пошук клубів лише для ADMIN) + ⭐ деталі API · ✅ API постів — M1.4.8.1 · ✅ турніри й клуби для форми — M1.4.8.2 ([D48](D48-competition-in-play.md))
 - **Етап:** M1.4.8.1 (пости для адмінки), M1.4.8.2 (турніри й клуби для форми), M1.5 (форма й список в адмінці)
 - **Уточнює:** [D38](D38-news-list-load-more.md) — offset-пагінація; [D45](D45-tags.md) — теги в адмінці; [D46](D46-post-feed-filters.md) — підказка турнірів клубу; [P3-1](v5-content.md) — запланована новина виходить сама, без cron
 
@@ -16,8 +16,8 @@
 
 | Чип | Поля | DTO · select | Де ще |
 |---|---|---|---|
-| Турнір | `id`, `slug`, `name` | `CompetitionRefDto` · `COMPETITION_REF_SELECT` (`football/football-refs.ts`) | вибір турнірів, турніри клубу в пошуку (M1.4.8.2) |
-| Клуб | `id`, `slug`, `name`, `crestUrl` | `ClubRefDto` · `CLUB_REF_SELECT` (`football/football-refs.ts`) | пошук клубів (M1.4.8.2) |
+| Турнір | `id`, `slug`, `name` | `CompetitionRefDto` · `COMPETITION_REF_SELECT` (`football/football-refs.ts`) | вибір турнірів, турніри клубу в пошуку (M1.4.8.2 ✅, [D48](D48-competition-in-play.md)) |
+| Клуб | `id`, `slug`, `name`, `crestUrl` | `ClubRefDto` · `CLUB_REF_SELECT` (`football/football-refs.ts`) | пошук клубів (M1.4.8.2 ✅, [D48](D48-competition-in-play.md)) |
 | Тег ⭐ | `id`, `slug`, `translations` (назви всіма мовами) | `AdminTagRefDto` · `ADMIN_TAG_REF_SELECT` (`tag.repository.ts`, поруч з `publicTagSelect`) | `AdminTagDto` — той самий тег + `postCount`: варіант у виборі тегів і відповідь `POST /tags` |
 
 - ⭐ Тег — з назвами всіма мовами, а не однією `name`. *Чому:* вибір тегів працює з `AdminTagDto` (`GET /tags/admin/all`, `POST /tags`) — чип і варіант вибору мають одну форму; JSON `AdminTagDto` не змінився.

@@ -37,6 +37,8 @@ const ADMIN_ROUTES: Route[] = [
   { method: 'delete', path: '/tags/{id}' },
   { method: 'delete', path: '/comments/{id}/purge' },
   { method: 'delete', path: '/comments/{id}/purge-thread' },
+  { method: 'get', path: '/football/leagues/admin/all' },
+  { method: 'get', path: '/football/clubs/admin/search' },
   { method: 'post', path: '/football/sync' },
   { method: 'get', path: '/football/sync-runs' },
   { method: 'delete', path: '/users/{id}' },

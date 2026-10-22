@@ -12,7 +12,11 @@ import { ApiTags } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { AdminOnly } from '../auth/guards/access.decorators';
 import { LiveTouchThrottle } from '../security/throttling/request-throttling';
-import { SeasonClubDto } from './dto/club-response.dto';
+import { AdminClubSearchQueryDto } from './dto/admin-club-search-query.dto';
+import {
+  AdminClubSearchResultDto,
+  SeasonClubDto,
+} from './dto/club-response.dto';
 import { LeagueFixturesDto } from './dto/fixtures-response.dto';
 import {
   FootballSyncAcceptedDto,
@@ -20,7 +24,7 @@ import {
 } from './dto/football-sync-response.dto';
 import { LeagueDashboardDto } from './dto/league-dashboard-response.dto';
 import { LeagueMatchesQueryDto } from './dto/league-matches-query.dto';
-import { LeagueDto } from './dto/league-response.dto';
+import { AdminLeagueDto, LeagueDto } from './dto/league-response.dto';
 import { LiveTouchResultDto } from './dto/live-touch-response.dto';
 import { LiveTouchDto } from './dto/live-touch.dto';
 import {
@@ -33,6 +37,7 @@ import { SeasonQueryDto } from './dto/season-query.dto';
 import { StandingTableDto } from './dto/standing-response.dto';
 import { SyncFootballDto } from './dto/sync-football.dto';
 import { SyncRunsQueryDto } from './dto/sync-runs-query.dto';
+import { FootballAdminQueryService } from './query/football-admin-query.service';
 import { FootballQueryService } from './query/football-query.service';
 import { FootballLiveSyncService } from './sync/football-live-sync.service';
 import { FootballSyncService } from './sync/football-sync.service';
@@ -42,6 +47,7 @@ import { FootballSyncService } from './sync/football-sync.service';
 export class FootballController {
   constructor(
     private readonly query: FootballQueryService,
+    private readonly adminQuery: FootballAdminQueryService,
     private readonly fullSync: FootballSyncService,
     private readonly liveSync: FootballLiveSyncService,
   ) {}
@@ -50,6 +56,13 @@ export class FootballController {
   @Get('leagues')
   listLeagues(): Promise<LeagueDto[]> {
     return this.query.getLeagues();
+  }
+
+  /** Усі турніри для вибору в новині — і вимкнені (новини про ЧС / Євро після турніру), у порядку редакції. */
+  @Get('leagues/admin/all')
+  @AdminOnly()
+  listAdminLeagues(): Promise<AdminLeagueDto[]> {
+    return this.adminQuery.getAdminLeagues();
   }
 
   /**
@@ -139,6 +152,19 @@ export class FootballController {
   @Get('matches/:id')
   matchById(@Param('id') id: string): Promise<MatchDetailDto> {
     return this.query.getMatchById(id);
+  }
+
+  /**
+   * Пошук клубів для форми новини — серед клубів із синку: частина назви, короткої назви, коду чи адреси, без урахування регістру.
+   * @remarks До 20 клубів: спершу ті, у кого з запиту починається будь-яке з цих полів, далі — за абеткою. Назви — як
+   * у провайдера, латиницею. У клубу — турніри поточного сезону, які зараз «у грі»: з них форма підказує турніри новини.
+   */
+  @Get('clubs/admin/search')
+  @AdminOnly()
+  searchAdminClubs(
+    @Query() searchQuery: AdminClubSearchQueryDto,
+  ): Promise<AdminClubSearchResultDto[]> {
+    return this.adminQuery.searchClubs(searchQuery.search);
   }
 
   /**

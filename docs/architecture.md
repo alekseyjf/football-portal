@@ -91,6 +91,7 @@
 |----|-----|
 | Football: маршрути | `apps/api/src/football/football.controller.ts` |
 | Football: **читання** з БД | `apps/api/src/football/query/football-query.service.ts` (+ `football-response.ts`, `football-standings.util.ts`) |
+| Football: для форми новини — усі турніри, пошук клубів ([D48](decisions/D48-competition-in-play.md)) | `apps/api/src/football/query/football-admin-query.service.ts`, `persistence/football-admin.repository.ts`; правила — `football-club-search.ts`, `football-competition-status.ts` (турнір «у грі») |
 | Football: **повний синк** | `apps/api/src/football/sync/football-sync.service.ts` + `football-sync.writer.ts` |
 | Football: **LIVE** (`live-touch`, LIVE-cron) | `apps/api/src/football/sync/football-live-sync.service.ts`, `football-live-throttle.service.ts` |
 | Football: порт провайдера | `apps/api/src/football/integration/football-provider.port.ts` |

@@ -1,4 +1,9 @@
-import type { LeagueDto, SeasonDto } from '../dto/league-response.dto';
+import type { AdminClubSearchResultDto } from '../dto/club-response.dto';
+import type {
+  AdminLeagueDto,
+  LeagueDto,
+  SeasonDto,
+} from '../dto/league-response.dto';
 import type {
   MatchDetailDto,
   MatchListItemDto,
@@ -7,6 +12,11 @@ import type {
   StandingRowDto,
   StandingTableDto,
 } from '../dto/standing-response.dto';
+import type {
+  AdminCompetitionRow,
+  ClubParticipationRow,
+  ClubSearchRow,
+} from '../persistence/football-admin.repository';
 import type {
   CompetitionRecord,
   MatchDetailRecord,
@@ -94,4 +104,38 @@ export function toPublicMatchListItem(
 ): MatchListItemDto {
   const { competition, ...matchFields } = match;
   return { ...matchFields, league: competition };
+}
+
+/** Турнір у виборі адмінки (D48): поля чипа, тип і чи ввімкнений. */
+export function toAdminLeague(
+  competition: AdminCompetitionRow,
+): AdminLeagueDto {
+  return {
+    id: competition.id,
+    slug: competition.slug,
+    name: competition.name,
+    type: competition.type,
+    isActive: competition.isActive,
+  };
+}
+
+/**
+ * Клуб у пошуку адмінки (D48): поля чипа й турніри — з рядків участі, які вже відібрало правило «у грі»,
+ * у тому ж порядку (турніри — за `sortOrder`).
+ */
+export function toAdminClubSearchResult(
+  club: ClubSearchRow,
+  participationsInPlay: readonly ClubParticipationRow[],
+): AdminClubSearchResultDto {
+  return {
+    id: club.id,
+    slug: club.slug,
+    name: club.name,
+    crestUrl: club.crestUrl,
+    competitions: participationsInPlay.map(({ season: { competition } }) => ({
+      id: competition.id,
+      slug: competition.slug,
+      name: competition.name,
+    })),
+  };
 }
