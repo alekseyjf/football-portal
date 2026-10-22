@@ -3,6 +3,9 @@
  * і форм web / admin (zod-схеми у `@football-portal/validation/forms`).
  * Цей вхід без залежностей: API імпортує лише його, zod йому не потрібен.
  */
+import { slugify } from './slug';
+
+export { SLUG_PATTERN, slugify } from './slug';
 
 /** RFC 5321: довша адреса не доставляється. */
 export const EMAIL_MAX_LENGTH = 254;
@@ -54,6 +57,15 @@ export const POST_COVER_IMAGE_CREDIT_MAX_LENGTH = 100;
 
 /** Slug поста — з EN-заголовка або явний з адмінки (D24). */
 export const POST_SLUG_MAX_LENGTH = 80;
+const POST_SLUG_FALLBACK = 'post';
+
+/**
+ * Slug новини з EN-заголовка (D24): «Mbappé scores!» → `mbappe-scores`. Один на всі мови — мову задає локаль в URL.
+ * Заголовок без латиниці — `post`: новину визначає номер, тож slug може бути неунікальним і неточним.
+ */
+export function slugifyTitle(title: string): string {
+  return slugify(title, POST_SLUG_MAX_LENGTH) ?? POST_SLUG_FALLBACK;
+}
 /** Номер поста в URL `{slug}-{number}` (D24): `Post.number` — Postgres INTEGER. */
 export const POST_NUMBER_MAX = 2_147_483_647;
 

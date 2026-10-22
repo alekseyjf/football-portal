@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { slugifyTitle } from '@football-portal/validation';
 import { LanguageService } from '../languages/language.service';
 import {
   findTranslationLanguagesError,
@@ -36,7 +37,7 @@ import type {
   DeletedPostDto,
 } from './dto/admin-post-response.dto';
 import { toAdminPostView } from './post-response';
-import { resolveUpdatedPostSlug, slugifyTitle } from './post-slug';
+import { resolveUpdatedPostSlug } from './post-slug';
 import {
   resolvePostSource,
   type PostSourceInput,

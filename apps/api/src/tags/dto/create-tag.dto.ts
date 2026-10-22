@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TAG_SLUG_MAX_LENGTH } from '@football-portal/validation';
+import { SLUG_PATTERN, TAG_SLUG_MAX_LENGTH } from '@football-portal/validation';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -11,7 +11,6 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { SLUG_PATTERN } from '../../common/slug';
 import { TRANSLATIONS_PER_REQUEST_MAX } from '../../languages/dto/translation-fields';
 import { TagTranslationDto } from './tag-translation.dto';
 

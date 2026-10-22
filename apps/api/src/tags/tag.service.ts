@@ -4,8 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TAG_SLUG_MAX_LENGTH } from '@football-portal/validation';
-import { slugify } from '../common/slug';
+import { slugify, TAG_SLUG_MAX_LENGTH } from '@football-portal/validation';
 import { LanguageService } from '../languages/language.service';
 import { languageCodesToLoad } from '../languages/translation-fallback';
 import {

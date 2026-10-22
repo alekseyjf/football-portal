@@ -16,6 +16,7 @@
 - **Auth:** access-JWT 15 хв (`sid`) + opaque refresh-сесії в БД, httpOnly cookies ([`decisions/v5-identity.md`](decisions/v5-identity.md)).
 - **Контракт API** ([D28](decisions/D28-openapi-contract.md)): OpenAPI-документ будується з коду API (`@nestjs/swagger` + CLI-плагін: схема відповіді — тип, який повертає метод контролера) → `packages/types/openapi.json` → `openapi-typescript` → типи web і admin. `pnpm gen:api-types` — без сервера й БД; контрактні e2e звіряють реальні відповіді з документом, повний прогін — ще й те, що в кожної операції перевірено успішну відповідь (M1.4.9). Swagger UI — `/api/docs` (не на проді).
 - **Один інстанс API**: ліміти, черга провайдера, кеш — у пам'яті процесу ([D41](decisions/D41-single-instance-scaling.md)).
+- **Спільні пакети:** `packages/types` — типи API з OpenAPI (лише типи); `packages/validation` — межі полів, zod-схеми форм і slug (`slugify`), збирається в `dist`, бо його імпортує API (CommonJS); `packages/ui` — спільний UI web і admin (Markdown-рендерер `MarkdownContent`, [D25](decisions/D25-markdown-content.md)) без збірки: застосунки компілюють його джерела самі (`transpilePackages`), класи Tailwind бачать через `@source` ([D49](decisions/D49-shared-ui-package.md)).
 
 ## Football: як це працює (для розбору коду)
 

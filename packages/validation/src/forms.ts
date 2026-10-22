@@ -19,8 +19,12 @@ import {
   POST_COVER_IMAGE_CREDIT_MAX_LENGTH,
   POST_EXCERPT_MAX_LENGTH,
   POST_EXCERPT_MIN_LENGTH,
+  POST_SLUG_MAX_LENGTH,
+  POST_SOURCE_NAME_MAX_LENGTH,
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
+  SLUG_PATTERN,
+  SOURCE_URL_PROTOCOLS,
   URL_MAX_LENGTH,
   utf8ByteLength,
 } from './index';
@@ -102,6 +106,29 @@ export const postCoverImageCreditSchema = z
   .string()
   .trim()
   .max(POST_COVER_IMAGE_CREDIT_MAX_LENGTH, `Credit must be at most ${POST_COVER_IMAGE_CREDIT_MAX_LENGTH} characters`);
+
+/** Явний slug новини (D24) — як `@Matches(SLUG_PATTERN)` у DTO API. */
+export const postSlugSchema = z
+  .string()
+  .trim()
+  .max(POST_SLUG_MAX_LENGTH, `Slug must be at most ${POST_SLUG_MAX_LENGTH} characters`)
+  .regex(SLUG_PATTERN, 'Use lowercase latin letters and digits, words joined by single hyphens');
+
+/** Посилання на джерело новини (D26) — http(s), як `@IsSourceUrl()` у DTO. */
+export const sourceUrlSchema = z
+  .string()
+  .trim()
+  .max(URL_MAX_LENGTH, `URL must be at most ${URL_MAX_LENGTH} characters`)
+  .refine(
+    (value) => hasAllowedProtocol(value, SOURCE_URL_PROTOCOLS),
+    'Must be an http:// or https:// URL',
+  );
+
+/** Назва джерела («BBC Sport», D26). Порожня — можна: сайт покаже домен адреси. */
+export const postSourceNameSchema = z
+  .string()
+  .trim()
+  .max(POST_SOURCE_NAME_MAX_LENGTH, `Source name must be at most ${POST_SOURCE_NAME_MAX_LENGTH} characters`);
 
 function hasAllowedProtocol(value: string, protocols: readonly string[]): boolean {
   try {

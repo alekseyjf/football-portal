@@ -1,3 +1,4 @@
+import type { FieldErrors } from 'react-hook-form';
 import { z } from 'zod';
 import {
   mediaUrlSchema,
@@ -5,9 +6,22 @@ import {
   postCoverImageAltSchema,
   postCoverImageCreditSchema,
   postExcerptSchema,
+  postSlugSchema,
+  postSourceNameSchema,
   postTitleSchema,
+  sourceUrlSchema,
 } from '@football-portal/validation/forms';
 import type { CreatePostRequest, PostTranslationRequest } from '@/lib/api/types';
+
+/** Мови новини у формі, у порядку вкладок: EN обов'язкова (з її заголовка — адреса, D24), UK — бажана (D23). */
+export const POST_FORM_LANGUAGES = ['en', 'uk'] as const;
+export type PostFormLanguage = (typeof POST_FORM_LANGUAGES)[number];
+
+/** Поля перекладу на вкладці кожної мови. */
+export const TRANSLATION_FIELD_NAMES = {
+  en: { title: 'titleEn', excerpt: 'excerptEn', content: 'contentEn' },
+  uk: { title: 'titleUk', excerpt: 'excerptUk', content: 'contentUk' },
+} as const;
 
 /** Українські поля: або всі порожні, або всі валідні за тими ж межами, що й англійські. */
 const UK_FIELD_SCHEMAS = {
@@ -30,9 +44,14 @@ const COVER_IMAGE_TEXT_SCHEMAS = {
   coverImageAltUk: postCoverImageAltSchema,
   coverImageCredit: postCoverImageCreditSchema,
 } as const;
-const COVER_IMAGE_TEXT_FIELD_NAMES = Object.keys(COVER_IMAGE_TEXT_SCHEMAS) as Array<
+export const COVER_IMAGE_TEXT_FIELD_NAMES = Object.keys(COVER_IMAGE_TEXT_SCHEMAS) as Array<
   keyof typeof COVER_IMAGE_TEXT_SCHEMAS
 >;
+
+/** Необов'язкове поле: порожнє чи з самих пробілів — «не задано», інакше — за схемою (її помилку й покаже форма). */
+function optionalField(schema: z.ZodType<string, string>) {
+  return z.string().trim().pipe(schema.or(z.literal('')));
+}
 
 const formFieldsSchema = z.object({
   // Межі — зі спільного пакета: ті самі числа, що в CreatePostDto API
@@ -42,41 +61,71 @@ const formFieldsSchema = z.object({
   titleUk: z.string(),
   excerptUk: z.string(),
   contentUk: z.string(),
+  // Порожній — адреса з англійського заголовка (D24), поле не надсилаємо
+  slug: optionalField(postSlugSchema),
   // Лише https — як `@IsMediaUrl()` у DTO API
-  coverImageUrl: mediaUrlSchema.optional().or(z.literal('')),
+  coverImageUrl: optionalField(mediaUrlSchema),
   // Межі опису й підпису — в addCoverImageIssues, лише з адресою фото: без неї поля сховані,
   // і схована помилка мовчки блокувала б відправку
   coverImageAltEn: z.string(),
   coverImageAltUk: z.string(),
   coverImageCredit: z.string(),
+  // http(s) — як `@IsSourceUrl()`; назва без адреси — в addSourceIssues
+  sourceUrl: optionalField(sourceUrlSchema),
+  sourceName: postSourceNameSchema,
   publication: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']),
   /** Значення `<input type="datetime-local">` — локальний час редактора */
   scheduledAt: z.string(),
 });
 
-export type CreatePostFormValues = z.infer<typeof formFieldsSchema>;
-type FormRefinementCtx = z.RefinementCtx<CreatePostFormValues>;
+export type PostFormValues = z.infer<typeof formFieldsSchema>;
+type FormRefinementCtx = z.RefinementCtx<PostFormValues>;
+
+/** Нова новина: усе порожнє, чернетка. */
+export const EMPTY_POST_FORM_VALUES: PostFormValues = {
+  titleEn: '',
+  excerptEn: '',
+  contentEn: '',
+  titleUk: '',
+  excerptUk: '',
+  contentUk: '',
+  slug: '',
+  coverImageUrl: '',
+  coverImageAltEn: '',
+  coverImageAltUk: '',
+  coverImageCredit: '',
+  sourceUrl: '',
+  sourceName: '',
+  publication: 'DRAFT',
+  scheduledAt: '',
+};
 
 /**
  * Поля, чиї помилки залежать від цього (правила нижче), — для `register(…, { deps })`: після невдалої
  * відправки React Hook Form перевіряє лише змінене поле, і без `deps` помилка «required to publish»
- * лишалась би після зміни статусу, адреси фото чи української версії.
+ * лишалась би після зміни статусу, адреси фото, української версії чи назви джерела.
  */
 export const DEPENDENT_FIELD_NAMES = {
   publication: ['scheduledAt', ...COVER_IMAGE_TEXT_FIELD_NAMES],
   coverImageUrl: COVER_IMAGE_TEXT_FIELD_NAMES,
   ukTranslation: [...UK_FIELD_NAMES, 'coverImageAltUk'],
-} satisfies Record<string, Array<keyof CreatePostFormValues>>;
+  sourceName: ['sourceUrl'],
+} satisfies Record<string, Array<keyof PostFormValues>>;
 
-function hasUkTranslation(values: CreatePostFormValues): boolean {
+/** `deps` полів перекладу: українська — або всі поля, або жодного, тож зміна одного перевіряє решту. */
+export function translationFieldDeps(language: PostFormLanguage): Array<keyof PostFormValues> {
+  return language === 'uk' ? DEPENDENT_FIELD_NAMES.ukTranslation : [];
+}
+
+function hasUkTranslation(values: PostFormValues): boolean {
   return hasUkText(UK_FIELD_NAMES.map((fieldName) => values[fieldName]));
 }
 
-export function hasCoverImage(coverImageUrl: string | undefined): boolean {
-  return Boolean(coverImageUrl?.trim());
+export function hasCoverImage(coverImageUrl: string): boolean {
+  return Boolean(coverImageUrl.trim());
 }
 
-function addUkTranslationIssues(values: CreatePostFormValues, ctx: FormRefinementCtx) {
+function addUkTranslationIssues(values: PostFormValues, ctx: FormRefinementCtx) {
   if (!hasUkTranslation(values)) return;
   for (const fieldName of UK_FIELD_NAMES) {
     const fieldResult = UK_FIELD_SCHEMAS[fieldName].safeParse(values[fieldName]);
@@ -92,7 +141,7 @@ function addUkTranslationIssues(values: CreatePostFormValues, ctx: FormRefinemen
   }
 }
 
-function addScheduleIssues(values: CreatePostFormValues, ctx: FormRefinementCtx) {
+function addScheduleIssues(values: PostFormValues, ctx: FormRefinementCtx) {
   if (values.publication !== 'SCHEDULED') return;
   const scheduledTime = new Date(values.scheduledAt).getTime();
   if (!values.scheduledAt || Number.isNaN(scheduledTime)) {
@@ -107,9 +156,9 @@ function addScheduleIssues(values: CreatePostFormValues, ctx: FormRefinementCtx)
  * й підписом автора фото; чернетка може бути неповною. Без цієї перевірки редактор дізнався б про
  * пропуск з 400 після відправлення.
  */
-function addCoverImageIssues(values: CreatePostFormValues, ctx: FormRefinementCtx) {
+function addCoverImageIssues(values: PostFormValues, ctx: FormRefinementCtx) {
   if (!hasCoverImage(values.coverImageUrl)) return;
-  const addFieldIssue = (fieldName: keyof CreatePostFormValues, message: string) =>
+  const addFieldIssue = (fieldName: keyof PostFormValues, message: string) =>
     ctx.addIssue({ code: 'custom', path: [fieldName], message });
   for (const fieldName of COVER_IMAGE_TEXT_FIELD_NAMES) {
     const fieldResult = COVER_IMAGE_TEXT_SCHEMAS[fieldName].safeParse(values[fieldName]);
@@ -132,21 +181,53 @@ function addCoverImageIssues(values: CreatePostFormValues, ctx: FormRefinementCt
   }
 }
 
-export const createPostFormSchema = formFieldsSchema.superRefine((values, ctx) => {
+/** Як правило API (D26, `SOURCE_URL_REQUIRED`): назва джерела — лише разом з адресою статті. */
+function addSourceIssues(values: PostFormValues, ctx: FormRefinementCtx) {
+  if (!values.sourceName.trim() || values.sourceUrl.trim()) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: ['sourceUrl'],
+    message: 'Add the article URL — the source name is shown only with it',
+  });
+}
+
+export const postFormSchema = formFieldsSchema.superRefine((values, ctx) => {
   addUkTranslationIssues(values, ctx);
   addScheduleIssues(values, ctx);
   addCoverImageIssues(values, ctx);
+  addSourceIssues(values, ctx);
 });
+
+/** На вкладці мови є поле з помилкою — позначка на назві вкладки. */
+export function languageHasErrors(
+  errors: FieldErrors<PostFormValues>,
+  language: PostFormLanguage,
+): boolean {
+  return Object.values(TRANSLATION_FIELD_NAMES[language]).some((fieldName) => Boolean(errors[fieldName]));
+}
+
+/**
+ * Вкладка мови, на поле якої React Hook Form поставить фокус після невдалої відправки: поля вкладок — першими
+ * у формі, EN — раніше за UK. `null` — помилки лише поза вкладками.
+ */
+export function firstLanguageWithErrors(
+  errors: FieldErrors<PostFormValues>,
+): PostFormLanguage | null {
+  return POST_FORM_LANGUAGES.find((language) => languageHasErrors(errors, language)) ?? null;
+}
 
 /** `datetime-local` (без зони) → ISO з `Z`: браузер читає його в локальній зоні редактора. */
 function toIsoWithZone(localDateTime: string): string {
   return new Date(localDateTime).toISOString();
 }
 
-/** Значення форми → тіло `POST /posts`; англійські поля вже після trim у zod-схемах, решту обрізаємо тут. */
-export function toCreatePostRequest(values: CreatePostFormValues): CreatePostRequest {
+/**
+ * Значення форми → тіло `POST /posts`. Поля зі спільних схем (переклад EN, slug, адреси, назва джерела) уже
+ * після trim, решту обрізаємо тут.
+ */
+export function toCreatePostRequest(values: PostFormValues): CreatePostRequest {
   // Без обкладинки опис і підпис не надсилаємо: API їх однаково не збереже (D44)
-  const coverImageUrl = values.coverImageUrl?.trim() || null;
+  const coverImageUrl = values.coverImageUrl || null;
   const coverImageCredit = values.coverImageCredit.trim();
   const withCoverImageAlt = (alt: string) =>
     coverImageUrl && alt.trim() ? { coverImageAlt: alt.trim() } : {};
@@ -173,10 +254,15 @@ export function toCreatePostRequest(values: CreatePostFormValues): CreatePostReq
   return {
     translations,
     status: values.publication,
+    // Порожній slug не надсилаємо: API візьме його з англійського заголовка (D24); явний — фіксується з публікацією
+    ...(values.slug ? { slug: values.slug } : {}),
     ...(values.publication === 'SCHEDULED'
       ? { publishedAt: toIsoWithZone(values.scheduledAt) }
       : {}),
     ...(coverImageUrl ? { coverImageUrl } : {}),
     ...(coverImageUrl && coverImageCredit ? { coverImageCredit } : {}),
+    // Назва джерела — лише з адресою (D26): форма не пропустить іншого, а API відповів би 400
+    ...(values.sourceUrl ? { sourceUrl: values.sourceUrl } : {}),
+    ...(values.sourceUrl && values.sourceName ? { sourceName: values.sourceName } : {}),
   };
 }

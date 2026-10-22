@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+import { POST_SLUG_MAX_LENGTH, slugifyTitle } from './index';
 import { SLUG_PATTERN, slugify } from './slug';
 
 const MAX_LENGTH = 80;
@@ -35,5 +37,18 @@ describe('slugify', () => {
     for (const text of ['Mbappé — 2:1!', 'Ødegaard & Saka', 'x'.repeat(120)]) {
       expect(slugify(text, MAX_LENGTH)).toMatch(SLUG_PATTERN);
     }
+  });
+});
+
+describe('slugifyTitle (D24)', () => {
+  it('slug з EN-заголовка — до 80 символів', () => {
+    expect(slugifyTitle('Mbappé scores twice!')).toBe('mbappe-scores-twice');
+    expect(slugifyTitle('a'.repeat(120))).toHaveLength(POST_SLUG_MAX_LENGTH);
+  });
+
+  it('без латиниці (лише кирилиця / символи) — fallback `post`: новину визначає номер', () => {
+    expect(slugifyTitle('Новини дня')).toBe('post');
+    expect(slugifyTitle('!!! ???')).toBe('post');
+    expect(slugifyTitle('Новини дня')).toMatch(SLUG_PATTERN);
   });
 });

@@ -10,7 +10,8 @@ const withNextIntl = createNextIntlPlugin({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Спільний UI — без збірки: пакет віддає TypeScript-джерела, Next компілює їх сам
+  transpilePackages: ['@football-portal/ui'],
 };
 
 export default withNextIntl(nextConfig);
