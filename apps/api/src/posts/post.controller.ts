@@ -104,7 +104,7 @@ export class PostController {
 
   /**
    * Змінити новину: переклади — upsert за мовою, передані зв'язки замінюють наявні.
-   * @throws {400} Невалідні поля або коди, як у створенні
+   * @throws {400} Невалідні поля; DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE, PUBLISHED_AT_NOT_ALLOWED, PUBLISHED_AT_REQUIRED, PUBLISHED_AT_IN_FUTURE, SCHEDULED_AT_IN_PAST, COVER_IMAGE_ALT_REQUIRED, COVER_IMAGE_CREDIT_REQUIRED, SOURCE_URL_REQUIRED, UNKNOWN_TAG, UNKNOWN_CLUB, UNKNOWN_COMPETITION
    * @throws {404} POST_NOT_FOUND
    */
   // Лише ADMIN (P3-7): зі `status` в тілі автор без ролі міг би публікувати

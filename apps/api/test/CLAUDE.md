@@ -10,6 +10,7 @@
 - Підключення — `E2E_DATABASE_URL` або `DIRECT_URL` (session pooler); transaction pooler не підходить (`search_path`).
 - Файли — `test/<модуль>/*.e2e-spec.ts`; запуск модуля з кореня — `pnpm test:e2e -- <модуль>`.
 - Контракт ([D28](../../../docs/decisions/D28-openapi-contract.md)): відповідь ендпоінта — `expectMatchesContract(response, 'get', '/posts/{number}')` (`support/openapi-contract.ts`): статус описаний у `packages/types/openapi.json`, тіло — за схемою, без незадокументованих полів. Змінив DTO чи роут — спершу `pnpm gen:api-types`.
+- Покриття контракту: повний прогін (без шаблону) падає в `globalTeardown`, якщо в операції `openapi.json` немає жодної 2xx-відповіді, перевіреної `expectMatchesContract` (`support/contract-coverage.ts`). Новий ендпоінт — з e2e успіху; 2xx, яку e2e не відтворити, — у `OPERATIONS_WITHOUT_SUCCESS_E2E` з причиною.
 - Env тест-застосунку — `createE2eApp({ envOverrides })` (`COMMENT_COOLDOWN_MS: '0'`, прод-режим); турнір з матчами й таблицею — `seedFootballLeague` (`support/e2e-football.ts`): синк без ключа не працює.
 - supertest: `request(server)` слухає порт лише до кінця свого запиту — запит створювати там, де його `await`-ять, а не масивом наперед (інакше `ECONNREFUSED`).
 - Гонка — детерміновано: блокування тримає окрема транзакція (`e2e.prisma.$transaction`), тест чекає, доки запит застрягне на ньому (`pg_stat_activity`, `wait_event_type = 'Lock'`), і лише тоді відпускає (`finally`); CHECK з `constraints.sql` — записом в обхід API. Приклад — `tags/tags.e2e-spec.ts`.

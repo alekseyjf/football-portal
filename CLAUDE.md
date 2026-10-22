@@ -109,7 +109,7 @@ All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/
 - `POST /football/live-touch` — публічний, ліміт 10 / хв на IP; приймається для матчу в LIVE-вікні (гра йде або `SCHEDULED` у `[−3 год, +15 хв]`), LIVE-синк турніру — не частіше 60 с; лише оновлює наявні матчі, `FINISHED` → оновити таблицю
 
 ### E2E — `apps/api/test/`
-- `pnpm test:e2e [-- модуль]` (з кореня; там же `pnpm test`, `pnpm typecheck`, `pnpm db:migrate`, `pnpm db:seed`) — окрема схема `e2e` у dev-БД (потрібна жива Supabase); правила — `apps/api/test/CLAUDE.md`
+- `pnpm test:e2e [-- модуль]` (з кореня; там же `pnpm test`, `pnpm typecheck`, `pnpm db:migrate`, `pnpm db:seed`) — окрема схема `e2e` у dev-БД (потрібна жива Supabase); повний прогін ще й падає, якщо в операції `openapi.json` немає перевіреної 2xx-відповіді; правила — `apps/api/test/CLAUDE.md`
 
 ## Frontend Structure (apps/web/src/)
 - i18n: `proxy.ts` (next-intl + тимчасовий 308 `/ua/…` → `/uk/…`, прибрати в M3.1), `i18n/` (routing, request, navigation), `messages/en.json` / `uk.json`; для `Intl` / дат — `uk-UA` (`lib/i18n/content-lang.ts`)
