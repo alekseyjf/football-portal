@@ -1,6 +1,6 @@
 import type { ApiContentLanguage } from '@/lib/api/types';
 
-/** Мапа сегмента URL → `lang` для GET /posts, /posts/:slug (коди збігаються, D22). */
+/** Мапа сегмента URL → `lang` для GET /posts, /posts/{number} (коди збігаються, D22). */
 export function localeToApiContentLang(locale: string): ApiContentLanguage {
   return locale === 'uk' ? 'uk' : 'en';
 }

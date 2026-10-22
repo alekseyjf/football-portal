@@ -7,6 +7,7 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "globalSetup": "<rootDir>/support/global-setup.ts",
+  "globalTeardown": "<rootDir>/support/global-teardown.ts",
   "maxWorkers": 1,
   "testTimeout": 30000
 }

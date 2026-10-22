@@ -2,12 +2,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Ajv, { type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
+import { recordCheckedOperation } from './contract-coverage';
 
 /*
  * Контракт API (D28): відповідь ендпоінта має бути такою, як у packages/types/openapi.json — з нього
  * генеруються типи web і admin. Перевіряємо згенерований документ (`pnpm gen:api-types`, у git його немає),
  * а не той, що віддає тест-застосунок: ts-jest збирає без CLI-плагіна Swagger, і схем DTO в його документі
- * немає. Змінив DTO чи роут — спершу `pnpm gen:api-types`.
+ * немає. Змінив DTO чи роут — спершу `pnpm gen:api-types`. Перевірена 2xx-відповідь іде в журнал
+ * покриття (`contract-coverage.ts`).
  */
 
 const OPENAPI_DOCUMENT_PATH = join(
@@ -197,4 +199,8 @@ export function expectMatchesContract(
     status,
     errors: [],
   });
+  // Покриття — лише успіх: 401 / 403 перевіряє access-control, 400 — Definition of Done ендпоінта
+  if (response.status >= 200 && response.status < 300) {
+    recordCheckedOperation(method, pathTemplate);
+  }
 }

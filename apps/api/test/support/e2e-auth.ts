@@ -34,24 +34,45 @@ export async function createUser(
 }
 
 /**
+ * Рядок `Set-Cookie` з непорожнім значенням (порожнє — це очищення, не cookie):
+ * `access_token=…; Max-Age=900; Path=/; Expires=…; HttpOnly; SameSite=Lax`.
+ */
+function findSetCookie(response: request.Response, cookieName: string): string {
+  const setCookieHeader = response.headers['set-cookie'] as unknown;
+  const setCookies = Array.isArray(setCookieHeader)
+    ? (setCookieHeader as string[])
+    : [];
+  const setCookie = setCookies.find((line) => {
+    const [pair] = line.split(';');
+    return (
+      pair.startsWith(`${cookieName}=`) && pair.length > cookieName.length + 1
+    );
+  });
+  if (!setCookie) throw new Error(`No ${cookieName} cookie in the response`);
+  return setCookie;
+}
+
+/**
  * Значення cookie з `Set-Cookie` відповіді — для тестів, де браузер шле лише частину cookies
- * (access уже прострочений, refresh — ні). Порожнє значення — це очищення, не cookie.
+ * (access уже прострочений, refresh — ні).
  */
 export function readSetCookie(
   response: request.Response,
   cookieName: string,
 ): string {
-  const setCookieHeader = response.headers['set-cookie'] as unknown;
-  const setCookies = Array.isArray(setCookieHeader)
-    ? (setCookieHeader as string[])
-    : [];
-  const cookieValue = setCookies
-    .map((setCookie) => setCookie.split(';')[0])
-    .filter((pair) => pair.startsWith(`${cookieName}=`))
-    .map((pair) => pair.slice(cookieName.length + 1))
-    .find((value) => value !== '');
-  if (!cookieValue) throw new Error(`No ${cookieName} cookie in the response`);
-  return cookieValue;
+  const [pair] = findSetCookie(response, cookieName).split(';');
+  return pair.slice(cookieName.length + 1);
+}
+
+/** Атрибути cookie з `Set-Cookie`: `['Max-Age=900', 'Path=/', …, 'HttpOnly', 'SameSite=Lax']`. */
+export function readSetCookieAttributes(
+  response: request.Response,
+  cookieName: string,
+): string[] {
+  return findSetCookie(response, cookieName)
+    .split(';')
+    .slice(1)
+    .map((attribute) => attribute.trim());
 }
 
 /** Агент supertest зберігає httpOnly cookies логіну й шле їх далі — як браузер. */
