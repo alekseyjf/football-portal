@@ -1,6 +1,8 @@
-import { ADMIN_CLUBS_SEARCH_MAX_LENGTH } from '@football-portal/validation';
+import {
+  ADMIN_CLUBS_SEARCH_MAX_LENGTH,
+  slugify,
+} from '@football-portal/validation';
 import type { Prisma } from '@prisma/client';
-import { slugify } from '../common/slug';
 import { containsIgnoringCase } from '../prisma/prisma-text-search';
 
 /**

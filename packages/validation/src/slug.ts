@@ -1,3 +1,8 @@
+/**
+ * Slug — адреса новини (D24) чи тегу (D45) з EN-тексту. Одна транслітерація для API (slug при збереженні) і
+ * адмінки (підказка в полі): інакше підказка розійшлась би з тим, що збереже API.
+ */
+
 /** Формат slug-а — такий, який будує `slugify`: латиниця в нижньому регістрі й цифри, слова через один дефіс. */
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -22,7 +27,7 @@ const LATIN_LETTER_TRANSLITERATION: Record<string, string> = {
 export function slugify(text: string, maxLength: number): string | null {
   const asciiWords = text
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[øæœßłđðþı]/g, (letter) => LATIN_LETTER_TRANSLITERATION[letter])
     .replace(/[^a-z0-9]+/g, ' ')

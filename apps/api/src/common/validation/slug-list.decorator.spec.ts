@@ -1,5 +1,5 @@
+import { SLUG_PATTERN } from '@football-portal/validation';
 import { validate } from 'class-validator';
-import { SLUG_PATTERN } from '../slug';
 import { IsSlugList } from './slug-list.decorator';
 
 const MAX_VALUES = 3;

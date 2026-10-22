@@ -1,15 +1,4 @@
-import { POST_SLUG_MAX_LENGTH } from '@football-portal/validation';
-import { slugify } from '../common/slug';
-
-const SLUG_FALLBACK = 'post';
-
-/**
- * Slug новини з EN-заголовка (D24): «Mbappé scores!» → `mbappe-scores`. Один на всі мови — мову задає локаль в URL.
- * Заголовок без латиниці — `post`: новину визначає номер, тож slug може бути неунікальним і неточним.
- */
-export function slugifyTitle(title: string): string {
-  return slugify(title, POST_SLUG_MAX_LENGTH) ?? SLUG_FALLBACK;
-}
+import { slugifyTitle } from '@football-portal/validation';
 
 export interface PostSlugUpdateInput {
   /** Пост до оновлення */

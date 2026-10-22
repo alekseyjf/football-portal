@@ -26,8 +26,8 @@ import {
   POST_SOURCE_NAME_MAX_LENGTH,
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
+  SLUG_PATTERN,
 } from '@football-portal/validation';
-import { SLUG_PATTERN } from '../../common/slug';
 import { IsIsoDateTimeWithZone } from '../../common/validation/iso-date-time.decorator';
 import { TrimString } from '../../common/validation/trim-string.transform';
 import {

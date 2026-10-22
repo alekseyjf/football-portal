@@ -5,9 +5,9 @@ import {
   PAGE_NUMBER_MAX,
   POSTS_FILTER_VALUES_MAX,
   POSTS_PAGE_LIMIT_MAX,
+  SLUG_PATTERN,
   TAG_SLUG_MAX_LENGTH,
 } from '@football-portal/validation';
-import { SLUG_PATTERN } from '../../common/slug';
 import {
   IsSlugList,
   type SlugListRule,

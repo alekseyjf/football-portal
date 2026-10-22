@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* Текст новини — prose (D25) */
+@plugin "@tailwindcss/typography";
+/* Класи спільного UI: пакет поза застосунком, Tailwind сам його не сканує */
+@source "../../../../packages/ui/src";
 
 :root {
   --background: #ffffff;
