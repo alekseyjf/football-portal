@@ -17,6 +17,7 @@ export * from './auth/session';
 export * from './languages/content-language';
 export * from './posts/post';
 export * from './posts/admin-post';
+export * from './tags/tag';
 
 // Коментарі й реакції
 export * from './comments/comment';

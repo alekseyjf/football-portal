@@ -135,7 +135,12 @@ describe('Теги: керування адміном, публічні спис
   it('той самий slug → 409 TAG_SLUG_TAKEN: і з іншим написанням назви, і з явним slug-ом', async () => {
     const sameName = await admin
       .post(apiPath('/tags'))
-      .send({ translations: [{ languageCode: 'en', name: 'TRANSFER NEWS!' }] })
+      .send({
+        translations: [
+          { languageCode: 'en', name: 'TRANSFER NEWS!' },
+          { languageCode: 'uk', name: 'Трансферні новини' },
+        ],
+      })
       .expect(409);
     expectMatchesContract(sameName, 'post', '/tags');
     expect(sameName.body).toMatchObject({ message: 'TAG_SLUG_TAKEN' });
@@ -144,14 +149,17 @@ describe('Теги: керування адміном, публічні спис
       .post(apiPath('/tags'))
       .send({
         slug: 'transfer-news',
-        translations: [{ languageCode: 'en', name: 'Rumours' }],
+        translations: [
+          { languageCode: 'en', name: 'Rumours' },
+          { languageCode: 'uk', name: 'Чутки' },
+        ],
       })
       .expect(409);
     expect(sameSlug.body).toMatchObject({ message: 'TAG_SLUG_TAKEN' });
     expect(await e2e.prisma.tag.count()).toBe(1);
   });
 
-  it('без англійської назви → 400 DEFAULT_TRANSLATION_REQUIRED, назва вимкненою мовою → 400 UNSUPPORTED_LANGUAGE', async () => {
+  it('без англійської назви → 400 DEFAULT_TRANSLATION_REQUIRED, без української → 400 ALL_TRANSLATIONS_REQUIRED (D51), назва вимкненою мовою → 400 UNSUPPORTED_LANGUAGE', async () => {
     const withoutEnglish = await admin
       .post(apiPath('/tags'))
       .send({ translations: [{ languageCode: 'uk', name: 'Травми' }] })
@@ -159,6 +167,15 @@ describe('Теги: керування адміном, публічні спис
     expectMatchesContract(withoutEnglish, 'post', '/tags');
     expect(withoutEnglish.body).toMatchObject({
       message: 'DEFAULT_TRANSLATION_REQUIRED',
+    });
+
+    const withoutUkrainian = await admin
+      .post(apiPath('/tags'))
+      .send({ translations: [{ languageCode: 'en', name: 'Injuries' }] })
+      .expect(400);
+    expectMatchesContract(withoutUkrainian, 'post', '/tags');
+    expect(withoutUkrainian.body).toMatchObject({
+      message: 'ALL_TRANSLATIONS_REQUIRED',
     });
 
     const disabledLanguage = await admin
@@ -178,7 +195,10 @@ describe('Теги: керування адміном, публічні спис
 
   it('англійська назва без латиниці: без slug-а → 400 TAG_SLUG_REQUIRED, з явним slug-ом — створено', async () => {
     // Помилка редактора — українська назва в полі англійської; fallback-slug злив би всі такі теги в один
-    const cyrillicName = [{ languageCode: 'en', name: 'Травми' }];
+    const cyrillicName = [
+      { languageCode: 'en', name: 'Травми' },
+      { languageCode: 'uk', name: 'Травми' },
+    ];
     const withoutSlug = await admin
       .post(apiPath('/tags'))
       .send({ translations: cyrillicName })
@@ -204,6 +224,7 @@ describe('Теги: керування адміном, публічні спис
     const longest = await createTag({
       translations: [
         { languageCode: 'en', name: 'x'.repeat(TAG_NAME_MAX_LENGTH) },
+        { languageCode: 'uk', name: 'ж'.repeat(TAG_NAME_MAX_LENGTH) },
       ],
     });
     expect(longest.slug).toBe('x'.repeat(TAG_NAME_MAX_LENGTH));
@@ -226,7 +247,7 @@ describe('Теги: керування адміном, публічні спис
       ],
     });
 
-    // Виправити англійську назву й додати українську — одним запитом
+    // Виправити англійську назву, набрану кирилицею, і тим самим запитом — українську
     const fixed = await admin
       .put(apiPath(`/tags/${injuriesTag.id}`))
       .send({
@@ -245,6 +266,23 @@ describe('Теги: керування адміном, публічні спис
     });
   });
 
+  it('прибрати назву перейменуванням не можна: порожня → 400, тег лишається з назвами обома мовами (D51)', async () => {
+    const emptyName = await admin
+      .put(apiPath(`/tags/${transfersTag.id}`))
+      .send({ translations: [{ languageCode: 'uk', name: '   ' }] })
+      .expect(400);
+    expectMatchesContract(emptyName, 'put', '/tags/{id}');
+
+    const list = await admin.get(apiPath('/tags/admin/all')).expect(200);
+    const transfers = (list.body as AdminTagBody[]).find(
+      ({ id }) => id === transfersTag.id,
+    );
+    expect(transfers?.translations).toEqual([
+      { languageCode: 'en', name: 'Transfer window' },
+      TRANSFERS_UK,
+    ]);
+  });
+
   it('перейменування неіснуючого тегу → 404 TAG_NOT_FOUND', async () => {
     const response = await admin
       .put(apiPath('/tags/missing-tag'))
@@ -254,7 +292,7 @@ describe('Теги: керування адміном, публічні спис
     expect(response.body).toMatchObject({ message: 'TAG_NOT_FOUND' });
   });
 
-  it('публічний список — лише теги з опублікованими новинами, за абеткою мовою запиту; без перекладу — англійською', async () => {
+  it('публічний список — лише теги з опублікованими новинами, за абеткою мовою запиту; без перекладу (тег в обхід API) — англійською', async () => {
     const derbyTag = await createTag({
       translations: [
         { languageCode: 'en', name: 'Derby' },
@@ -267,17 +305,30 @@ describe('Теги: керування адміном, публічні спис
         { languageCode: 'uk', name: 'Євро-2028' },
       ],
     });
-    const varTag = await createTag({
-      translations: [{ languageCode: 'en', name: 'VAR' }],
+    // API без української назви тег не створить (D51) — такий лишає хіба сід чи SQL; назва тоді — англійською
+    const varTag = await e2e.prisma.tag.create({
+      data: {
+        slug: 'var',
+        translations: { create: { languageCode: 'en', name: 'VAR' } },
+      },
     });
     const draftOnlyTag = await createTag({
-      translations: [{ languageCode: 'en', name: 'Exclusive' }],
+      translations: [
+        { languageCode: 'en', name: 'Exclusive' },
+        { languageCode: 'uk', name: 'Ексклюзив' },
+      ],
     });
     const scheduledOnlyTag = await createTag({
-      translations: [{ languageCode: 'en', name: 'Preview' }],
+      translations: [
+        { languageCode: 'en', name: 'Preview' },
+        { languageCode: 'uk', name: 'Анонс' },
+      ],
     });
     const deletedOnlyTag = await createTag({
-      translations: [{ languageCode: 'en', name: 'Old story' }],
+      translations: [
+        { languageCode: 'en', name: 'Old story' },
+        { languageCode: 'uk', name: 'Стара історія' },
+      ],
     });
 
     publishedPost = await createPost({
@@ -414,7 +465,10 @@ describe('Теги: керування адміном, публічні спис
 
   it('тег видалили, поки зберігається новина з ним → 400 UNKNOWN_TAG, а не 500 (FK)', async () => {
     const lateTag = await createTag({
-      translations: [{ languageCode: 'en', name: 'Late drama' }],
+      translations: [
+        { languageCode: 'en', name: 'Late drama' },
+        { languageCode: 'uk', name: 'Пізня драма' },
+      ],
     });
     let releaseDeletion!: () => void;
     const deletionReleased = new Promise<void>((resolve) => {

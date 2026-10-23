@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { POST_SLUG_MAX_LENGTH, slugifyTitle } from './index';
+import { POST_SLUG_MAX_LENGTH, slugifyTagName, slugifyTitle, TAG_SLUG_MAX_LENGTH } from './index';
 import { SLUG_PATTERN, slugify } from './slug';
 
 const MAX_LENGTH = 80;
@@ -50,5 +50,16 @@ describe('slugifyTitle (D24)', () => {
     expect(slugifyTitle('Новини дня')).toBe('post');
     expect(slugifyTitle('!!! ???')).toBe('post');
     expect(slugifyTitle('Новини дня')).toMatch(SLUG_PATTERN);
+  });
+});
+
+describe('slugifyTagName (D45)', () => {
+  it('slug з EN-назви — до 50 символів', () => {
+    expect(slugifyTagName('Transfer window')).toBe('transfer-window');
+    expect(slugifyTagName('a'.repeat(120))).toHaveLength(TAG_SLUG_MAX_LENGTH);
+  });
+
+  it('без латиниці — null, а не fallback: спільна адреса всіх таких тегів злила б їх в одну тему', () => {
+    expect(slugifyTagName('Трансфери')).toBeNull();
   });
 });

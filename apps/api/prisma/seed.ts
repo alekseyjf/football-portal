@@ -139,7 +139,13 @@ interface ExportedAdmin {
 
 interface ExportedTag {
   slug: string;
+  /** Англійська назва — у форматі експорту Фази 0 єдина назва тегу */
   name: string;
+  /**
+   * Українська назва: тег — з назвами обома мовами (D51), а експорт Фази 0 її не має — дописують у content.json
+   * вручну; без неї експорт не сідиться
+   */
+  nameUk?: string;
 }
 
 interface ExportedPostTranslation {
@@ -236,6 +242,14 @@ function assertContentConsistent(contentExport: ContentExport): void {
 
   if (contentExport.admins.length === 0) {
     problems.push('no admins in content.json');
+  }
+
+  for (const tag of contentExport.tags) {
+    if (!tag.nameUk?.trim()) {
+      problems.push(
+        `tag "${tag.slug}": no "nameUk" — a tag needs English and Ukrainian names (D51)`,
+      );
+    }
   }
 
   for (const post of contentExport.posts) {
@@ -387,7 +401,11 @@ async function seedTags(
       create: {
         slug: tag.slug,
         translations: {
-          create: { languageCode: defaultLanguageCode, name: tag.name },
+          create: [
+            { languageCode: defaultLanguageCode, name: tag.name },
+            // `nameUk` є: без неї assertContentConsistent зупиняє сід
+            { languageCode: 'uk', name: tag.nameUk!.trim() },
+          ],
         },
       },
       update: {},

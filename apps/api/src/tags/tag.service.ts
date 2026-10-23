@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { slugify, TAG_SLUG_MAX_LENGTH } from '@football-portal/validation';
+import { slugifyTagName } from '@football-portal/validation';
 import { LanguageService } from '../languages/language.service';
 import { languageCodesToLoad } from '../languages/translation-fallback';
 import {
@@ -67,13 +67,15 @@ export class TagService {
     this.assertTranslationsAllowed({
       translations: dto.translations,
       isNew: true,
+      // Назва тегу — кожною увімкненою мовою, EN і UK (D51)
+      required: 'all',
       languages,
     });
     // Назва default-мови є: без неї assertTranslationsAllowed кидає 400
     const defaultName = dto.translations.find(
       (translation) => translation.languageCode === languages.defaultCode,
     )!.name;
-    const slug = dto.slug ?? slugify(defaultName, TAG_SLUG_MAX_LENGTH);
+    const slug = dto.slug ?? slugifyTagName(defaultName);
     // Без fallback, як `post` у новин: тег визначає slug, і всі такі теги отримали б один
     if (!slug) throw new BadRequestException('TAG_SLUG_REQUIRED');
 
@@ -94,9 +96,11 @@ export class TagService {
 
   async updateTag(id: string, dto: UpdateTagDto): Promise<AdminTagDto> {
     const languages = await this.languageService.getContentLanguages();
+    // Назву не прибрати: `PUT` — upsert за мовою, порожню відхиляє DTO — тож тег лишається з усіма назвами (D51)
     this.assertTranslationsAllowed({
       translations: dto.translations,
       isNew: false,
+      required: 'all',
       languages,
     });
     try {
@@ -118,7 +122,7 @@ export class TagService {
     return { id };
   }
 
-  /** Мови назв — те саме правило, що й для перекладів новини (D23, D45). */
+  /** Мови назв — те саме правило, що й для перекладів новини (D23, D45), але обов'язкові всі (D51). */
   private assertTranslationsAllowed(input: TranslationLanguagesInput): void {
     const errorCode = findTranslationLanguagesError(input);
     if (errorCode) throw new BadRequestException(errorCode);

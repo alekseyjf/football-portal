@@ -34,6 +34,12 @@ export function AdminShellBar() {
           >
             Новий пост
           </AdminLink>
+          <AdminLink
+            href="/dashboard/tags"
+            className="text-gray-400 hover:text-white transition-colors"
+          >
+            Теги
+          </AdminLink>
           <a
             href={publicWeb}
             target="_blank"

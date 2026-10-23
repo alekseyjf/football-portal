@@ -63,6 +63,8 @@ export class PostEditorService {
     this.assertTranslationsAllowed({
       translations: dto.translations,
       isNew: true,
+      // UK — бажана, без неї сайт покаже EN з позначкою (D23)
+      required: 'default',
       languages,
     });
     // Переклад default-мови є: без нього assertTranslationsAllowed кидає 400
@@ -118,6 +120,7 @@ export class PostEditorService {
       this.assertTranslationsAllowed({
         translations: dto.translations,
         isNew: false,
+        required: 'default',
         languages,
       });
     }
