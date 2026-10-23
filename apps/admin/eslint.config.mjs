@@ -5,6 +5,24 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // Посилання — лише AdminLink: він питає про незбережені зміни перед переходом (D50)
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/components/AdminLink.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/link",
+              message: "Use AdminLink from @/components/AdminLink: it asks about unsaved changes (D50).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

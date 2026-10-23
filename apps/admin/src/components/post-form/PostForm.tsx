@@ -1,18 +1,24 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { AdminLink } from '@/components/AdminLink';
 import { TabList, tabElementId, tabPanelElementId } from '@/components/TabList';
+import { useLastPostListHref } from '@/hooks/useLastPostListHref';
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
+import type { AdminPostDetail } from '@/lib/api/types';
+import { editorTimeZone } from '@/lib/editorDateTime';
 import { CoverImageFields } from './CoverImageFields';
 import { PostSlugField } from './PostSlugField';
 import { PostSourceFields } from './PostSourceFields';
 import { PostTranslationFields } from './PostTranslationFields';
 import { PublicationFields } from './PublicationFields';
 import {
+  hasUkTranslation,
   languageHasErrors,
   POST_FORM_LANGUAGES,
-  postFormSchema,
+  postFormSchemaFor,
   type PostFormLanguage,
   type PostFormValues,
 } from './postFormSchema';
@@ -23,6 +29,12 @@ const LANGUAGE_TABS_ID = 'post-language';
 const LANGUAGE_LABELS: Record<PostFormLanguage, string> = { en: 'English', uk: 'Українська' };
 
 interface PostFormProps {
+  /** Збережена новина, яку редагують; без неї — створення */
+  post?: AdminPostDetail;
+  /**
+   * Поля: порожні для нової, `toPostFormValues(post)` для збереженої. Прийшли інші (новину щойно збережено) —
+   * форма бере їх як збережений стан і знову «чиста»
+   */
   defaultValues: PostFormValues;
   submitLabel: string;
   pendingLabel: string;
@@ -31,35 +43,52 @@ interface PostFormProps {
 }
 
 /**
- * Форма новини — спільна для створення й редагування (M1.5.2): переклади вкладками мов, адреса, обкладинка,
- * джерело, публікація. Правила полів — `postFormSchema`, тіло запиту будує той, хто зберігає.
+ * Форма новини — спільна для створення й редагування: переклади вкладками мов, адреса, обкладинка, джерело,
+ * публікація. Правила полів — `postFormSchemaFor`, тіло запиту будує той, хто зберігає.
  */
-export function PostForm({ defaultValues, submitLabel, pendingLabel, onSubmit }: PostFormProps) {
-  const router = useRouter();
+export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSubmit }: PostFormProps) {
   const tabs = usePostFormTabs();
+  const listHref = useLastPostListHref();
+  const timeZone = editorTimeZone();
+  const isEditing = post !== undefined;
+  const isLive = post?.isLive ?? false;
+  const schema = useMemo(
+    () => postFormSchemaFor({ timeZone, savedValues: isEditing ? defaultValues : undefined, isLive }),
+    [timeZone, isEditing, defaultValues, isLive],
+  );
+  const [hasSaved, setHasSaved] = useState(false);
+  // `values`, а не `defaultValues`: після збереження редагування форма скидається до збереженого
   const {
     register,
     handleSubmit,
     control,
     setValue,
     setError,
-    formState: { errors, isSubmitting, isSubmitSuccessful },
-  } = useForm<PostFormValues>({ resolver: zodResolver(postFormSchema), defaultValues });
+    formState: { errors, isSubmitting, isSubmitSuccessful, isDirty },
+  } = useForm<PostFormValues>({ resolver: zodResolver(schema), values: defaultValues });
+  // Зміни — відносно збереженого (`values`): поки вони є, вихід зі сторінки питає (D50)
+  useUnsavedChangesGuard(isDirty);
 
   // Помилка API — у `errors.root`: RHF прибирає її з наступною відправкою, а `isSubmitSuccessful` лишається false
   const submit = handleSubmit(async (values) => {
     try {
       await onSubmit(values);
+      setHasSaved(true);
     } catch (error) {
-      setError('root.server', { type: 'server', message: postFormServerErrorMessage(error) });
+      setError('root.server', { type: 'server', message: postFormServerErrorMessage(error, submitLabel) });
     }
   }, tabs.revealFirstError);
 
+  const isUkSaved = isEditing && hasUkTranslation(defaultValues);
   const languageTabs = POST_FORM_LANGUAGES.map((language) => ({
     id: language,
     label: LANGUAGE_LABELS[language],
     hasError: languageHasErrors(errors, language),
   }));
+  // Створення: після успіху кнопка лишається вимкненою — поки відкривається список новин, другий клік створив би
+  // дубль. Редагування: форма лишається на сторінці — кнопка активна, щойно є незбережені зміни
+  const isPending = isSubmitting || (!isEditing && isSubmitSuccessful);
+  const isSubmitDisabled = isPending || (isEditing && !isDirty);
 
   return (
     <form onSubmit={submit} noValidate className="space-y-5">
@@ -85,6 +114,7 @@ export function PostForm({ defaultValues, submitLabel, pendingLabel, onSubmit }:
           >
             <PostTranslationFields
               language={language}
+              isSaved={language === 'uk' && isUkSaved}
               register={register}
               control={control}
               errors={errors}
@@ -95,10 +125,10 @@ export function PostForm({ defaultValues, submitLabel, pendingLabel, onSubmit }:
         ))}
       </section>
 
-      <PostSlugField register={register} control={control} errors={errors} />
+      <PostSlugField register={register} control={control} errors={errors} post={post} />
       <CoverImageFields register={register} control={control} errors={errors} setValue={setValue} />
       <PostSourceFields register={register} errors={errors} />
-      <PublicationFields register={register} control={control} errors={errors} />
+      <PublicationFields register={register} control={control} errors={errors} post={post} timeZone={timeZone} />
 
       {errors.root?.server && (
         <p
@@ -108,22 +138,29 @@ export function PostForm({ defaultValues, submitLabel, pendingLabel, onSubmit }:
           {errors.root.server.message}
         </p>
       )}
-      <div className="flex gap-3 pt-2">
-        {/* Після успіху — теж вимкнена: поки відкривається список новин, другий клік створив би дубль */}
+      <div className="flex flex-wrap items-center gap-3 pt-2">
         <button
           type="submit"
-          disabled={isSubmitting || isSubmitSuccessful}
+          disabled={isSubmitDisabled}
           className="rounded-lg bg-green-600 px-6 py-3 font-semibold transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:bg-green-800"
         >
-          {isSubmitting || isSubmitSuccessful ? pendingLabel : submitLabel}
+          {isPending ? pendingLabel : submitLabel}
         </button>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="rounded-lg bg-gray-800 px-6 py-3 transition-colors hover:bg-gray-700"
-        >
+        {/* Посилання на останній стан списку, а не `router.back()`: «назад» зі сторінки, відкритої за адресою,
+            вивів би з адмінки. Про незбережені зміни питає `AdminLink` */}
+        <AdminLink href={listHref} className="rounded-lg bg-gray-800 px-6 py-3 transition-colors hover:bg-gray-700">
           Cancel
-        </button>
+        </AdminLink>
+        {/* Область оголошень — у DOM завжди: екранний диктор читає зміну її тексту */}
+        {isEditing && (
+          <p role="status" className="text-sm text-green-400">
+            {hasSaved && !isDirty && (
+              <>
+                <span aria-hidden="true">✓ </span>All changes saved
+              </>
+            )}
+          </p>
+        )}
       </div>
     </form>
   );

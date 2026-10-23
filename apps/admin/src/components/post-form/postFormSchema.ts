@@ -12,6 +12,7 @@ import {
   sourceUrlSchema,
 } from '@football-portal/validation/forms';
 import type { CreatePostRequest, PostTranslationRequest } from '@/lib/api/types';
+import { fromDateTimeLocalValue } from '@/lib/editorDateTime';
 
 /** Мови новини у формі, у порядку вкладок: EN обов'язкова (з її заголовка — адреса, D24), UK — бажана (D23). */
 export const POST_FORM_LANGUAGES = ['en', 'uk'] as const;
@@ -53,33 +54,58 @@ function optionalField(schema: z.ZodType<string, string>) {
   return z.string().trim().pipe(schema.or(z.literal('')));
 }
 
+/**
+ * Поля форми. Після перевірки кожне текстове — без пробілів по краях, як його збереже API: тіло запиту й
+ * порівняння зі збереженою новиною беруть значення як є.
+ */
 const formFieldsSchema = z.object({
   // Межі — зі спільного пакета: ті самі числа, що в CreatePostDto API
   titleEn: postTitleSchema,
   excerptEn: postExcerptSchema,
   contentEn: postContentSchema,
-  titleUk: z.string(),
-  excerptUk: z.string(),
-  contentUk: z.string(),
+  // Межі української — в addUkTranslationIssues: її можна не заповнювати зовсім
+  titleUk: z.string().trim(),
+  excerptUk: z.string().trim(),
+  contentUk: z.string().trim(),
   // Порожній — адреса з англійського заголовка (D24), поле не надсилаємо
   slug: optionalField(postSlugSchema),
   // Лише https — як `@IsMediaUrl()` у DTO API
   coverImageUrl: optionalField(mediaUrlSchema),
   // Межі опису й підпису — в addCoverImageIssues, лише з адресою фото: без неї поля сховані,
   // і схована помилка мовчки блокувала б відправку
-  coverImageAltEn: z.string(),
-  coverImageAltUk: z.string(),
-  coverImageCredit: z.string(),
+  coverImageAltEn: z.string().trim(),
+  coverImageAltUk: z.string().trim(),
+  coverImageCredit: z.string().trim(),
   // http(s) — як `@IsSourceUrl()`; назва без адреси — в addSourceIssues
   sourceUrl: optionalField(sourceUrlSchema),
   sourceName: postSourceNameSchema,
-  publication: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']),
-  /** Значення `<input type="datetime-local">` — локальний час редактора */
-  scheduledAt: z.string(),
+  // Які з них доступні, залежить від стану новини — `publicationOptionsFor`; ARCHIVED — лише в редагуванні
+  publication: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ARCHIVED']),
+  /** Значення `<input type="datetime-local">` — час у поясі редактора */
+  scheduledAt: z.string().trim(),
 });
 
 export type PostFormValues = z.infer<typeof formFieldsSchema>;
+export type PostPublication = PostFormValues['publication'];
 type FormRefinementCtx = z.RefinementCtx<PostFormValues>;
+
+/** Новина на сайті або вийде сама — для неї діють правила публікації (D23, D44), як `isLivePostStatus` в API. */
+export function isLivePublication(publication: PostPublication): boolean {
+  return publication === 'PUBLISHED' || publication === 'SCHEDULED';
+}
+
+/** Те, від чого залежать правила форми, крім її полів. */
+export interface PostFormContext {
+  /** Пояс редактора: у ньому значення поля дати розкладу */
+  timeZone: string;
+  /** Значення збереженої новини (`toPostFormValues`); без них — нова новина */
+  savedValues?: PostFormValues;
+  /**
+   * Збережена новина зараз на сайті — `isLive` з API, а не статус: у запланованої, чий час настав, статус лишається
+   * SCHEDULED (D47)
+   */
+  isLive?: boolean;
+}
 
 /** Нова новина: усе порожнє, чернетка. */
 export const EMPTY_POST_FORM_VALUES: PostFormValues = {
@@ -117,7 +143,8 @@ export function translationFieldDeps(language: PostFormLanguage): Array<keyof Po
   return language === 'uk' ? DEPENDENT_FIELD_NAMES.ukTranslation : [];
 }
 
-function hasUkTranslation(values: PostFormValues): boolean {
+/** У новини є українська версія — у формі чи збережена (`savedValues`). */
+export function hasUkTranslation(values: PostFormValues): boolean {
   return hasUkText(UK_FIELD_NAMES.map((fieldName) => values[fieldName]));
 }
 
@@ -125,36 +152,46 @@ export function hasCoverImage(coverImageUrl: string): boolean {
   return Boolean(coverImageUrl.trim());
 }
 
-function addUkTranslationIssues(values: PostFormValues, ctx: FormRefinementCtx) {
-  if (!hasUkTranslation(values)) return;
+/**
+ * Українська — повністю або ніяк; збережену прибрати не можна (P3-5: `PUT` переклад не видаляє), тож її поля
+ * обов'язкові, як англійські. Інакше очищені поля мовчки лишили б на сайті стару версію.
+ */
+function addUkTranslationIssues(values: PostFormValues, ctx: FormRefinementCtx, isUkSaved: boolean) {
+  if (!isUkSaved && !hasUkTranslation(values)) return;
   for (const fieldName of UK_FIELD_NAMES) {
     const fieldResult = UK_FIELD_SCHEMAS[fieldName].safeParse(values[fieldName]);
-    if (!fieldResult.success) {
-      ctx.addIssue({
-        code: 'custom',
-        path: [fieldName],
-        message: values[fieldName].trim()
-          ? fieldResult.error.issues[0].message
-          : 'Fill all Ukrainian fields or leave all empty',
-      });
-    }
+    if (fieldResult.success) continue;
+    const emptyFieldMessage = isUkSaved
+      ? 'The Ukrainian version is already saved and can’t be removed — fix the text instead'
+      : 'Fill all Ukrainian fields or leave all empty';
+    ctx.addIssue({
+      code: 'custom',
+      path: [fieldName],
+      message: values[fieldName].trim() ? fieldResult.error.issues[0].message : emptyFieldMessage,
+    });
   }
 }
 
-function addScheduleIssues(values: PostFormValues, ctx: FormRefinementCtx) {
+function addScheduleIssues(values: PostFormValues, ctx: FormRefinementCtx, context: PostFormContext) {
   if (values.publication !== 'SCHEDULED') return;
-  const scheduledTime = new Date(values.scheduledAt).getTime();
-  if (!values.scheduledAt || Number.isNaN(scheduledTime)) {
+  const scheduledAt = fromDateTimeLocalValue(values.scheduledAt, context.timeZone);
+  if (!scheduledAt) {
     ctx.addIssue({ code: 'custom', path: ['scheduledAt'], message: 'Choose when the post goes live' });
-  } else if (scheduledTime <= Date.now()) {
+    return;
+  }
+  // Збережений розклад без змін у запит не йде, а його час міг настати, поки форма відкрита (новина вже вийшла)
+  const { savedValues } = context;
+  const isSavedSchedule =
+    savedValues?.publication === 'SCHEDULED' && savedValues.scheduledAt === values.scheduledAt;
+  if (!isSavedSchedule && new Date(scheduledAt).getTime() <= Date.now()) {
     ctx.addIssue({ code: 'custom', path: ['scheduledAt'], message: 'Scheduled time must be in the future' });
   }
 }
 
 /**
  * Як правило API (D44): опублікувати з обкладинкою — лише з описом для незрячих кожною мовою новини
- * й підписом автора фото; чернетка може бути неповною. Без цієї перевірки редактор дізнався б про
- * пропуск з 400 після відправлення.
+ * й підписом автора фото; чернетка й архівна можуть бути неповними. Без цієї перевірки редактор дізнався б
+ * про пропуск з 400 після відправлення.
  */
 function addCoverImageIssues(values: PostFormValues, ctx: FormRefinementCtx) {
   if (!hasCoverImage(values.coverImageUrl)) return;
@@ -169,7 +206,7 @@ function addCoverImageIssues(values: PostFormValues, ctx: FormRefinementCtx) {
   if (!isUkTranslated && values.coverImageAltUk.trim()) {
     addFieldIssue('coverImageAltUk', 'Fill the Ukrainian version of the post or leave this empty');
   }
-  if (values.publication === 'DRAFT') return;
+  if (!isLivePublication(values.publication)) return;
   if (!values.coverImageAltEn.trim()) {
     addFieldIssue('coverImageAltEn', 'Describe the photo — required to publish with a cover');
   }
@@ -179,6 +216,19 @@ function addCoverImageIssues(values: PostFormValues, ctx: FormRefinementCtx) {
   if (!values.coverImageCredit.trim()) {
     addFieldIssue('coverImageCredit', 'Credit the photographer or agency — required to publish with a cover');
   }
+}
+
+/**
+ * Адреса новини на сайті (D24, D50): порожнє поле — «адреса з англійського заголовка», тож у живої новини воно
+ * тихо замінило б адресу, яка вже розійшлась. Змінити її можна лише явно — вписавши нову.
+ */
+function addLiveSlugIssues(values: PostFormValues, ctx: FormRefinementCtx, savedValues: PostFormValues) {
+  if (values.slug.trim()) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: ['slug'],
+    message: `The address of a published post can’t be empty — keep “${savedValues.slug}” or type a new one`,
+  });
 }
 
 /** Як правило API (D26, `SOURCE_URL_REQUIRED`): назва джерела — лише разом з адресою статті. */
@@ -191,12 +241,19 @@ function addSourceIssues(values: PostFormValues, ctx: FormRefinementCtx) {
   });
 }
 
-export const postFormSchema = formFieldsSchema.superRefine((values, ctx) => {
-  addUkTranslationIssues(values, ctx);
-  addScheduleIssues(values, ctx);
-  addCoverImageIssues(values, ctx);
-  addSourceIssues(values, ctx);
-});
+/** Схема форми: поля й правила між ними; частина правил залежить від збереженої новини (`context`). */
+export function postFormSchemaFor(context: PostFormContext) {
+  const { savedValues } = context;
+  const isUkSaved = savedValues ? hasUkTranslation(savedValues) : false;
+  const liveSavedValues = context.isLive && savedValues ? savedValues : null;
+  return formFieldsSchema.superRefine((values, ctx) => {
+    addUkTranslationIssues(values, ctx, isUkSaved);
+    addScheduleIssues(values, ctx, context);
+    addCoverImageIssues(values, ctx);
+    addSourceIssues(values, ctx);
+    if (liveSavedValues) addLiveSlugIssues(values, ctx, liveSavedValues);
+  });
+}
 
 /** На вкладці мови є поле з помилкою — позначка на назві вкладки. */
 export function languageHasErrors(
@@ -216,21 +273,16 @@ export function firstLanguageWithErrors(
   return POST_FORM_LANGUAGES.find((language) => languageHasErrors(errors, language)) ?? null;
 }
 
-/** `datetime-local` (без зони) → ISO з `Z`: браузер читає його в локальній зоні редактора. */
-function toIsoWithZone(localDateTime: string): string {
-  return new Date(localDateTime).toISOString();
-}
-
 /**
- * Значення форми → тіло `POST /posts`. Поля зі спільних схем (переклад EN, slug, адреси, назва джерела) уже
- * після trim, решту обрізаємо тут.
+ * Значення форми після перевірки (без пробілів по краях) → тіло `POST /posts`. `timeZone` — пояс редактора,
+ * у ньому поле дати розкладу.
  */
-export function toCreatePostRequest(values: PostFormValues): CreatePostRequest {
+export function toCreatePostRequest(values: PostFormValues, timeZone: string): CreatePostRequest {
   // Без обкладинки опис і підпис не надсилаємо: API їх однаково не збереже (D44)
   const coverImageUrl = values.coverImageUrl || null;
-  const coverImageCredit = values.coverImageCredit.trim();
-  const withCoverImageAlt = (alt: string) =>
-    coverImageUrl && alt.trim() ? { coverImageAlt: alt.trim() } : {};
+  const withCoverImageAlt = (alt: string) => (coverImageUrl && alt ? { coverImageAlt: alt } : {});
+  const publishedAt =
+    values.publication === 'SCHEDULED' ? fromDateTimeLocalValue(values.scheduledAt, timeZone) : null;
 
   const translations: PostTranslationRequest[] = [
     {
@@ -244,9 +296,9 @@ export function toCreatePostRequest(values: PostFormValues): CreatePostRequest {
   if (hasUkTranslation(values)) {
     translations.push({
       languageCode: 'uk',
-      title: values.titleUk.trim(),
-      excerpt: values.excerptUk.trim(),
-      content: values.contentUk.trim(),
+      title: values.titleUk,
+      excerpt: values.excerptUk,
+      content: values.contentUk,
       ...withCoverImageAlt(values.coverImageAltUk),
     });
   }
@@ -256,11 +308,9 @@ export function toCreatePostRequest(values: PostFormValues): CreatePostRequest {
     status: values.publication,
     // Порожній slug не надсилаємо: API візьме його з англійського заголовка (D24); явний — фіксується з публікацією
     ...(values.slug ? { slug: values.slug } : {}),
-    ...(values.publication === 'SCHEDULED'
-      ? { publishedAt: toIsoWithZone(values.scheduledAt) }
-      : {}),
+    ...(publishedAt ? { publishedAt } : {}),
     ...(coverImageUrl ? { coverImageUrl } : {}),
-    ...(coverImageUrl && coverImageCredit ? { coverImageCredit } : {}),
+    ...(coverImageUrl && values.coverImageCredit ? { coverImageCredit: values.coverImageCredit } : {}),
     // Назва джерела — лише з адресою (D26): форма не пропустить іншого, а API відповів би 400
     ...(values.sourceUrl ? { sourceUrl: values.sourceUrl } : {}),
     ...(values.sourceUrl && values.sourceName ? { sourceName: values.sourceName } : {}),

@@ -4,8 +4,9 @@ import {
   EMPTY_POST_FORM_VALUES,
   firstLanguageWithErrors,
   languageHasErrors,
-  postFormSchema,
+  postFormSchemaFor,
   toCreatePostRequest,
+  type PostFormContext,
   type PostFormValues,
 } from './postFormSchema';
 
@@ -20,24 +21,32 @@ const UKRAINIAN = {
   contentUk: '«Арсенал» відіграв гол і переміг «Челсі» 2:1 на «Емірейтс».',
 };
 const COVER_IMAGE_URL = 'https://images.unsplash.com/photo-1?w=1200&h=630&fit=crop&q=80';
-// `datetime-local` — локальний час редактора
+// `datetime-local` — час у поясі редактора
+const TIME_ZONE = 'Europe/Kyiv';
 const FUTURE_LOCAL_TIME = '2099-01-01T10:00';
 const PAST_LOCAL_TIME = '2020-01-01T10:00';
+const NEW_POST: PostFormContext = { timeZone: TIME_ZONE };
 
 function formValues(overrides: Partial<PostFormValues> = {}): PostFormValues {
   return { ...EMPTY_POST_FORM_VALUES, ...ENGLISH, ...overrides };
 }
 
-/** Поля, біля яких форма покаже помилку. */
-function invalidFields(values: PostFormValues): string[] {
-  const result = postFormSchema.safeParse(values);
+/** Поля, біля яких форма покаже помилку; `context` — новина нова чи збережена. */
+function invalidFields(values: PostFormValues, context: PostFormContext = NEW_POST): string[] {
+  const result = postFormSchemaFor(context).safeParse(values);
   if (result.success) return [];
   return [...new Set(result.error.issues.map((issue) => issue.path.join('.')))].sort();
 }
 
+/** Текст помилки поля. */
+function fieldError(values: PostFormValues, context: PostFormContext, fieldName: keyof PostFormValues) {
+  const result = postFormSchemaFor(context).safeParse(values);
+  return result.error?.issues.find((issue) => issue.path[0] === fieldName)?.message;
+}
+
 /** Як у формі: тіло запиту будується з уже перевірених (і обрізаних схемою) значень. */
 function requestFor(values: PostFormValues) {
-  return toCreatePostRequest(postFormSchema.parse(values));
+  return toCreatePostRequest(postFormSchemaFor(NEW_POST).parse(values), TIME_ZONE);
 }
 
 describe('postFormSchema', () => {
@@ -108,6 +117,74 @@ describe('postFormSchema', () => {
       invalidFields(formValues({ titleEn: 'Win', slug: 'Bad Slug', sourceName: 'BBC Sport', publication: 'SCHEDULED' })),
     ).toEqual(['scheduledAt', 'slug', 'sourceUrl', 'titleEn']);
   });
+
+  it('пробіли обрізаються лише по краях усього значення: два пробіли в кінці рядка всередині тексту (перенос у Markdown) лишаються', () => {
+    const markdown = 'First line of the match report  \nSecond line\n\n- Saka 12′  \n- Madueke 78′';
+    const parsed = postFormSchemaFor(NEW_POST).parse(
+      formValues({ ...UKRAINIAN, contentEn: `\n  ${markdown}  \n\n`, contentUk: `${markdown}\n` }),
+    );
+    expect(parsed.contentEn).toBe(markdown);
+    expect(parsed.contentUk).toBe(markdown);
+    expect(requestFor(formValues({ contentEn: ` ${markdown}\n` })).translations[0].content).toBe(markdown);
+  });
+
+  it('архівна з обкладинкою може бути без опису й підпису, як чернетка (D44)', () => {
+    expect(invalidFields(formValues({ coverImageUrl: COVER_IMAGE_URL, publication: 'ARCHIVED' }))).toEqual([]);
+  });
+});
+
+describe('postFormSchema: збережена новина', () => {
+  const savedWithUk: PostFormContext = { timeZone: TIME_ZONE, savedValues: formValues(UKRAINIAN) };
+  const savedScheduled: PostFormContext = {
+    timeZone: TIME_ZONE,
+    savedValues: formValues({ publication: 'SCHEDULED', scheduledAt: PAST_LOCAL_TIME }),
+  };
+
+  it('збережену українську очистити не можна (P3-5): поля обов’язкові, помилка пояснює чому', () => {
+    const cleared = formValues({ titleUk: '', excerptUk: '', contentUk: '' });
+    expect(invalidFields(cleared, savedWithUk)).toEqual(['contentUk', 'excerptUk', 'titleUk']);
+    expect(fieldError(cleared, savedWithUk, 'titleUk')).toMatch(/already saved/);
+    // Не збережену — можна й далі не заповнювати
+    expect(invalidFields(cleared, { timeZone: TIME_ZONE, savedValues: formValues() })).toEqual([]);
+    expect(invalidFields(formValues({ ...UKRAINIAN, titleUk: 'Нова назва новини' }), savedWithUk)).toEqual([]);
+  });
+
+  it('адреса новини на сайті не може бути порожньою: порожнє поле тихо змінило б адресу на slug заголовка (D50)', () => {
+    const savedLive: PostFormContext = {
+      timeZone: TIME_ZONE,
+      savedValues: formValues({ publication: 'PUBLISHED', slug: 'arsenal-beat-chelsea' }),
+      isLive: true,
+    };
+    for (const slug of ['', '   ']) {
+      expect(invalidFields(formValues({ publication: 'PUBLISHED', slug }), savedLive)).toEqual(['slug']);
+    }
+    expect(fieldError(formValues({ publication: 'PUBLISHED', slug: '' }), savedLive, 'slug')).toBe(
+      'The address of a published post can’t be empty — keep “arsenal-beat-chelsea” or type a new one',
+    );
+    // І тоді, коли новину саме знімають з публікації: зараз вона на сайті
+    expect(invalidFields(formValues({ publication: 'ARCHIVED', slug: '' }), savedLive)).toEqual(['slug']);
+    expect(invalidFields(formValues({ publication: 'PUBLISHED', slug: 'arsenal-win-derby' }), savedLive)).toEqual([]);
+    // «На сайті» — за `isLive`, а не за статусом: запланована, чий час настав, лишається SCHEDULED
+    const scheduledWentLive: PostFormContext = { ...savedScheduled, isLive: true };
+    expect(
+      invalidFields(formValues({ publication: 'SCHEDULED', scheduledAt: PAST_LOCAL_TIME, slug: '' }), scheduledWentLive),
+    ).toEqual(['slug']);
+    // Чернетка й запланована, що ще чекає, — порожнє поле можна: адреса з заголовка
+    expect(invalidFields(formValues({ slug: '' }), { timeZone: TIME_ZONE, savedValues: formValues() })).toEqual([]);
+    expect(
+      invalidFields(formValues({ publication: 'SCHEDULED', scheduledAt: PAST_LOCAL_TIME, slug: '' }), savedScheduled),
+    ).toEqual([]);
+  });
+
+  it('збережений розклад без змін не перевіряється: його час міг настати, поки форма відкрита', () => {
+    const unchanged = formValues({ publication: 'SCHEDULED', scheduledAt: PAST_LOCAL_TIME });
+    expect(invalidFields(unchanged, savedScheduled)).toEqual([]);
+    // Інший час чи щойно вибраний розклад — лише в майбутньому
+    expect(invalidFields(formValues({ publication: 'SCHEDULED', scheduledAt: '2020-01-02T10:00' }), savedScheduled)).toEqual([
+      'scheduledAt',
+    ]);
+    expect(invalidFields(unchanged, { timeZone: TIME_ZONE, savedValues: formValues() })).toEqual(['scheduledAt']);
+  });
 });
 
 describe('toCreatePostRequest', () => {
@@ -150,7 +227,8 @@ describe('toCreatePostRequest', () => {
       }),
     );
 
-    expect(scheduled.publishedAt).toBe(new Date(FUTURE_LOCAL_TIME).toISOString());
+    // 1 січня Київ — на UTC+2
+    expect(scheduled.publishedAt).toBe('2099-01-01T08:00:00.000Z');
     expect(scheduled.translations.map((translation) => translation.coverImageAlt)).toEqual([
       coverImageText.coverImageAltEn,
       coverImageText.coverImageAltUk,

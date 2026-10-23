@@ -16,9 +16,13 @@ const LANGUAGE_HINTS: Record<PostFormLanguage, string> = {
   en: 'Required. The post address is made from the English title.',
   uk: 'Optional: fill in all three fields or none. Without a translation /uk/ shows the English version marked “translation unavailable”.',
 };
+// Видалити збережений переклад API не дає (P3-5)
+const SAVED_TRANSLATION_HINT = 'This translation is saved: it can be corrected, but not removed.';
 
 interface PostTranslationFieldsProps {
   language: PostFormLanguage;
+  /** Необов'язковий переклад (українська), який уже збережено: прибрати його не можна */
+  isSaved: boolean;
   register: UseFormRegister<PostFormValues>;
   control: Control<PostFormValues>;
   errors: FieldErrors<PostFormValues>;
@@ -29,6 +33,7 @@ interface PostTranslationFieldsProps {
 /** Переклад новини однією мовою: заголовок і анонс — простий текст, текст — Markdown (D25). */
 export function PostTranslationFields({
   language,
+  isSaved,
   register,
   control,
   errors,
@@ -39,10 +44,11 @@ export function PostTranslationFields({
   const registerOptions = { deps: translationFieldDeps(language) };
   const titleError = errors[fieldNames.title]?.message;
   const excerptError = errors[fieldNames.excerpt]?.message;
+  const hint = isSaved ? SAVED_TRANSLATION_HINT : LANGUAGE_HINTS[language];
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-gray-500">{LANGUAGE_HINTS[language]}</p>
+      <p className="text-xs text-gray-500">{hint}</p>
       <FormField fieldId={fieldNames.title} label="Title" error={titleError}>
         <input
           {...register(fieldNames.title, registerOptions)}
