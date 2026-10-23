@@ -111,6 +111,10 @@
 | Синк з адмінки | `apps/admin/src/components/FootballSyncButton.tsx` |
 | Журнал синків в адмінці | `apps/admin/src/components/SyncRunsTable.tsx`, `hooks/useSyncRuns.ts` |
 | Панель адміна | `apps/admin/src/components/AdminShellBar.tsx`, `app/dashboard/layout.tsx` |
+| Форма новини в адмінці (створення й редагування) | `apps/admin/src/components/post-form/` — `PostForm`; правила полів — `postFormSchema.ts`, тіло `PUT` (лише змінене) — `postFormEdit.ts`, статуси за станом новини — `publicationOptions.ts` ([D50](decisions/D50-admin-post-editing.md)) |
+| Редагування новини в адмінці | `apps/admin/src/app/dashboard/posts/[id]/` (`EditPostView`, `EditPostForm`, `DeletePostSection`) |
+| Список новин в адмінці (фільтр, пошук, стан в URL) | `apps/admin/src/app/dashboard/posts/` (`PostsListView` і блоки); стан ↔ адреса — `lib/postListParams.ts`, `hooks/usePostListUrl.ts`; повернення до списку — `hooks/useLastPostListHref.ts` ([D50](decisions/D50-admin-post-editing.md)) |
+| Незбережені зміни в адмінці | сторож — `apps/admin/src/lib/unsavedChanges.ts`, `providers/UnsavedChangesProvider.tsx`, `hooks/useUnsavedChangesGuard.ts`; посилання — `components/AdminLink.tsx` (`next/link` напряму забороняє ESLint) |
 
 ---
 

@@ -1,43 +1,52 @@
 'use client';
 
 import { useWatch, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form';
+import {
+  fromDateTimeLocalValue,
+  scheduleTimeNote,
+  timeZoneLabel,
+  toDateTimeLocalValue,
+} from '@/lib/editorDateTime';
 import { FormField } from './FormField';
 import { controlProps } from './formStyles';
-import { DEPENDENT_FIELD_NAMES, hasUkText, UK_FIELD_NAMES, type PostFormValues } from './postFormSchema';
-
-const PUBLICATION_OPTIONS = [
-  { value: 'DRAFT', label: 'Draft', hint: 'Not visible on the site' },
-  { value: 'PUBLISHED', label: 'Publish now', hint: 'Visible immediately' },
-  { value: 'SCHEDULED', label: 'Schedule', hint: 'Goes live at the chosen time' },
-] as const;
-
-/** Поточний момент у форматі `datetime-local` — нижня межа поля. */
-function localDateTimeNow(): string {
-  const now = new Date();
-  now.setSeconds(0, 0);
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 16);
-}
+import {
+  DEPENDENT_FIELD_NAMES,
+  hasUkText,
+  isLivePublication,
+  UK_FIELD_NAMES,
+  type PostFormValues,
+} from './postFormSchema';
+import { publicationOptionsFor, type PublicationState } from './publicationOptions';
 
 interface PublicationFieldsProps {
   register: UseFormRegister<PostFormValues>;
   control: Control<PostFormValues>;
   errors: FieldErrors<PostFormValues>;
+  /** Збережена новина — від її стану залежать варіанти статусу; без неї — нова */
+  post?: PublicationState;
+  /** Пояс редактора: у ньому поле дати розкладу */
+  timeZone: string;
 }
 
 /** Статус публікації й час розкладу; без української версії — попередження (D23). */
-export function PublicationFields({ register, control, errors }: PublicationFieldsProps) {
-  const publication = useWatch({ control, name: 'publication' });
+export function PublicationFields({ register, control, errors, post, timeZone }: PublicationFieldsProps) {
+  const [publication, scheduledAt] = useWatch({ control, name: ['publication', 'scheduledAt'] });
   const ukFieldValues = useWatch({ control, name: UK_FIELD_NAMES });
+  const now = new Date();
+  const options = publicationOptionsFor(post ?? null, { now, timeZone });
   // Лише попередження, не блок (D23): без UK новина виходить, а термінова не чекає перекладу
-  const isPublishingWithoutUk = publication !== 'DRAFT' && !hasUkText(ukFieldValues);
+  const isPublishingWithoutUk = isLivePublication(publication) && !hasUkText(ukFieldValues);
+  // Зсув поясу — на вибрану дату: 26 жовтня Київ уже на UTC+2, хоч сьогодні може бути UTC+3
+  const scheduledIso = fromDateTimeLocalValue(scheduledAt, timeZone);
+  const zoneLabel = timeZoneLabel(timeZone, scheduledIso ? new Date(scheduledIso) : now);
+  // Година, якої немає чи яка буває двічі (перехід часу): поле цього не покаже — пояснюємо, коли саме вийде
+  const transitionNote = publication === 'SCHEDULED' ? scheduleTimeNote(scheduledAt, timeZone) : null;
 
   return (
     <fieldset className="space-y-3 rounded-xl border border-gray-800 p-4">
       <legend className="px-1 text-sm font-semibold text-gray-300">Publication</legend>
-      <div className="grid gap-2 sm:grid-cols-3">
-        {PUBLICATION_OPTIONS.map((option) => (
+      <div className={`grid gap-2 ${options.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+        {options.map((option) => (
           <label
             key={option.value}
             className={`flex cursor-pointer flex-col rounded-lg border px-3 py-2 transition-colors ${
@@ -65,7 +74,7 @@ export function PublicationFields({ register, control, errors }: PublicationFiel
           fieldId="scheduledAt"
           label={
             <>
-              Goes live at <span className="font-normal text-gray-500">(your local time)</span>
+              Goes live at <span className="font-normal text-gray-500">({zoneLabel})</span>
             </>
           }
           error={errors.scheduledAt?.message}
@@ -74,8 +83,13 @@ export function PublicationFields({ register, control, errors }: PublicationFiel
             {...register('scheduledAt')}
             {...controlProps('scheduledAt', !!errors.scheduledAt)}
             type="datetime-local"
-            min={localDateTimeNow()}
+            min={toDateTimeLocalValue(now, timeZone)}
           />
+          {transitionNote && (
+            <p role="status" className="text-xs text-amber-300">
+              {transitionNote}
+            </p>
+          )}
         </FormField>
       )}
 

@@ -6,8 +6,10 @@ import type { AdminPost, PublicAuthor } from '@football-portal/types';
  */
 export type {
   AdminPost,
+  AdminPostDetail,
   AuthUserResponse,
   CreatePostRequest,
+  DeletedPost,
   FootballSyncAccepted,
   LoginRequest,
   MessageResponse,
@@ -15,15 +17,9 @@ export type {
   PostTranslationRequest,
   SyncRun,
   SyncRunStats,
+  UpdatePostRequest,
   UserAccount,
 } from '@football-portal/types';
-
-/** Підпис мови в інтерфейсі: код усередині — `uk`, напис — «Укр» (D22). */
-const LANGUAGE_SHORT_LABELS: Record<string, string> = { en: 'Eng', uk: 'Укр' };
-
-export function languageShortLabel(languageCode: string): string {
-  return LANGUAGE_SHORT_LABELS[languageCode] ?? languageCode.toUpperCase();
-}
 
 export function adminPostTitle(
   post: AdminPost,
@@ -39,7 +35,7 @@ export function adminPostTitle(
 }
 
 /** Статус, що бачить редактор: запланований, чия дата настала, уже на сайті. */
-export function adminPostStatusLabel(post: AdminPost): string {
+export function adminPostStatusLabel(post: Pick<AdminPost, 'isLive' | 'status'>): string {
   if (post.isLive) return 'Published';
   switch (post.status) {
     case 'DRAFT':

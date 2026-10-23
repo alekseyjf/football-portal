@@ -7,17 +7,27 @@ import {
   toCreatePostRequest,
   type PostFormValues,
 } from '@/components/post-form/postFormSchema';
+import { markPostCreated } from '@/hooks/useCreatedPostNotice';
 import { useCreatePost } from '@/hooks/useCreatePost';
+import { useLeaveGuard } from '@/hooks/useUnsavedChangesGuard';
+import { editorTimeZone } from '@/lib/editorDateTime';
 
-/** Нова новина: спільна форма → `POST /posts` → список новин. */
+/**
+ * Нова новина: спільна форма → `POST /posts` → сторінка редагування створеної (D50): редактор продовжує там же,
+ * а сторінка каже «Draft created».
+ */
 export function CreatePostForm() {
   const router = useRouter();
   const { mutateAsync: createPost } = useCreatePost();
+  const leaveGuard = useLeaveGuard();
 
   const savePost = async (values: PostFormValues) => {
-    await createPost(toCreatePostRequest(values));
-    router.push('/dashboard/posts');
-    router.refresh();
+    const createdPost = await createPost(toCreatePostRequest(values, editorTimeZone()));
+    markPostCreated(createdPost.id);
+    // Збережено: форма ще «брудна», поки відкривається сторінка редагування, — сторож не питає
+    leaveGuard.allowLeave();
+    // replace: «Назад» зі сторінки новини веде туди, звідки відкрили створення, а не до порожньої форми
+    router.replace(`/dashboard/posts/${createdPost.id}`);
   };
 
   return (
