@@ -16,7 +16,7 @@
 - **Auth:** access-JWT 15 хв (`sid`) + opaque refresh-сесії в БД, httpOnly cookies ([`decisions/v5-identity.md`](decisions/v5-identity.md)).
 - **Контракт API** ([D28](decisions/D28-openapi-contract.md)): OpenAPI-документ будується з коду API (`@nestjs/swagger` + CLI-плагін: схема відповіді — тип, який повертає метод контролера) → `packages/types/openapi.json` → `openapi-typescript` → типи web і admin. `pnpm gen:api-types` — без сервера й БД; контрактні e2e звіряють реальні відповіді з документом, повний прогін — ще й те, що в кожної операції перевірено успішну відповідь (M1.4.9). Swagger UI — `/api/docs` (не на проді).
 - **Один інстанс API**: ліміти, черга провайдера, кеш — у пам'яті процесу ([D41](decisions/D41-single-instance-scaling.md)).
-- **Спільні пакети:** `packages/types` — типи API з OpenAPI (лише типи); `packages/validation` — межі полів, zod-схеми форм і slug (`slugify`), збирається в `dist`, бо його імпортує API (CommonJS); `packages/ui` — спільний UI web і admin (Markdown-рендерер `MarkdownContent`, [D25](decisions/D25-markdown-content.md)) без збірки: застосунки компілюють його джерела самі (`transpilePackages`), класи Tailwind бачать через `@source` ([D49](decisions/D49-shared-ui-package.md)).
+- **Спільні пакети:** `packages/types` — типи API з OpenAPI (лише типи); `packages/validation` — межі полів, zod-схеми форм, slug (`slugify`) і адреси сторінок сайту (`publicTagPath`, [D51](decisions/D51-admin-tags.md)), збирається в `dist`, бо його імпортує API (CommonJS); `packages/ui` — спільний UI web і admin (Markdown-рендерер `MarkdownContent`, [D25](decisions/D25-markdown-content.md)) без збірки: застосунки компілюють його джерела самі (`transpilePackages`), класи Tailwind бачать через `@source` ([D49](decisions/D49-shared-ui-package.md)).
 
 ## Football: як це працює (для розбору коду)
 
@@ -114,6 +114,7 @@
 | Форма новини в адмінці (створення й редагування) | `apps/admin/src/components/post-form/` — `PostForm`; правила полів — `postFormSchema.ts`, тіло `PUT` (лише змінене) — `postFormEdit.ts`, статуси за станом новини — `publicationOptions.ts` ([D50](decisions/D50-admin-post-editing.md)) |
 | Редагування новини в адмінці | `apps/admin/src/app/dashboard/posts/[id]/` (`EditPostView`, `EditPostForm`, `DeletePostSection`) |
 | Список новин в адмінці (фільтр, пошук, стан в URL) | `apps/admin/src/app/dashboard/posts/` (`PostsListView` і блоки); стан ↔ адреса — `lib/postListParams.ts`, `hooks/usePostListUrl.ts`; повернення до списку — `hooks/useLastPostListHref.ts` ([D50](decisions/D50-admin-post-editing.md)) |
+| Теги в адмінці (сторінка «Теги») | `apps/admin/src/app/dashboard/tags/`; спільне з формою новини — `components/tags/` (поля назв, схожі теги, попередження «так звуть клуб / турнір», правила `tagForm.ts`); правила списку й збігу — `lib/tagNames.ts`, `lib/footballNameMatches.ts`; схема форми — `packages/validation/src/forms.ts` (`tagFormSchema`) ([D51](decisions/D51-admin-tags.md)) |
 | Незбережені зміни в адмінці | сторож — `apps/admin/src/lib/unsavedChanges.ts`, `providers/UnsavedChangesProvider.tsx`, `hooks/useUnsavedChangesGuard.ts`; посилання — `components/AdminLink.tsx` (`next/link` напряму забороняє ESLint) |
 
 ---

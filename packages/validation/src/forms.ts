@@ -24,7 +24,11 @@ import {
   POST_TITLE_MAX_LENGTH,
   POST_TITLE_MIN_LENGTH,
   SLUG_PATTERN,
+  slugifyTagName,
   SOURCE_URL_PROTOCOLS,
+  TAG_NAME_MAX_LENGTH,
+  TAG_NAME_MIN_LENGTH,
+  TAG_SLUG_MAX_LENGTH,
   URL_MAX_LENGTH,
   utf8ByteLength,
 } from './index';
@@ -130,6 +134,25 @@ export const postSourceNameSchema = z
   .trim()
   .max(POST_SOURCE_NAME_MAX_LENGTH, `Source name must be at most ${POST_SOURCE_NAME_MAX_LENGTH} characters`);
 
+/** Назва тегу однією мовою (D45) — як `@Length(TAG_NAME_*)` у DTO API. */
+export const tagNameSchema = z
+  .string()
+  .trim()
+  .min(TAG_NAME_MIN_LENGTH, `Name must be at least ${TAG_NAME_MIN_LENGTH} characters`)
+  .max(TAG_NAME_MAX_LENGTH, `Name must be at most ${TAG_NAME_MAX_LENGTH} characters`);
+
+/** Явний slug тегу (D45) — як `@Matches(SLUG_PATTERN)` у `CreateTagDto`. */
+export const tagSlugSchema = z
+  .string()
+  .trim()
+  .max(TAG_SLUG_MAX_LENGTH, `Slug must be at most ${TAG_SLUG_MAX_LENGTH} characters`)
+  .regex(SLUG_PATTERN, 'Use lowercase latin letters and digits, words joined by single hyphens');
+
+/** Необов'язкове поле форми: порожнє чи з самих пробілів — «не задано», інакше — за схемою. */
+function optionalFormField(schema: z.ZodType<string, string>) {
+  return z.string().trim().pipe(schema.or(z.literal('')));
+}
+
 function hasAllowedProtocol(value: string, protocols: readonly string[]): boolean {
   try {
     return protocols.includes(new URL(value).protocol.replace(/:$/, ''));
@@ -163,3 +186,29 @@ export const commentFormSchema = z.object({
   content: commentContentSchema,
 });
 export type CommentFormValues = z.infer<typeof commentFormSchema>;
+
+/**
+ * Назви тегу (D45, D51): англійська й українська — обидві обов'язкові, як в API. Після перевірки — без пробілів
+ * по краях, як їх збереже API.
+ */
+export const tagNamesFormSchema = z.object({
+  nameEn: tagNameSchema,
+  nameUk: tagNameSchema,
+});
+export type TagNamesFormValues = z.infer<typeof tagNamesFormSchema>;
+
+/**
+ * Новий тег (D45): назви й адреса. Порожня адреса — з англійської назви (`slugifyTagName`, як в API); назву без
+ * латиниці й цифр API не перетворить на адресу (`TAG_SLUG_REQUIRED`) — тоді її вписують.
+ */
+export const tagFormSchema = tagNamesFormSchema
+  .extend({ slug: optionalFormField(tagSlugSchema) })
+  .superRefine((values, ctx) => {
+    if (values.slug || slugifyTagName(values.nameEn) !== null) return;
+    ctx.addIssue({
+      code: 'custom',
+      path: ['slug'],
+      message: 'The English name has no latin letters or digits — type the address',
+    });
+  });
+export type TagFormValues = z.infer<typeof tagFormSchema>;

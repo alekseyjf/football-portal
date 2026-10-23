@@ -6,6 +6,7 @@
 import { slugify } from './slug';
 
 export { SLUG_PATTERN, slugify } from './slug';
+export { publicTagPath } from './public-paths';
 
 /** RFC 5321: довша адреса не доставляється. */
 export const EMAIL_MAX_LENGTH = 254;
@@ -77,6 +78,15 @@ export const TAG_NAME_MIN_LENGTH = 2;
 export const TAG_NAME_MAX_LENGTH = 50;
 /** Slug тегу — з EN-назви або явний при створенні; адреса сторінки тегу, не змінюється (D45). */
 export const TAG_SLUG_MAX_LENGTH = 50;
+
+/**
+ * Slug тегу з EN-назви (D45): «Transfer window» → `transfer-window`. Одна функція для API (slug при створенні) і
+ * адмінки (підказка адреси). Без fallback, на відміну від `slugifyTitle`: тег визначає його slug, і всі теги з
+ * назвою без латиниці отримали б один — `null`, тоді адресу задають явно.
+ */
+export function slugifyTagName(name: string): string | null {
+  return slugify(name, TAG_SLUG_MAX_LENGTH);
+}
 
 /**
  * Номер сторінки в списках (`?page=`): `?page=1e20` → `skip` не влазить в int64 → 500 у Prisma;

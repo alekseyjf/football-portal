@@ -15,11 +15,11 @@ import { TRANSLATIONS_PER_REQUEST_MAX } from '../../languages/dto/translation-fi
 import { TagTranslationDto } from './tag-translation.dto';
 
 /**
- * `POST /tags` (ADMIN). Назва default-мови обов'язкова (перевіряє сервіс — потрібна БД); з неї —
+ * `POST /tags` (ADMIN). Назви — кожною увімкненою мовою (D51; перевіряє сервіс — мови в БД); з англійської —
  * slug, якщо його не задано.
  */
 export class CreateTagDto {
-  /** Назви, кожна мова — один раз; англійська (default) — обов'язкова */
+  /** Назви кожною увімкненою мовою — англійська й українська обидві обов'язкові; кожна мова — один раз */
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(TRANSLATIONS_PER_REQUEST_MAX)

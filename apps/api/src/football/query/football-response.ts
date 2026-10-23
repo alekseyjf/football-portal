@@ -120,8 +120,8 @@ export function toAdminLeague(
 }
 
 /**
- * Клуб у пошуку адмінки (D48): поля чипа й турніри — з рядків участі, які вже відібрало правило «у грі»,
- * у тому ж порядку (турніри — за `sortOrder`).
+ * Клуб у пошуку адмінки (D48): поля чипа, імена, за якими шукали, і турніри — з рядків участі, які вже відібрало
+ * правило «у грі», у тому ж порядку (турніри — за `sortOrder`).
  */
 export function toAdminClubSearchResult(
   club: ClubSearchRow,
@@ -131,6 +131,8 @@ export function toAdminClubSearchResult(
     id: club.id,
     slug: club.slug,
     name: club.name,
+    shortName: club.shortName,
+    tla: club.tla,
     crestUrl: club.crestUrl,
     competitions: participationsInPlay.map(({ season: { competition } }) => ({
       id: competition.id,

@@ -92,12 +92,21 @@ describe('Стрічка з фільтрами: теги, турнір, клуб
         type: CompetitionType.CUP,
       },
     });
+    // Теги — як їх створює API: назви обома мовами (D51)
     const [transfers, injuries] = await Promise.all(
-      ['transfers', 'injuries'].map((slug) =>
+      [
+        { slug: 'transfers', en: 'Transfers', uk: 'Трансфери' },
+        { slug: 'injuries', en: 'Injuries', uk: 'Травми' },
+      ].map((tag) =>
         e2e.prisma.tag.create({
           data: {
-            slug,
-            translations: { create: { languageCode: 'en', name: slug } },
+            slug: tag.slug,
+            translations: {
+              create: [
+                { languageCode: 'en', name: tag.en },
+                { languageCode: 'uk', name: tag.uk },
+              ],
+            },
           },
         }),
       ),

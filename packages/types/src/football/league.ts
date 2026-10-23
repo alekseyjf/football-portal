@@ -8,3 +8,6 @@ export type CompetitionType = ApiSchemas['CompetitionType'];
  * `/football/leagues/{slug}`.
  */
 export type League = ApiSchemas['LeagueDto'];
+
+/** Турнір для адмінки — `GET /football/leagues/admin/all`: усі, і вимкнені, у порядку редакції (D48). */
+export type AdminLeague = ApiSchemas['AdminLeagueDto'];

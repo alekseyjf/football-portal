@@ -64,8 +64,9 @@ export class TagController {
   }
 
   /**
-   * Створити тег; без `slug` — з англійської назви. Slug після створення не змінюється.
-   * @throws {400} Невалідні поля; DEFAULT_TRANSLATION_REQUIRED, DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE, TAG_SLUG_REQUIRED — в англійській назві немає латиниці: задайте `slug`
+   * Створити тег: назви англійською й українською (кожною увімкненою мовою); без `slug` — з англійської назви.
+   * Slug після створення не змінюється.
+   * @throws {400} Невалідні поля; DEFAULT_TRANSLATION_REQUIRED, ALL_TRANSLATIONS_REQUIRED — бракує назви якоюсь увімкненою мовою, DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE, TAG_SLUG_REQUIRED — в англійській назві немає латиниці: задайте `slug`
    * @throws {409} TAG_SLUG_TAKEN — тег з таким slug-ом уже є
    */
   @Post()
@@ -84,8 +85,8 @@ export class TagController {
   }
 
   /**
-   * Перейменувати тег: назви — upsert за мовою; slug не змінюється.
-   * @throws {400} Невалідні поля; DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE
+   * Перейменувати тег: назви — upsert за мовою (прибрати назву не можна); slug не змінюється.
+   * @throws {400} Невалідні поля (і порожня назва); DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE
    * @throws {404} TAG_NOT_FOUND
    */
   @Put(':id')

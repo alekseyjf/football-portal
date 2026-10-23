@@ -37,6 +37,8 @@ interface ClubSearchResult {
   id: string;
   slug: string;
   name: string;
+  shortName: string | null;
+  tla: string | null;
   crestUrl: string | null;
   competitions: CompetitionRef[];
 }
@@ -299,13 +301,16 @@ describe('Адмінка: турніри й клуби для форми нов�
     });
   });
 
-  it('клуб — у форматі чипа, з турнірами поточного сезону «у грі» в порядку редакції', async () => {
+  it('клуб — поля чипа, коротка назва й код, турніри поточного сезону «у грі» в порядку редакції', async () => {
     // FA Cup вимкнено; PL 2024/25 — не поточний сезон; у CL усе зіграно, але запас ще не минув
     expect(await foundClubs('arsenal')).toEqual([
       {
         id: arsenalId,
         slug: 'arsenal',
         name: 'Arsenal FC',
+        // Імена, за якими клуб знаходять, — адмінка порівнює з ними назву нового тегу
+        shortName: 'Arsenal',
+        tla: 'ARS',
         crestUrl: 'https://e2e.test/crest.svg',
         competitions: [premierLeague, championsLeague, carabaoCup],
       },

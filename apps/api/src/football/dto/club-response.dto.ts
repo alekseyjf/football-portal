@@ -14,11 +14,18 @@ export class ClubRefDto {
 }
 
 // Плаский, без `extends ClubRefDto` — як `AdminLeagueDto`
-/** Клуб у пошуку для форми новини: поля чипа й турніри, з яких форма підказує турніри новини (D46, D48). */
+/**
+ * Клуб у пошуку для форми новини: поля чипа, імена, за якими його знайдено, і турніри, з яких форма підказує
+ * турніри новини (D46, D48).
+ */
 export class AdminClubSearchResultDto {
   id!: string;
   slug!: string;
   name!: string;
+  /** Коротка назва (`Man United`): за нею теж шукають; адмінка попереджає, коли так хочуть назвати тег */
+  shortName!: string | null;
+  /** Трилітерний код (`MUN`) */
+  tla!: string | null;
   crestUrl!: string | null;
   /** Турніри поточного сезону, які зараз «у грі» (D48), — у порядку редакції; порожньо — таких немає */
   competitions!: CompetitionRefDto[];

@@ -5,11 +5,16 @@ import type { AdminPost, PublicAuthor } from '@football-portal/types';
  * підписи для інтерфейсу адмінки.
  */
 export type {
+  AdminClubSearchResult,
+  AdminLeague,
   AdminPost,
   AdminPostDetail,
+  AdminTag,
   AuthUserResponse,
   CreatePostRequest,
+  CreateTagRequest,
   DeletedPost,
+  DeletedTag,
   FootballSyncAccepted,
   LoginRequest,
   MessageResponse,
@@ -17,7 +22,9 @@ export type {
   PostTranslationRequest,
   SyncRun,
   SyncRunStats,
+  TagTranslationRequest,
   UpdatePostRequest,
+  UpdateTagRequest,
   UserAccount,
 } from '@football-portal/types';
 
