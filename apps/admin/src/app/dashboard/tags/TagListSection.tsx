@@ -3,10 +3,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { useModalDialog } from '@/hooks/useModalDialog';
 import type { AdminTag } from '@/lib/api/types';
-import { filterTags, sortTagsForList, tagTitle, type TagListOrder } from '@/lib/tagNames';
+import { filterTags, postCountLabel, sortTagsForList, tagTitle, type TagListOrder } from '@/lib/tagNames';
 import { DeleteTagDialog } from './DeleteTagDialog';
 import { RenameTagDialog } from './RenameTagDialog';
-import { postCountLabel, TagListRow } from './TagListRow';
+import { TagListRow } from './TagListRow';
 
 const HEADING_ID = 'tag-list-heading';
 const FILTER_INPUT_ID = 'tag-filter';
@@ -158,6 +158,7 @@ export function TagListSection({ tags, isPending, hasFailed, onReload }: TagList
       <RenameTagDialog
         dialogRef={renameDialog.dialogRef}
         tag={renameDialog.item}
+        openingKey={renameDialog.openingKey}
         onClose={renameDialog.handleClose}
         onCancel={renameDialog.close}
         onRenamed={handleRenamed}
@@ -165,6 +166,7 @@ export function TagListSection({ tags, isPending, hasFailed, onReload }: TagList
       <DeleteTagDialog
         dialogRef={deleteDialog.dialogRef}
         tag={deletingTag}
+        openingKey={deleteDialog.openingKey}
         onClose={deleteDialog.handleClose}
         onCancel={deleteDialog.close}
         onDeleted={handleDeleted}

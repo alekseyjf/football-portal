@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { AdminTag } from '@/lib/api/types';
-import { filterTags, findSimilarTags, SIMILAR_TAGS_SHOWN, sortTagsByTitle, sortTagsForList } from './tagNames';
+import {
+  filterTags,
+  findSimilarTags,
+  findTagByName,
+  searchTags,
+  SIMILAR_TAGS_SHOWN,
+  sortTagsByTitle,
+  sortTagsForList,
+  TAG_PICKER_RESULTS_MAX,
+} from './tagNames';
 
 function tag(slug: string, nameEn: string | null, nameUk?: string, postCount = 0): AdminTag {
   const translations = [];
@@ -28,6 +37,36 @@ describe('filterTags — фільтр списку тегів', () => {
   it('пробіли по краях і зайві між словами не важать; порожній фільтр — усі теги', () => {
     expect(slugsOf(filterTags(TAGS, '  transfer   window '))).toEqual(['transfer-window']);
     expect(filterTags(TAGS, '   ')).toEqual(TAGS);
+  });
+});
+
+describe('searchTags — вибір тегу у формі новини (D51)', () => {
+  const darwin = tag('darwin-nunez', 'Darwin Núñez');
+  const tags = [darwin, ...TAGS];
+
+  it('як фільтр — частина назви будь-якою мовою чи адреси; спершу ті, де з запиту починається назва чи її слово', () => {
+    expect(slugsOf(searchTags(tags, 'win').tags)).toEqual(['transfer-window', 'darwin-nunez']);
+    expect(slugsOf(searchTags(tags, 'травми').tags)).toEqual(['injuries']);
+    expect(slugsOf(searchTags(tags, 'fer-win').tags)).toEqual(['transfer-window']);
+  });
+
+  it(`до ${TAG_PICKER_RESULTS_MAX} показаних; total — скільки знайдено всього («уточніть запит»)`, () => {
+    const manyTags = Array.from({ length: 25 }, (_, index) => tag(`news-${index}`, `News ${index}`));
+    const found = searchTags(manyTags, 'news');
+    expect(found.tags).toHaveLength(TAG_PICKER_RESULTS_MAX);
+    expect(found.total).toBe(25);
+  });
+
+  it('порожній запит — нічого', () => {
+    expect(searchTags(tags, '  ')).toEqual({ tags: [], total: 0 });
+  });
+});
+
+describe('findTagByName — тег з такою назвою вже є: «створити» не пропонуємо', () => {
+  it('точна назва будь-якою мовою — без регістру й зайвих пробілів; частина назви — ні', () => {
+    expect(findTagByName(TAGS, '  transfer   WINDOW ')?.slug).toBe('transfer-window');
+    expect(findTagByName(TAGS, 'ТРАВМИ')?.slug).toBe('injuries');
+    expect(findTagByName(TAGS, 'Transfer')).toBeUndefined();
   });
 });
 

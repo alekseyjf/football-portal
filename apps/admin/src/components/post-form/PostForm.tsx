@@ -10,6 +10,7 @@ import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import type { AdminPostDetail } from '@/lib/api/types';
 import { editorTimeZone } from '@/lib/editorDateTime';
 import { CoverImageFields } from './CoverImageFields';
+import { PostRelationsFields } from './PostRelationsFields';
 import { PostSlugField } from './PostSlugField';
 import { PostSourceFields } from './PostSourceFields';
 import { PostTranslationFields } from './PostTranslationFields';
@@ -24,6 +25,7 @@ import {
 } from './postFormSchema';
 import { postFormServerErrorMessage } from './postFormServerError';
 import { usePostFormTabs } from './usePostFormTabs';
+import { useVanishedTagsRecovery } from './useVanishedTagsRecovery';
 
 const LANGUAGE_TABS_ID = 'post-language';
 const LANGUAGE_LABELS: Record<PostFormLanguage, string> = { en: 'English', uk: 'Українська' };
@@ -43,8 +45,8 @@ interface PostFormProps {
 }
 
 /**
- * Форма новини — спільна для створення й редагування: переклади вкладками мов, адреса, обкладинка, джерело,
- * публікація. Правила полів — `postFormSchemaFor`, тіло запиту будує той, хто зберігає.
+ * Форма новини — спільна для створення й редагування: переклади вкладками мов, адреса, обкладинка, джерело, теги,
+ * клуби й турніри, публікація. Правила полів — `postFormSchemaFor`, тіло запиту будує той, хто зберігає.
  */
 export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSubmit }: PostFormProps) {
   const tabs = usePostFormTabs();
@@ -58,6 +60,7 @@ export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSub
   );
   const [hasSaved, setHasSaved] = useState(false);
   // `values`, а не `defaultValues`: після збереження редагування форма скидається до збереженого
+  const form = useForm<PostFormValues>({ resolver: zodResolver(schema), values: defaultValues });
   const {
     register,
     handleSubmit,
@@ -65,9 +68,10 @@ export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSub
     setValue,
     setError,
     formState: { errors, isSubmitting, isSubmitSuccessful, isDirty },
-  } = useForm<PostFormValues>({ resolver: zodResolver(schema), values: defaultValues });
+  } = form;
   // Зміни — відносно збереженого (`values`): поки вони є, вихід зі сторінки питає (D50)
   useUnsavedChangesGuard(isDirty);
+  const recoverVanishedTags = useVanishedTagsRecovery({ savedTags: post?.tags ?? [], isEditing, form, submitLabel });
 
   // Помилка API — у `errors.root`: RHF прибирає її з наступною відправкою, а `isSubmitSuccessful` лишається false
   const submit = handleSubmit(async (values) => {
@@ -75,7 +79,9 @@ export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSub
       await onSubmit(values);
       setHasSaved(true);
     } catch (error) {
-      setError('root.server', { type: 'server', message: postFormServerErrorMessage(error, submitLabel) });
+      // Тег видалили, поки форма була відкрита: форма прибирає його й каже, який саме (D51)
+      const message = (await recoverVanishedTags(error)) ?? postFormServerErrorMessage(error, submitLabel);
+      setError('root.server', { type: 'server', message });
     }
   }, tabs.revealFirstError);
 
@@ -128,6 +134,7 @@ export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSub
       <PostSlugField register={register} control={control} errors={errors} post={post} />
       <CoverImageFields register={register} control={control} errors={errors} setValue={setValue} />
       <PostSourceFields register={register} errors={errors} />
+      <PostRelationsFields control={control} post={post} />
       <PublicationFields register={register} control={control} errors={errors} post={post} timeZone={timeZone} />
 
       {errors.root?.server && (

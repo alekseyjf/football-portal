@@ -48,6 +48,18 @@ function savedPost(overrides: Partial<AdminPostDetail> = {}): AdminPostDetail {
 }
 
 const PUBLISHED = { status: 'PUBLISHED', publishedAt: '2026-10-20T10:00:00.000Z', isLive: true } as const;
+/** Зв'язки збереженої новини — чипами, як їх віддає API (теги за адресою, клуби за назвою). */
+const WITH_RELATIONS = {
+  tags: [
+    { id: 'tag-transfers', slug: 'transfers', translations: [{ languageCode: 'en', name: 'Transfers' }] },
+    { id: 'tag-derby', slug: 'london-derby', translations: [{ languageCode: 'en', name: 'London derby' }] },
+  ],
+  clubs: [
+    { id: 'club-arsenal', slug: 'arsenal', name: 'Arsenal FC', crestUrl: null },
+    { id: 'club-chelsea', slug: 'chelsea', name: 'Chelsea FC', crestUrl: null },
+  ],
+  competitions: [{ id: 'competition-pl', slug: 'PL', name: 'Premier League' }],
+};
 const WITH_COVER_IMAGE = {
   coverImageUrl: COVER_IMAGE_URL,
   coverImageCredit: 'Jane Doe / Unsplash',
@@ -129,6 +141,20 @@ describe('toPostFormValues: збережена новина → поля фор�
     });
     expect(Object.values(values)).not.toContain('Arsenal gewinnt');
   });
+
+  it('зв’язки — id набором: порядок, у якому їх віддав API, не важить', () => {
+    const values = toPostFormValues(savedPost(WITH_RELATIONS), TIME_ZONE);
+    expect(values).toMatchObject({
+      tagIds: ['tag-derby', 'tag-transfers'],
+      clubIds: ['club-arsenal', 'club-chelsea'],
+      competitionIds: ['competition-pl'],
+    });
+    const reordered = toPostFormValues(
+      savedPost({ ...WITH_RELATIONS, tags: [...WITH_RELATIONS.tags].reverse() }),
+      TIME_ZONE,
+    );
+    expect(reordered.tagIds).toEqual(values.tagIds);
+  });
 });
 
 describe('toUpdatePostRequest: у PUT — лише змінене', () => {
@@ -158,8 +184,8 @@ describe('toUpdatePostRequest: у PUT — лише змінене', () => {
     expect(added.translations).toEqual([UKRAINIAN]);
   });
 
-  it('зв’язки й відео форма не редагує — їх немає в запиті, хоч би що змінилось', () => {
-    const request = updateFor(savedPost({ ...WITH_COVER_IMAGE, videoUrl: 'https://youtu.be/x' }), {
+  it('незмінені зв’язки й відео в запит не йдуть, хоч би що змінилось: переданий масив замінив би зв’язки (D51)', () => {
+    const request = updateFor(savedPost({ ...WITH_COVER_IMAGE, ...WITH_RELATIONS, videoUrl: 'https://youtu.be/x' }), {
       titleEn: 'Arsenal beat Chelsea again',
       coverImageUrl: '',
       sourceUrl: 'https://bbc.com/a',
@@ -168,6 +194,23 @@ describe('toUpdatePostRequest: у PUT — лише змінене', () => {
     for (const fieldName of ['tagIds', 'clubIds', 'competitionIds', 'videoUrl']) {
       expect(request).not.toHaveProperty(fieldName);
     }
+  });
+
+  it('зв’язки — набором: той самий в іншому порядку не йде, змінений — увесь набір лише цього виду (D51)', () => {
+    const post = savedPost(WITH_RELATIONS);
+    expect(updateFor(post, { tagIds: ['tag-transfers', 'tag-derby'] })).toEqual({});
+    expect(updateFor(post, { tagIds: ['tag-derby', 'tag-injuries', 'tag-transfers'] })).toEqual({
+      tagIds: ['tag-derby', 'tag-injuries', 'tag-transfers'],
+    });
+    expect(updateFor(post, { clubIds: ['club-arsenal'], competitionIds: ['competition-cl', 'competition-pl'] })).toEqual({
+      clubIds: ['club-arsenal'],
+      competitionIds: ['competition-cl', 'competition-pl'],
+    });
+  });
+
+  it('прибрали всі теги — порожній масив: API прибере зв’язки; у новини без зв’язків порожній набір не йде', () => {
+    expect(updateFor(savedPost(WITH_RELATIONS), { tagIds: [] })).toEqual({ tagIds: [] });
+    expect(updateFor(savedPost(), { tagIds: [], clubIds: [], competitionIds: [] })).toEqual({});
   });
 
   it('та сама обкладинка: змінений опис — у перекладі, очищений — null; підпис так само (D44)', () => {

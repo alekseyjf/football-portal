@@ -8,6 +8,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { FootballNameWarning } from '@/components/tags/FootballNameWarning';
 import { SimilarTagsNote } from '@/components/tags/SimilarTagsNote';
 import { TagNameFields } from '@/components/tags/TagNameFields';
+import { TagSlugField } from '@/components/tags/TagSlugField';
 import {
   EMPTY_TAG_FORM_VALUES,
   isTagSlugError,
@@ -18,7 +19,6 @@ import { useCreateTag } from '@/hooks/useCreateTag';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import type { AdminTag } from '@/lib/api/types';
 import { tagTitle } from '@/lib/tagNames';
-import { TagSlugField } from './TagSlugField';
 
 const FORM_ID = 'new-tag';
 const SUBMIT_LABEL = 'Create tag';

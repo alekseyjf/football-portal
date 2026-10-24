@@ -7,6 +7,19 @@ import { tagNameIn } from '@/lib/tagNames';
 /** Новий тег: усе порожнє, адреса — з англійської назви. */
 export const EMPTY_TAG_FORM_VALUES: TagFormValues = { nameEn: '', nameUk: '', slug: '' };
 
+const CYRILLIC_LETTER = /\p{Script=Cyrillic}/u;
+
+/**
+ * Новий тег з пошуку у формі новини (D51): введене — назва мовою свого письма: з кирилицею — українська, інакше —
+ * англійська. Другу назву редактор дописує сам.
+ */
+export function newTagFormValues(typedName: string): TagFormValues {
+  const name = typedName.trim().replace(/\s+/g, ' ');
+  return CYRILLIC_LETTER.test(name)
+    ? { ...EMPTY_TAG_FORM_VALUES, nameUk: name }
+    : { ...EMPTY_TAG_FORM_VALUES, nameEn: name };
+}
+
 /** Назви з форми (після перевірки — без країв, обидві є, D51) → назви в запиті. */
 function toTagTranslations({ nameEn, nameUk }: TagNamesFormValues): TagTranslationRequest[] {
   return [

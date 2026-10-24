@@ -1,12 +1,11 @@
 'use client';
 
 import type { RefObject } from 'react';
+import { DIALOG_BUTTON_CLASS, DIALOG_CLASS } from '@/components/dialogStyles';
 import { useDeleteTag } from '@/hooks/useDeleteTag';
 import { isApiError } from '@/lib/api/http';
 import type { AdminTag } from '@/lib/api/types';
-import { tagTitle } from '@/lib/tagNames';
-import { DIALOG_BUTTON_CLASS, DIALOG_CLASS } from './dialogStyles';
-import { postCountLabel } from './TagListRow';
+import { postCountLabel, tagTitle } from '@/lib/tagNames';
 
 const DIALOG_TITLE_ID = 'delete-tag-dialog-title';
 
@@ -19,6 +18,8 @@ interface DeleteTagDialogProps {
   dialogRef: RefObject<HTMLDialogElement | null>;
   /** Тег з останнього списку: кількість новин перечитується, поки діалог відкрито; `null` — закрито */
   tag: AdminTag | null;
+  /** `key` вмісту — свій для кожного відкриття (`useModalDialog`): перечитаний список вміст не перемонтовує */
+  openingKey: number;
   onClose: () => void;
   onCancel: () => void;
   onDeleted: (tag: AdminTag) => void;
@@ -28,11 +29,11 @@ interface DeleteTagDialogProps {
  * Видалення тегу (D45): API видаляє одразу, назавжди й з усіх новин, тож питає інтерфейс — скільки новин втратять тег,
  * і чернетки теж. Нативний `<dialog>`: фокус — на Cancel (безпечна дія першою), Esc закриває.
  */
-export function DeleteTagDialog({ dialogRef, tag, onClose, onCancel, onDeleted }: DeleteTagDialogProps) {
+export function DeleteTagDialog({ dialogRef, tag, openingKey, onClose, onCancel, onDeleted }: DeleteTagDialogProps) {
   return (
     <dialog ref={dialogRef} onClose={onClose} aria-labelledby={DIALOG_TITLE_ID} className={DIALOG_CLASS}>
-      {/* `key` — помилка минулої спроби не переходить на наступний тег */}
-      {tag && <DeleteTagConfirm key={tag.id} tag={tag} onCancel={onCancel} onDeleted={onDeleted} />}
+      {/* `key` — помилка минулої спроби не переходить на наступне відкриття, і того самого тегу */}
+      {tag && <DeleteTagConfirm key={openingKey} tag={tag} onCancel={onCancel} onDeleted={onDeleted} />}
     </dialog>
   );
 }

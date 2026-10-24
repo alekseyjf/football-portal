@@ -8,13 +8,18 @@ import { flushSync } from 'react-dom';
  */
 export function useModalDialog<Item>() {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [item, setItem] = useState<Item | null>(null);
+  const [opening, setOpening] = useState<{ item: Item; key: number } | null>(null);
   return {
     dialogRef,
     /** Для чого відкрито; `null` — діалог закрито */
-    item,
+    item: opening?.item ?? null,
+    /**
+     * `key` вмісту — свій для кожного відкриття: вміст (форма, помилка запиту) щоразу починає з чистого, навіть коли
+     * діалог відкрили знову раніше, ніж прийшла подія `close` попереднього відкриття (нижче)
+     */
+    openingKey: opening?.key ?? 0,
     open(nextItem: Item) {
-      flushSync(() => setItem(nextItem));
+      flushSync(() => setOpening((previous) => ({ item: nextItem, key: (previous?.key ?? 0) + 1 })));
       dialogRef.current?.showModal();
     },
     close() {
@@ -27,7 +32,7 @@ export function useModalDialog<Item>() {
      */
     handleClose() {
       if (dialogRef.current?.open) return;
-      setItem(null);
+      setOpening(null);
     },
   };
 }

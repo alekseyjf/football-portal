@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { AdminTag } from '@/lib/api/types';
-import { toCreateTagRequest, toTagNamesFormValues, toUpdateTagRequest } from './tagForm';
+import { newTagFormValues, toCreateTagRequest, toTagNamesFormValues, toUpdateTagRequest } from './tagForm';
 
 const SAVED = { nameEn: 'Transfers', nameUk: 'Трансфери' };
+
+describe('новий тег з пошуку у формі новини (D51)', () => {
+  it('введене — назвою мовою свого письма: латиницею — англійська, з кирилицею — українська; адреса — з англійської', () => {
+    expect(newTagFormValues('  Transfer   gossip ')).toEqual({ nameEn: 'Transfer gossip', nameUk: '', slug: '' });
+    expect(newTagFormValues('Травми')).toEqual({ nameEn: '', nameUk: 'Травми', slug: '' });
+    // Змішане письмо — українська: латиницею в ній бувають абревіатури
+    expect(newTagFormValues('Рішення VAR')).toEqual({ nameEn: '', nameUk: 'Рішення VAR', slug: '' });
+  });
+});
 
 describe('тіло POST /tags', () => {
   it('обидві назви (D51); порожня адреса не йде — API візьме її з англійської назви (D45)', () => {

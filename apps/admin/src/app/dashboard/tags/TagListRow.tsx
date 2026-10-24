@@ -1,13 +1,7 @@
 import type { AdminTag } from '@/lib/api/types';
-import { tagNameIn, tagTitle } from '@/lib/tagNames';
+import { postCountLabel, tagNameIn, tagTitle } from '@/lib/tagNames';
 
 const ACTION_CLASS = 'text-sm transition-colors';
-
-/** Скільки новин з тегом — будь-якого статусу, і чернеток (D45). */
-export function postCountLabel(postCount: number): string {
-  if (postCount === 0) return 'no posts';
-  return postCount === 1 ? '1 post' : `${postCount} posts`;
-}
 
 interface TagListRowProps {
   tag: AdminTag;
