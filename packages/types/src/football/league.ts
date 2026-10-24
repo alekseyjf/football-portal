@@ -4,8 +4,8 @@ import type { ApiSchemas } from '../api-schemas';
 export type CompetitionType = ApiSchemas['CompetitionType'];
 
 /**
- * Турнір з країною й поточним сезоном: `GET /football/leagues` (лише активні, за `sortOrder`),
- * `/football/leagues/{slug}`.
+ * Турнір з країною, поточним сезоном і ознакою «у грі» (`isInPlay`, D48): `GET /football/leagues` (лише активні, за
+ * `sortOrder`), `/football/leagues/{slug}`.
  */
 export type League = ApiSchemas['LeagueDto'];
 

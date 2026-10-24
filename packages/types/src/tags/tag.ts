@@ -1,6 +1,11 @@
 import type { ApiSchemas } from '../api-schemas';
 
 /**
+ * Тег на сайті (D45): `GET /tags/{slug}`, теги новини. Назва — мовою запиту, без неї — англійською, далі — slug.
+ */
+export type Tag = ApiSchemas['TagDto'];
+
+/**
  * Тег в адмінці (D45): `GET /tags/admin/all`, відповідь `POST` / `PUT /tags` — назви всіма мовами й кількість новин
  * будь-якого статусу, крім видалених.
  */

@@ -39,6 +39,8 @@ export class PostSummaryDto {
   excerpt!: string;
   author!: PublicAuthorDto;
   tags!: TagDto[];
+  /** Турніри, до яких прив'язана новина, — у порядку редакції */
+  competitions!: PostCompetitionDto[];
 }
 
 /** Новина з текстом. Коментарі — окремо: `GET /comments/post/{postId}`. */
@@ -57,7 +59,6 @@ export class PostDetailDto extends PostSummaryDto {
   sourceName!: string | null;
   /** Мови, якими є переклад (для `hreflang`) */
   availableLanguages!: string[];
-  competitions!: PostCompetitionDto[];
   clubs!: PostClubDto[];
 }
 

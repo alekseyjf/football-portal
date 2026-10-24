@@ -9,13 +9,15 @@ import {
   MatchStatus,
   Role,
   type Prisma,
-  type PrismaClient,
 } from '@prisma/client';
 import type request from 'supertest';
 import { apiPath, createE2eApp, type E2eApp } from '../support/e2e-app';
 import { createUser, loginAs } from '../support/e2e-auth';
 import { resetE2eData } from '../support/e2e-database';
-import { seedFootballLeague } from '../support/e2e-football';
+import {
+  createFootballSeason,
+  seedFootballLeague,
+} from '../support/e2e-football';
 import { expectMatchesContract } from '../support/openapi-contract';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -41,49 +43,6 @@ interface ClubSearchResult {
   tla: string | null;
   crestUrl: string | null;
   competitions: CompetitionRef[];
-}
-
-interface SeasonSeed {
-  competitionId: string;
-  label: string;
-  endDate: Date;
-  isCurrent: boolean;
-  /** Учасники сезону; кожен матч — між першими двома */
-  clubIds: [string, string, ...string[]];
-  matchStatuses: MatchStatus[];
-  /** Матчі — по одному на день до цієї дати; без неї — до `endDate` */
-  lastKickoffAt?: Date;
-}
-
-/** Сезон з учасниками й матчами заданих статусів — записом у БД, як після синку. */
-async function createSeason(
-  prisma: PrismaClient,
-  seed: SeasonSeed,
-): Promise<void> {
-  const season = await prisma.season.create({
-    data: {
-      competitionId: seed.competitionId,
-      label: seed.label,
-      startDate: new Date(seed.endDate.getTime() - 90 * DAY_MS),
-      endDate: seed.endDate,
-      isCurrent: seed.isCurrent,
-    },
-  });
-  await prisma.seasonClub.createMany({
-    data: seed.clubIds.map((clubId) => ({ seasonId: season.id, clubId })),
-  });
-  await prisma.match.createMany({
-    data: seed.matchStatuses.map((status, index) => ({
-      competitionId: seed.competitionId,
-      seasonId: season.id,
-      homeClubId: seed.clubIds[0],
-      awayClubId: seed.clubIds[1],
-      kickoffAt: new Date(
-        (seed.lastKickoffAt ?? seed.endDate).getTime() - index * DAY_MS,
-      ),
-      status,
-    })),
-  });
 }
 
 function cityClubName(index: number): string {
@@ -218,7 +177,7 @@ describe('Адмінка: турніри й клуби для форми нов�
     });
 
     const inFuture = new Date(now + 100 * DAY_MS);
-    await createSeason(e2e.prisma, {
+    await createFootballSeason(e2e.prisma, {
       competitionId: premierLeague.id,
       label: '2024/25',
       endDate: new Date('2025-05-25'),
@@ -226,7 +185,7 @@ describe('Адмінка: турніри й клуби для форми нов�
       clubIds: [arsenalId, chelseaId],
       matchStatuses: [MatchStatus.SCHEDULED],
     });
-    await createSeason(e2e.prisma, {
+    await createFootballSeason(e2e.prisma, {
       competitionId: carabaoCup.id,
       label: '2025/26',
       endDate: inFuture,
@@ -234,7 +193,7 @@ describe('Адмінка: турніри й клуби для форми нов�
       clubIds: [arsenalId, chelseaId],
       matchStatuses: [MatchStatus.SCHEDULED],
     });
-    await createSeason(e2e.prisma, {
+    await createFootballSeason(e2e.prisma, {
       competitionId: faCup.id,
       label: '2025/26',
       endDate: inFuture,
@@ -243,7 +202,7 @@ describe('Адмінка: турніри й клуби для форми нов�
       matchStatuses: [MatchStatus.SCHEDULED],
     });
     // Усе зіграно, але від дати завершення минуло менше запасу (30 днів)
-    await createSeason(e2e.prisma, {
+    await createFootballSeason(e2e.prisma, {
       competitionId: championsLeague.id,
       label: '2025/26',
       endDate: new Date(now - 10 * DAY_MS),
@@ -252,7 +211,7 @@ describe('Адмінка: турніри й клуби для форми нов�
       matchStatuses: [MatchStatus.FINISHED],
     });
     // Сезон давно скінчився: остаточні статуси й давній SCHEDULED, який провайдер так і не оновив
-    await createSeason(e2e.prisma, {
+    await createFootballSeason(e2e.prisma, {
       competitionId: euro.id,
       label: '2024',
       endDate: new Date('2024-07-14'),
@@ -266,7 +225,7 @@ describe('Адмінка: турніри й клуби для форми нов�
       ],
     });
     // Сезон давно скінчився (`endDate` від провайдера застарів), але матч, перенесений тиждень тому, ще попереду
-    await createSeason(e2e.prisma, {
+    await createFootballSeason(e2e.prisma, {
       competitionId: nationsLeague.id,
       label: '2024/25',
       endDate: new Date('2025-06-08'),

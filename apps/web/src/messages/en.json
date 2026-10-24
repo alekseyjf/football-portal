@@ -43,6 +43,27 @@
     "source": "Source:",
     "opensInNewTab": "(opens in a new tab)"
   },
+  "newsFeed": {
+    "title": "News",
+    "titleWithPage": "News — page {page}",
+    "description": "Football news: transfers, match reports, interviews. Filter by competition, tag and club.",
+    "leaguesLabel": "Competitions",
+    "allLeagues": "All",
+    "activeFiltersLabel": "Selected filters",
+    "tagChip": "Tag: {name}",
+    "clubChip": "Club: {name}",
+    "removeFilter": "Remove filter “{filter}”",
+    "clearAll": "Clear all",
+    "newest": "← Latest news",
+    "loading": "Loading news…",
+    "loadError": "Could not load news.",
+    "retry": "Try again",
+    "empty": "No news yet. Check back soon!",
+    "emptyFiltered": "No news matches these filters.",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "loadMoreError": "Could not load more news. Please try again."
+  },
   "likes": {
     "ariaGroup": "Reactions",
     "like": "Like",

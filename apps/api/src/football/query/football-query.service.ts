@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { SeasonClubDto } from '../dto/club-response.dto';
+import type { ClubDto, SeasonClubDto } from '../dto/club-response.dto';
 import type { LeagueFixturesDto } from '../dto/fixtures-response.dto';
 import type { LeagueDashboardDto } from '../dto/league-dashboard-response.dto';
 import type { LeagueDto } from '../dto/league-response.dto';
@@ -13,10 +13,12 @@ import type {
   MatchesInRangeDto,
 } from '../dto/match-response.dto';
 import type { StandingTableDto } from '../dto/standing-response.dto';
+import { COMPETITION_IN_PLAY_GRACE_DAYS } from '../football.constants';
 import { groupMatchesIntoRounds } from '../football-matchday.util';
 import {
   FootballRepository,
   type CompetitionRecord,
+  type LeagueRecord,
   type SeasonRecord,
 } from '../persistence/football.repository';
 import {
@@ -62,12 +64,24 @@ export class FootballQueryService {
   constructor(private readonly footballRepository: FootballRepository) {}
 
   async getLeagues(): Promise<LeagueDto[]> {
-    const competitions = await this.footballRepository.findActiveCompetitions();
-    return competitions.map(toPublicLeague);
+    const now = new Date();
+    const leagues = await this.footballRepository.findActiveLeagues(
+      now,
+      COMPETITION_IN_PLAY_GRACE_DAYS,
+    );
+    return leagues.map((league) => toPublicLeague(league, now));
   }
 
   async getLeagueBySlug(slug: string): Promise<LeagueDto> {
-    return toPublicLeague(await this.competitionBySlugOrThrow(slug));
+    const now = new Date();
+    return toPublicLeague(await this.leagueBySlugOrThrow(slug, now), now);
+  }
+
+  /** Клуб за slug — назва в чипі фільтра стрічки `/news?club=` (M1.6.1). */
+  async getClubBySlug(slug: string): Promise<ClubDto> {
+    const club = await this.footballRepository.findClubBySlug(slug);
+    if (!club) throw new NotFoundException('CLUB_NOT_FOUND');
+    return club;
   }
 
   async getLeagueClubs(
@@ -132,8 +146,9 @@ export class FootballQueryService {
     slug: string,
     seasonParam?: string,
   ): Promise<LeagueDashboardDto> {
-    const competition = await this.competitionBySlugOrThrow(slug);
-    const season = await this.resolveSeason(competition, seasonParam);
+    const now = new Date();
+    const league = await this.leagueBySlugOrThrow(slug, now);
+    const season = await this.resolveSeason(league, seasonParam);
     const [standingRows, fixtures] = await Promise.all([
       season ? this.footballRepository.findStandingRows(season.id) : [],
       this.buildFixtures(season),
@@ -142,7 +157,7 @@ export class FootballQueryService {
       toPublicStandingTables(standingRows),
     );
     return {
-      league: toPublicLeague(competition),
+      league: toPublicLeague(league, now),
       season: season ? toPublicSeason(season) : null,
       standingsTable: primaryTable
         ? { stage: primaryTable.stage, groupName: primaryTable.groupName }
@@ -198,6 +213,19 @@ export class FootballQueryService {
       await this.footballRepository.findCompetitionBySlug(slug);
     if (!competition) throw new NotFoundException('LEAGUE_NOT_FOUND');
     return competition;
+  }
+
+  private async leagueBySlugOrThrow(
+    slug: string,
+    now: Date,
+  ): Promise<LeagueRecord> {
+    const league = await this.footballRepository.findLeagueBySlug(
+      slug,
+      now,
+      COMPETITION_IN_PLAY_GRACE_DAYS,
+    );
+    if (!league) throw new NotFoundException('LEAGUE_NOT_FOUND');
+    return league;
   }
 
   /** `?season=` → цей сезон або 404; без нього — поточний (може не бути, якщо ще не синкали). */

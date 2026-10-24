@@ -2,6 +2,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import {
+  CLUB_SLUG_MAX_LENGTH,
+  COMPETITION_SLUG_MAX_LENGTH,
+  COMPETITION_SLUG_PATTERN,
   PAGE_NUMBER_MAX,
   POSTS_FILTER_VALUES_MAX,
   POSTS_PAGE_LIMIT_MAX,
@@ -24,14 +27,14 @@ const TAG_FILTER: SlugListRule = {
 };
 /** Код турніру (`PL`, `BL1`) — той самий формат, що й `?league=` у `GET /football/matches`. */
 const COMPETITION_FILTER: SlugListRule = {
-  pattern: /^[A-Za-z0-9-]+$/,
-  maxLength: 32,
+  pattern: COMPETITION_SLUG_PATTERN,
+  maxLength: COMPETITION_SLUG_MAX_LENGTH,
   maxValues: POSTS_FILTER_VALUES_MAX,
 };
-/** Slug клубу будує синк з назви без обрізання (P5-5): найдовший на dev-БД — 29 символів, 100 — з запасом. */
+/** Slug клубу — як у `GET /football/clubs/{slug}`. */
 const CLUB_FILTER: SlugListRule = {
   pattern: SLUG_PATTERN,
-  maxLength: 100,
+  maxLength: CLUB_SLUG_MAX_LENGTH,
   maxValues: POSTS_FILTER_VALUES_MAX,
 };
 

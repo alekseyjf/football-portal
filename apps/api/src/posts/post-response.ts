@@ -59,6 +59,9 @@ export function toPublicPostSummary(
     tags: postRow.tags.map((tagLink) =>
       toPublicTag(tagLink.tag, languageChoice),
     ),
+    competitions: postRow.competitions.map(
+      (competitionLink) => competitionLink.competition,
+    ),
   };
 }
 
@@ -76,9 +79,6 @@ export function toPublicPostDetail(
     sourceUrl: postRow.sourceUrl,
     sourceName: postRow.sourceName,
     availableLanguages,
-    competitions: postRow.competitions.map(
-      (competitionLink) => competitionLink.competition,
-    ),
     clubs: postRow.clubs.map((clubLink) => clubLink.club),
   };
 }

@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { CompetitionType, Role } from '@prisma/client';
 import request from 'supertest';
 import { apiPath, createE2eApp, type E2eApp } from '../support/e2e-app';
 import { createUser, loginAs } from '../support/e2e-auth';
@@ -37,7 +37,16 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
     await resetE2eData(e2e.prisma);
     admin = await loginAs(e2e, await createUser(e2e, Role.ADMIN));
 
+    // PL — `sortOrder` 1, CL — 2: турніри новини йдуть у порядку редакції, а не в порядку вибору
     const league = await seedFootballLeague(e2e.prisma);
+    const championsLeague = await e2e.prisma.competition.create({
+      data: {
+        slug: 'CL',
+        name: 'UEFA Champions League',
+        type: CompetitionType.CUP,
+        sortOrder: 2,
+      },
+    });
     const tag = await e2e.prisma.tag.create({
       data: {
         slug: 'derby',
@@ -61,7 +70,7 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
         sourceName: 'E2E Sport',
         tagIds: [tag.id],
         clubIds: [league.homeClubId],
-        competitionIds: [league.competitionId],
+        competitionIds: [championsLeague.id, league.competitionId],
       })
       .expect(201);
     expectMatchesContract(created, 'post', '/posts');
@@ -69,14 +78,30 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
   });
   afterAll(() => e2e.close());
 
-  it('стрічка й новина — з тегом, турніром, клубом і автором', async () => {
+  it('стрічка й новина — з тегом, турнірами в порядку редакції, клубом і автором', async () => {
     const server = request(e2e.app.getHttpServer());
     const list = await server
       .get(apiPath('/posts'))
       .query({ lang: 'uk' })
       .expect(200);
     expectMatchesContract(list, 'get', '/posts');
-    expect(list.body).toMatchObject({ total: 1, data: [{ id: post.id }] });
+    expect(list.body).toMatchObject({
+      total: 1,
+      data: [
+        {
+          id: post.id,
+          tags: [{ slug: 'derby', name: 'Дербі' }],
+          competitions: [
+            {
+              slug: 'PL',
+              name: 'Premier League',
+              emblemUrl: 'https://e2e.test/pl.svg',
+            },
+            { slug: 'CL', name: 'UEFA Champions League', emblemUrl: null },
+          ],
+        },
+      ],
+    });
 
     const detail = await request(e2e.app.getHttpServer())
       .get(apiPath(`/posts/${post.number}`))
@@ -90,7 +115,7 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
       sourceUrl: 'https://e2e.test/source',
       sourceName: 'E2E Sport',
       tags: [{ slug: 'derby', name: 'Дербі' }],
-      competitions: [{ slug: 'PL' }],
+      competitions: [{ slug: 'PL' }, { slug: 'CL' }],
       clubs: [{ slug: 'arsenal' }],
     });
 

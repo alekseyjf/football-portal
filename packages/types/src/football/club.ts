@@ -1,6 +1,6 @@
 import type { ApiSchemas } from '../api-schemas';
 
-/** Клуб або збірна — у матчах і таблицях. */
+/** Клуб або збірна — у матчах і таблицях; `GET /football/clubs/{slug}`. */
 export type Club = ApiSchemas['ClubDto'];
 
 /**

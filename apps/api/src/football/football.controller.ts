@@ -15,8 +15,10 @@ import { LiveTouchThrottle } from '../security/throttling/request-throttling';
 import { AdminClubSearchQueryDto } from './dto/admin-club-search-query.dto';
 import {
   AdminClubSearchResultDto,
+  ClubDto,
   SeasonClubDto,
 } from './dto/club-response.dto';
+import { ClubSlugParamDto } from './dto/club-slug-param.dto';
 import { LeagueFixturesDto } from './dto/fixtures-response.dto';
 import {
   FootballSyncAcceptedDto,
@@ -52,7 +54,10 @@ export class FootballController {
     private readonly liveSync: FootballLiveSyncService,
   ) {}
 
-  /** Активні турніри (перемикач ліг), у порядку редакції. */
+  /**
+   * Активні турніри (перемикач ліг), у порядку редакції.
+   * @remarks `isInPlay` — турнір зараз «у грі»: вкладки ліг у стрічці новин — лише такі.
+   */
   @Get('leagues')
   listLeagues(): Promise<LeagueDto[]> {
     return this.query.getLeagues();
@@ -165,6 +170,16 @@ export class FootballController {
     @Query() searchQuery: AdminClubSearchQueryDto,
   ): Promise<AdminClubSearchResultDto[]> {
     return this.adminQuery.searchClubs(searchQuery.search);
+  }
+
+  /**
+   * Клуб за slug — назва клубу у фільтрі стрічки новин `?club=`.
+   * @throws {400} Slug не того формату
+   * @throws {404} CLUB_NOT_FOUND
+   */
+  @Get('clubs/:slug')
+  clubBySlug(@Param() params: ClubSlugParamDto): Promise<ClubDto> {
+    return this.query.getClubBySlug(params.slug);
   }
 
   /**

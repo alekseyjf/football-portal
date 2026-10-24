@@ -35,6 +35,15 @@ function postSummarySelect(languageCodes: string[]) {
       select: { tag: { select: publicTagSelect(languageCodes) } },
       orderBy: { tag: { slug: 'asc' } },
     },
+    // У стрічці — для кікера картки: турнір, якщо він один (M1.6.1)
+    competitions: {
+      select: {
+        competition: {
+          select: { id: true, slug: true, name: true, emblemUrl: true },
+        },
+      },
+      orderBy: { competition: { sortOrder: 'asc' } },
+    },
   } satisfies Prisma.PostSelect;
 }
 
@@ -54,14 +63,6 @@ function postDetailSelect(languageCodes: string[]) {
         content: true,
         coverImageAlt: true,
       },
-    },
-    competitions: {
-      select: {
-        competition: {
-          select: { id: true, slug: true, name: true, emblemUrl: true },
-        },
-      },
-      orderBy: { competition: { sortOrder: 'asc' } },
     },
     clubs: {
       select: {

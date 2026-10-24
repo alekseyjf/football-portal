@@ -92,6 +92,7 @@
 |----|-----|
 | Football: маршрути | `apps/api/src/football/football.controller.ts` |
 | Football: **читання** з БД | `apps/api/src/football/query/football-query.service.ts` (+ `football-response.ts`, `football-standings.util.ts`) |
+| Football: турнір «у грі» в публічних відповідях (`LeagueDto.isInPlay`), клуб за slug ([D52](decisions/D52-news-feed.md)) | `apps/api/src/football/query/football-response.ts` (`toPublicLeague`), `persistence/football.repository.ts` (`findActiveLeagues`, `findLeagueBySlug`, `findClubBySlug`) |
 | Football: для форми новини — усі турніри, пошук клубів ([D48](decisions/D48-competition-in-play.md)) | `apps/api/src/football/query/football-admin-query.service.ts`, `persistence/football-admin.repository.ts`; правила — `football-club-search.ts`, `football-competition-status.ts` (турнір «у грі») |
 | Football: **повний синк** | `apps/api/src/football/sync/football-sync.service.ts` + `football-sync.writer.ts` |
 | Football: **LIVE** (`live-touch`, LIVE-cron) | `apps/api/src/football/sync/football-live-sync.service.ts`, `football-live-throttle.service.ts` |
@@ -105,6 +106,8 @@
 | Змінні середовища API (схема, доступ) | `apps/api/src/config/env.schema.ts`, `env.config.ts`; шаблон — `apps/api/.env.example` |
 | Health (`GET /api/v1/health`, ping БД) | `apps/api/src/health/health.controller.ts` |
 | E2E API: каркас (схема `e2e`, застосунок, логін) | `apps/api/test/support/`; тести — `apps/api/test/<модуль>/*.e2e-spec.ts` ([D30](decisions/D30-testing-and-local-env.md)) |
+| Стрічка новин `/news` (фільтри в адресі, вкладки ліг, чипи, «Завантажити ще») | `apps/web/src/app/[locale]/news/(feed)/` (`page.tsx`, `NewsFeedView`, `error.tsx`); блоки — `components/news/`; правила — `lib/news/news-feed-filters.ts`, `news-feed-pages.ts`, `news-feed-leagues.ts`, запит — `news-feed-query.ts`; хуки — `hooks/useNewsFeed.ts`, `useNewsFeedFilters.ts` ([D52](decisions/D52-news-feed.md)) |
+| Картка новини (стрічка й головна), рубрика | `apps/web/src/components/news/NewsCard.tsx`, `NewsCardList.tsx`; правило рубрики — `lib/news/post-kicker.ts` ([D52](decisions/D52-news-feed.md)) |
 | Сайдбар на головній | `apps/web/src/components/football/FootballSidebar.tsx` |
 | Хуки / query keys футболу | `apps/web/src/hooks/useFootball.ts` (`leagueDashboardQueryOptions`) |
 | Slug ліги для SSR | `apps/web/src/app/resolveDefaultLeagueSlug.ts` |
