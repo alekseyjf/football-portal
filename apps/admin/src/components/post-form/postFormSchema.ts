@@ -79,6 +79,10 @@ const formFieldsSchema = z.object({
   // http(s) — як `@IsSourceUrl()`; назва без адреси — в addSourceIssues
   sourceUrl: optionalField(sourceUrlSchema),
   sourceName: postSourceNameSchema,
+  // Теги, клуби, турніри — id набором (`postRelations.ts`); межу кожного виду тримає вибір (D51)
+  tagIds: z.array(z.string()),
+  clubIds: z.array(z.string()),
+  competitionIds: z.array(z.string()),
   // Які з них доступні, залежить від стану новини — `publicationOptionsFor`; ARCHIVED — лише в редагуванні
   publication: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ARCHIVED']),
   /** Значення `<input type="datetime-local">` — час у поясі редактора */
@@ -122,6 +126,9 @@ export const EMPTY_POST_FORM_VALUES: PostFormValues = {
   coverImageCredit: '',
   sourceUrl: '',
   sourceName: '',
+  tagIds: [],
+  clubIds: [],
+  competitionIds: [],
   publication: 'DRAFT',
   scheduledAt: '',
 };
@@ -314,5 +321,9 @@ export function toCreatePostRequest(values: PostFormValues, timeZone: string): C
     // Назва джерела — лише з адресою (D26): форма не пропустить іншого, а API відповів би 400
     ...(values.sourceUrl ? { sourceUrl: values.sourceUrl } : {}),
     ...(values.sourceUrl && values.sourceName ? { sourceName: values.sourceName } : {}),
+    // Вибрані теги, клуби, турніри (D51); нічого не вибрано — поля немає
+    ...(values.tagIds.length > 0 ? { tagIds: values.tagIds } : {}),
+    ...(values.clubIds.length > 0 ? { clubIds: values.clubIds } : {}),
+    ...(values.competitionIds.length > 0 ? { competitionIds: values.competitionIds } : {}),
   };
 }

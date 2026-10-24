@@ -5,13 +5,13 @@ import { tagNamesFormSchema, type TagNamesFormValues } from '@football-portal/va
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, type RefObject } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+import { DIALOG_BUTTON_CLASS, DIALOG_CLASS } from '@/components/dialogStyles';
 import { FootballNameWarning } from '@/components/tags/FootballNameWarning';
 import { TagNameFields } from '@/components/tags/TagNameFields';
 import { tagFormServerErrorMessage, toTagNamesFormValues, toUpdateTagRequest } from '@/components/tags/tagForm';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { useUpdateTag } from '@/hooks/useUpdateTag';
 import type { AdminTag } from '@/lib/api/types';
-import { DIALOG_BUTTON_CLASS, DIALOG_CLASS } from './dialogStyles';
 
 const DIALOG_TITLE_ID = 'rename-tag-dialog-title';
 const SUBMIT_LABEL = 'Save names';
@@ -20,17 +20,19 @@ interface RenameTagDialogProps {
   dialogRef: RefObject<HTMLDialogElement | null>;
   /** Тег, який перейменовують, — знімок на мить відкриття; `null` — діалог закрито */
   tag: AdminTag | null;
+  /** `key` вмісту — свій для кожного відкриття (`useModalDialog`) */
+  openingKey: number;
   onClose: () => void;
   onCancel: () => void;
   onRenamed: (tag: AdminTag) => void;
 }
 
 /** Перейменування тегу в нативному `<dialog>`: змінюються назви, адреса — ні (D45). */
-export function RenameTagDialog({ dialogRef, tag, onClose, onCancel, onRenamed }: RenameTagDialogProps) {
+export function RenameTagDialog({ dialogRef, tag, openingKey, onClose, onCancel, onRenamed }: RenameTagDialogProps) {
   return (
     <dialog ref={dialogRef} onClose={onClose} aria-labelledby={DIALOG_TITLE_ID} className={DIALOG_CLASS}>
       {/* `key` — кожне відкриття починає з назв саме цього тегу */}
-      {tag && <RenameTagForm key={tag.id} tag={tag} onCancel={onCancel} onRenamed={onRenamed} />}
+      {tag && <RenameTagForm key={openingKey} tag={tag} onCancel={onCancel} onRenamed={onRenamed} />}
     </dialog>
   );
 }

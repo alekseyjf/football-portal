@@ -17,3 +17,9 @@ export type TagTranslationRequest = ApiSchemas['TagTranslationDto'];
 
 /** `DELETE /tags/{id}`: тег видалено назавжди й прибрано з усіх новин. */
 export type DeletedTag = ApiSchemas['DeletedTagDto'];
+
+/**
+ * Тег новини в адмінці — чип (D47): `GET /posts/admin/{id}`; назви всіма мовами, без кількості новин. Вибір у формі
+ * новини бере ті самі поля з `AdminTag`.
+ */
+export type AdminTagRef = ApiSchemas['AdminTagRefDto'];

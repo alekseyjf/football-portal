@@ -195,6 +195,12 @@ describe('toCreatePostRequest', () => {
     });
   });
 
+  it('вибрані теги, клуби, турніри — масивами id; нічого не вибрано — поля немає (D51)', () => {
+    const request = requestFor(formValues({ tagIds: ['tag-derby', 'tag-transfers'], competitionIds: ['competition-pl'] }));
+    expect(request).toMatchObject({ tagIds: ['tag-derby', 'tag-transfers'], competitionIds: ['competition-pl'] });
+    expect(request).not.toHaveProperty('clubIds');
+  });
+
   it('slug і джерело — обрізані; назва джерела — разом з адресою', () => {
     const request = requestFor(
       formValues({

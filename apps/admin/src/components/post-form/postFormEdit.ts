@@ -8,6 +8,7 @@ import {
   type PostFormValues,
   type PostPublication,
 } from './postFormSchema';
+import { isSameRelationSet, toRelationIds } from './postRelations';
 
 /** Опис обкладинки кожною мовою — поле форми (D44). */
 const COVER_IMAGE_ALT_FIELD_NAMES = { en: 'coverImageAltEn', uk: 'coverImageAltUk' } as const;
@@ -56,6 +57,9 @@ export function toPostFormValues(post: AdminPostDetail, timeZone: string): PostF
     coverImageCredit: savedText(post.coverImageCredit),
     sourceUrl: savedText(post.sourceUrl),
     sourceName: savedText(post.sourceName),
+    tagIds: toRelationIds(post.tags),
+    clubIds: toRelationIds(post.clubs),
+    competitionIds: toRelationIds(post.competitions),
     publication,
     // Дата в полі — лише в запланованої, що ще чекає: решті вона не потрібна
     scheduledAt:
@@ -154,6 +158,21 @@ function sourceChange(before: PostFormValues, after: PostFormValues): UpdatePost
 }
 
 /**
+ * Теги, клуби, турніри (D51): переданий масив замінює зв'язки, тож надсилаємо лише вид, чий набір змінився (порядок
+ * не важить — БД його не зберігає). Незмінений набір не йде: інакше стер би зв'язки, задані тим часом через Swagger чи
+ * іншим адміном (D50).
+ */
+function relationsChange(before: PostFormValues, after: PostFormValues): UpdatePostRequest {
+  const isChanged = (fieldName: 'tagIds' | 'clubIds' | 'competitionIds') =>
+    !isSameRelationSet(before[fieldName], after[fieldName]);
+  return {
+    ...(isChanged('tagIds') ? { tagIds: after.tagIds } : {}),
+    ...(isChanged('clubIds') ? { clubIds: after.clubIds } : {}),
+    ...(isChanged('competitionIds') ? { competitionIds: after.competitionIds } : {}),
+  };
+}
+
+/**
  * Публікація — пара «статус + дата»: змінилось хоч одне — надсилаємо статус, а для розкладу й дату. Без дати
  * API сам вирішує: Published — дата наявна минула (архівна повертається зі своєю) або зараз; Draft — без дати.
  */
@@ -168,8 +187,8 @@ function publicationChange(before: PostFormValues, after: PostFormValues, timeZo
 /**
  * Тіло `PUT /posts/{id}` — лише змінене (👤 M1.5.2, D50): `saved` — поля збереженої новини (`toPostFormValues`),
  * `current` — форми після перевірки (обидва без пробілів по краях); порівнюємо значення. Не передане API не
- * чіпає, `null` — прибирає, тож правка не перезапише того, чого редактор не міняв. Теги, турніри, клуби й
- * відео форма не редагує — їх немає в запиті зовсім: переданий масив замінив би прив'язки.
+ * чіпає, `null` — прибирає, тож правка не перезапише того, чого редактор не міняв. Зв'язки — набором
+ * (`relationsChange`); відео форма не редагує — його немає в запиті зовсім.
  */
 export function toUpdatePostRequest(
   saved: PostFormValues,
@@ -181,6 +200,7 @@ export function toUpdatePostRequest(
     ...slugChange(saved, current),
     ...coverImageChange(saved, current),
     ...sourceChange(saved, current),
+    ...relationsChange(saved, current),
     ...publicationChange(saved, current, timeZone),
   };
 }

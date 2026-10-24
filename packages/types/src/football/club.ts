@@ -8,3 +8,6 @@ export type Club = ApiSchemas['ClubDto'];
  * і турнірами поточного сезону «у грі».
  */
 export type AdminClubSearchResult = ApiSchemas['AdminClubSearchResultDto'];
+
+/** Клуб-чип новини в адмінці (D47) — `GET /posts/admin/{id}`. */
+export type ClubRef = ApiSchemas['ClubRefDto'];

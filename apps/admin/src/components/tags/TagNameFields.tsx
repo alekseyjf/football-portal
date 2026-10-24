@@ -18,10 +18,14 @@ interface TagNameFieldsProps {
   enNote?: ReactNode;
 }
 
+/** id полів назв — щоб поставити фокус на потрібну. */
+export function tagNameFieldIds(idPrefix: string) {
+  return { nameEn: `${idPrefix}-name-en`, nameUk: `${idPrefix}-name-uk` };
+}
+
 /** Назви тегу (D45, D51): англійська й українська — обидві обов'язкові; простий текст. */
 export function TagNameFields({ idPrefix, nameEn, nameUk, errors, ukHint, enNote }: TagNameFieldsProps) {
-  const enFieldId = `${idPrefix}-name-en`;
-  const ukFieldId = `${idPrefix}-name-uk`;
+  const { nameEn: enFieldId, nameUk: ukFieldId } = tagNameFieldIds(idPrefix);
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">

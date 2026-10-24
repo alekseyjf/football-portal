@@ -3,6 +3,8 @@ import type { AdminTag } from '@/lib/api/types';
 
 /** Скільки схожих тегів показує форма нового тегу: далі редактор уточнює назву. */
 export const SIMILAR_TAGS_SHOWN = 5;
+/** Скільки знайдених тегів показує вибір у формі новини: більше знайшлося — «уточніть запит». */
+export const TAG_PICKER_RESULTS_MAX = 20;
 
 /** Що правилам нижче треба від тегу: адреса й назви всіма мовами — є і в `AdminTag`, і в чипі тегу новини. */
 type TagNames = Pick<AdminTag, 'slug' | 'translations'>;
@@ -15,6 +17,12 @@ export function tagNameIn(tag: TagNames, languageCode: string): string | undefin
 /** Назва тегу в адмінці — англійська (обов'язкова, D45); без неї — адреса. */
 export function tagTitle(tag: TagNames): string {
   return tagNameIn(tag, 'en') ?? tag.slug;
+}
+
+/** Скільки новин з тегом — будь-якого статусу, і чернеток (D45). */
+export function postCountLabel(postCount: number): string {
+  if (postCount === 0) return 'no posts';
+  return postCount === 1 ? '1 post' : `${postCount} posts`;
 }
 
 const ENGLISH_COLLATOR = new Intl.Collator('en');
@@ -65,6 +73,36 @@ export function filterTags<Tag extends TagNames>(tags: readonly Tag[], query: st
       tag.slug.includes(normalizedQuery) ||
       tag.translations.some((translation) => normalizeName(translation.name).includes(normalizedQuery)),
   );
+}
+
+/**
+ * Вибір тегу у формі новини (D51): теги, чия назва будь-якою мовою чи адреса містить запит (як у фільтрі списку), —
+ * спершу ті, де з нього починається назва, слово назви чи адреса («win» → «Transfer window» раніше за «Darwin»), далі
+ * за назвою; до `limit`. `total` — скільки знайдено всього: більше за показані — «уточніть запит».
+ */
+export function searchTags<Tag extends TagNames>(
+  tags: readonly Tag[],
+  query: string,
+  limit = TAG_PICKER_RESULTS_MAX,
+): { tags: Tag[]; total: number } {
+  const normalizedQuery = normalizeName(query);
+  if (!normalizedQuery) return { tags: [], total: 0 };
+  const isPrefixMatch = (tag: Tag) =>
+    tag.slug.startsWith(normalizedQuery) ||
+    tag.translations.some((translation) => ` ${normalizeName(translation.name)}`.includes(` ${normalizedQuery}`));
+  const found = sortTagsByTitle(filterTags(tags, normalizedQuery));
+  const ranked = [...found.filter(isPrefixMatch), ...found.filter((tag) => !isPrefixMatch(tag))];
+  return { tags: ranked.slice(0, limit), total: ranked.length };
+}
+
+/**
+ * Тег з точно такою назвою будь-якою мовою — без регістру й зайвих пробілів. Є такий — вибір його й пропонує, а не
+ * «створити тег» (D51).
+ */
+export function findTagByName<Tag extends TagNames>(tags: readonly Tag[], name: string): Tag | undefined {
+  const normalizedName = normalizeName(name);
+  if (!normalizedName) return undefined;
+  return tags.find((tag) => tag.translations.some((translation) => normalizeName(translation.name) === normalizedName));
 }
 
 /**
