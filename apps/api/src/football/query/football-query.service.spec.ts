@@ -1,7 +1,7 @@
 import { CompetitionType, MatchStatus, StandingType } from '@prisma/client';
 import type {
-  CompetitionRecord,
   FootballRepository,
+  LeagueRecord,
   MatchListRecord,
   MatchRowRecord,
   SeasonRecord,
@@ -19,10 +19,7 @@ const SEASON: SeasonRecord = {
   endDate: new Date('2027-01-27T00:00:00Z'),
 };
 
-function competition(
-  type: CompetitionType,
-  seasons: SeasonRecord[],
-): CompetitionRecord {
+function league(type: CompetitionType, seasons: SeasonRecord[]): LeagueRecord {
   return {
     id: 'competition-1',
     slug: type === CompetitionType.CUP ? 'CL' : 'PL',
@@ -30,7 +27,8 @@ function competition(
     type,
     emblemUrl: null,
     area: null,
-    seasons,
+    isActive: true,
+    seasons: seasons.map((season) => ({ ...season, _count: { matches: 0 } })),
   };
 }
 
@@ -88,12 +86,12 @@ function matchRow(
 }
 
 function queryServiceWith(repositoryData: {
-  competition: CompetitionRecord;
+  league: LeagueRecord;
   standingRows?: StandingRowRecord[];
   upcomingMatches?: MatchRowRecord[];
 }) {
   const repository = {
-    findCompetitionBySlug: () => Promise.resolve(repositoryData.competition),
+    findLeagueBySlug: () => Promise.resolve(repositoryData.league),
     findStandingRows: () => Promise.resolve(repositoryData.standingRows ?? []),
     findUpcomingMatches: () =>
       Promise.resolve(repositoryData.upcomingMatches ?? []),
@@ -105,7 +103,7 @@ function queryServiceWith(repositoryData: {
 describe('FootballQueryService.getLeagueDashboard', () => {
   it('кубок: standingsTable — ліга-фаза (TOTAL), тури — за стадіями', async () => {
     const dashboard = await queryServiceWith({
-      competition: competition(CompetitionType.CUP, [SEASON]),
+      league: league(CompetitionType.CUP, [SEASON]),
       standingRows: [
         standingRow('LEAGUE_STAGE', StandingType.TOTAL, 1),
         standingRow('LEAGUE_STAGE', StandingType.TOTAL, 2),
@@ -132,7 +130,7 @@ describe('FootballQueryService.getLeagueDashboard', () => {
 
   it('сезон є, таблиці немає (EC 2024) — standingsTable: null', async () => {
     const dashboard = await queryServiceWith({
-      competition: competition(CompetitionType.CUP, [SEASON]),
+      league: league(CompetitionType.CUP, [SEASON]),
     }).getLeagueDashboard('EC');
 
     expect(dashboard.season?.label).toBe('2026/27');
@@ -140,12 +138,13 @@ describe('FootballQueryService.getLeagueDashboard', () => {
     expect(dashboard.standings).toEqual([]);
   });
 
-  it('турнір ще не синкали — season і standingsTable: null, без 404', async () => {
+  it('турнір ще не синкали — season і standingsTable: null, не «у грі», без 404', async () => {
     const dashboard = await queryServiceWith({
-      competition: competition(CompetitionType.LEAGUE, []),
+      league: league(CompetitionType.LEAGUE, []),
     }).getLeagueDashboard('PL');
 
     expect(dashboard.season).toBeNull();
+    expect(dashboard.league.isInPlay).toBe(false);
     expect(dashboard.standingsTable).toBeNull();
     expect(dashboard.fixtures).toEqual({ upcoming: [], past: [] });
   });

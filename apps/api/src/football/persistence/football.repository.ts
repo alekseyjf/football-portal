@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { pendingMatchWhere } from '../football-competition-status';
 import { IN_PLAY_MATCH_STATUSES } from '../football-match-status';
 
 const CLUB_PUBLIC_SELECT = {
@@ -40,6 +41,24 @@ const COMPETITION_PUBLIC_SELECT = {
     take: 1,
   },
 } satisfies Prisma.CompetitionSelect;
+
+/**
+ * Турнір для `LeagueDto`: поля турніру й поточного сезону і все, з чого видно, чи він «у грі» (D48), — `isActive`
+ * і скільки матчів сезону ще попереду (`pendingMatchWhere`).
+ */
+function leaguePublicSelect(pendingMatches: Prisma.MatchWhereInput) {
+  return {
+    ...COMPETITION_PUBLIC_SELECT,
+    isActive: true,
+    seasons: {
+      ...COMPETITION_PUBLIC_SELECT.seasons,
+      select: {
+        ...SEASON_PUBLIC_SELECT,
+        _count: { select: { matches: { where: pendingMatches } } },
+      },
+    },
+  } satisfies Prisma.CompetitionSelect;
+}
 
 const MATCH_ROW_SELECT = {
   id: true,
@@ -97,6 +116,12 @@ const STANDING_ROW_SELECT = {
 export type CompetitionRecord = Prisma.CompetitionGetPayload<{
   select: typeof COMPETITION_PUBLIC_SELECT;
 }>;
+export type LeagueRecord = Prisma.CompetitionGetPayload<{
+  select: ReturnType<typeof leaguePublicSelect>;
+}>;
+export type ClubRecord = Prisma.ClubGetPayload<{
+  select: typeof CLUB_PUBLIC_SELECT;
+}>;
 export type SeasonRecord = Prisma.SeasonGetPayload<{
   select: typeof SEASON_PUBLIC_SELECT;
 }>;
@@ -121,20 +146,42 @@ const FIXTURES_TAKE = 80;
 export class FootballRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Для перемикача ліг: лише `isActive`, за `sortOrder` (6.4, P5-15). */
-  findActiveCompetitions(): Promise<CompetitionRecord[]> {
+  /**
+   * Для перемикача ліг: лише `isActive`, за `sortOrder` (6.4, P5-15). `now` і `graceDays` — межа «матчу попереду»
+   * правила «у грі» (D48).
+   */
+  findActiveLeagues(now: Date, graceDays: number): Promise<LeagueRecord[]> {
     return this.prisma.competition.findMany({
       where: { isActive: true },
-      select: COMPETITION_PUBLIC_SELECT,
+      select: leaguePublicSelect(pendingMatchWhere(now, graceDays)),
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
   }
 
-  /** Будь-який турнір за slug — і неактивний (архів, P5-15). */
+  /** Будь-який турнір за slug — і неактивний (архів, P5-15) — для `LeagueDto`, як `findActiveLeagues`. */
+  findLeagueBySlug(
+    slug: string,
+    now: Date,
+    graceDays: number,
+  ): Promise<LeagueRecord | null> {
+    return this.prisma.competition.findUnique({
+      where: { slug },
+      select: leaguePublicSelect(pendingMatchWhere(now, graceDays)),
+    });
+  }
+
+  /** Будь-який турнір за slug — лише поточний сезон, без ознаки «у грі» (таблиці, тури, матчі сезону). */
   findCompetitionBySlug(slug: string): Promise<CompetitionRecord | null> {
     return this.prisma.competition.findUnique({
       where: { slug },
       select: COMPETITION_PUBLIC_SELECT,
+    });
+  }
+
+  findClubBySlug(slug: string): Promise<ClubRecord | null> {
+    return this.prisma.club.findUnique({
+      where: { slug },
+      select: CLUB_PUBLIC_SELECT,
     });
   }
 

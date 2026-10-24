@@ -135,3 +135,46 @@ export async function seedFootballLeague(
     scheduledMatchId: scheduledMatch.id,
   };
 }
+
+export interface FootballSeasonSeed {
+  competitionId: string;
+  label: string;
+  endDate: Date;
+  isCurrent: boolean;
+  /** Учасники сезону; кожен матч — між першими двома */
+  clubIds: [string, string, ...string[]];
+  matchStatuses: MatchStatus[];
+  /** Матчі — по одному на день до цієї дати; без неї — до `endDate` */
+  lastKickoffAt?: Date;
+}
+
+/** Сезон з учасниками й матчами заданих статусів — записом у БД, як після синку. */
+export async function createFootballSeason(
+  prisma: PrismaClient,
+  seed: FootballSeasonSeed,
+): Promise<void> {
+  const season = await prisma.season.create({
+    data: {
+      competitionId: seed.competitionId,
+      label: seed.label,
+      startDate: new Date(seed.endDate.getTime() - 90 * DAY_MS),
+      endDate: seed.endDate,
+      isCurrent: seed.isCurrent,
+    },
+  });
+  await prisma.seasonClub.createMany({
+    data: seed.clubIds.map((clubId) => ({ seasonId: season.id, clubId })),
+  });
+  await prisma.match.createMany({
+    data: seed.matchStatuses.map((status, index) => ({
+      competitionId: seed.competitionId,
+      seasonId: season.id,
+      homeClubId: seed.clubIds[0],
+      awayClubId: seed.clubIds[1],
+      kickoffAt: new Date(
+        (seed.lastKickoffAt ?? seed.endDate).getTime() - index * DAY_MS,
+      ),
+      status,
+    })),
+  });
+}

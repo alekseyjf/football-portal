@@ -1,3 +1,8 @@
+import {
+  COMPETITION_SLUG_MAX_LENGTH,
+  COMPETITION_SLUG_PATTERN,
+} from '@football-portal/validation';
+
 /**
  * Обрана ліга сайдбару головної — у query: `/en?league=CL`. Сервер бачить її в `searchParams`
  * (SSR + prefetch дашборду), клієнт — у `useSearchParams` (перемикання без перезавантаження).
@@ -16,9 +21,10 @@ export function leagueSlugFromParam(
   return firstValue?.trim() || null;
 }
 
-/** Формат slug-а турніру (`PL`, `BL1`), як приймає `GET /football/matches?league=`. */
-const LEAGUE_SLUG_PATTERN = /^[A-Za-z0-9-]{1,32}$/;
-
+/** Формат slug-а турніру (`PL`, `BL1`), як приймають `GET /football/matches?league=` і `GET /posts?competition=`. */
 export function isLeagueSlug(value: string): boolean {
-  return LEAGUE_SLUG_PATTERN.test(value);
+  return (
+    value.length <= COMPETITION_SLUG_MAX_LENGTH &&
+    COMPETITION_SLUG_PATTERN.test(value)
+  );
 }

@@ -99,6 +99,18 @@ export const POSTS_PAGE_LIMIT_MAX = 50;
 /** Значень в одному фільтрі стрічки (`GET /posts?tags=a,b`): тегів, турнірів чи клубів — кожного до 20. */
 export const POSTS_FILTER_VALUES_MAX = 20;
 
+/**
+ * Код турніру (`PL`, `BL1`) — у фільтрах `GET /posts?competition=` (D46) і `GET /football/matches?league=`, у
+ * `/news?competition=` і `?league=` сайту. Регістр важливий: `pl` турнір `PL` не знайде.
+ */
+export const COMPETITION_SLUG_PATTERN = /^[A-Za-z0-9-]+$/;
+export const COMPETITION_SLUG_MAX_LENGTH = 32;
+/**
+ * Slug клубу (`SLUG_PATTERN`) будує синк з назви без обрізання (P5-5): найдовший на dev-БД — 29 символів, 100 — з
+ * запасом. Фільтр `GET /posts?club=` (D46), `GET /football/clubs/{slug}`.
+ */
+export const CLUB_SLUG_MAX_LENGTH = 100;
+
 /** Сторінка списку новин в адмінці (`GET /posts/admin/all?limit=`): за замовчуванням і найбільша. */
 export const ADMIN_POSTS_PAGE_LIMIT_DEFAULT = 20;
 export const ADMIN_POSTS_PAGE_LIMIT_MAX = 100;

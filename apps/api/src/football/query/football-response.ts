@@ -17,8 +17,10 @@ import type {
   ClubParticipationRow,
   ClubSearchRow,
 } from '../persistence/football-admin.repository';
+import { isCompetitionInPlay } from '../football-competition-status';
+import { COMPETITION_IN_PLAY_GRACE_DAYS } from '../football.constants';
 import type {
-  CompetitionRecord,
+  LeagueRecord,
   MatchDetailRecord,
   MatchListRecord,
   SeasonRecord,
@@ -36,17 +38,32 @@ export function toPublicSeason(season: SeasonRecord): SeasonDto {
   };
 }
 
-/** `GET /football/leagues[/:slug]`, `league` у дашборді (6.4). */
-export function toPublicLeague(competition: CompetitionRecord): LeagueDto {
-  const currentSeason = competition.seasons[0];
+/**
+ * `GET /football/leagues[/:slug]`, `league` у дашборді (6.4). «У грі» — правило D48 на мить `now`; турнір без
+ * поточного сезону (ще не синкали) — ні.
+ */
+export function toPublicLeague(league: LeagueRecord, now: Date): LeagueDto {
+  const currentSeason = league.seasons[0];
   return {
-    id: competition.id,
-    slug: competition.slug,
-    name: competition.name,
-    type: competition.type,
-    emblemUrl: competition.emblemUrl,
-    area: competition.area,
+    id: league.id,
+    slug: league.slug,
+    name: league.name,
+    type: league.type,
+    emblemUrl: league.emblemUrl,
+    area: league.area,
     currentSeason: currentSeason ? toPublicSeason(currentSeason) : null,
+    isInPlay:
+      currentSeason !== undefined &&
+      isCompetitionInPlay(
+        {
+          isActive: league.isActive,
+          isCurrent: currentSeason.isCurrent,
+          endDate: currentSeason.endDate,
+          pendingMatchCount: currentSeason._count.matches,
+        },
+        now,
+        COMPETITION_IN_PLAY_GRACE_DAYS,
+      ),
   };
 }
 

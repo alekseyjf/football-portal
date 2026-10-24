@@ -20,7 +20,7 @@ export async function Navbar() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 text-sm text-gray-400">
-          <Link href="/" className="hover:text-white transition-colors">
+          <Link href="/news" className="hover:text-white transition-colors">
             {t('news')}
           </Link>
           <Link href="/matches" className="hover:text-white transition-colors">
