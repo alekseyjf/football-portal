@@ -12,13 +12,17 @@ import {
   type AdminPostListFilters,
 } from './admin-post-filter';
 
-const ADMIN_POST_SELECT = {
+/** Рядок списку адмінки — і відповідь записів (`POST` / `PUT /posts`, закріплення). */
+export const ADMIN_POST_SELECT = {
   id: true,
   number: true,
   slug: true,
   status: true,
   publishedAt: true,
   coverImageUrl: true,
+  // Хто й коли закріпив — лише в адмінці, публічні відповіді цього не віддають (D56)
+  pinnedAt: true,
+  pinnedBy: { select: PUBLIC_AUTHOR_SELECT },
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
@@ -138,6 +142,8 @@ export interface UpdatePostData extends PostRelationIds {
   translations?: PostTranslationInput[];
   /** Фото обкладинки змінилось чи прибране — прибрати опис у перекладах, яких немає в масиві (D44) */
   clearCoverImageAlts?: boolean;
+  /** Новина перестала бути живою — зняти закріплення (D56) */
+  unpin?: boolean;
 }
 
 function createRelation<Link>(
@@ -271,6 +277,9 @@ export class AdminPostRepository {
         videoUrl: data.videoUrl,
         sourceUrl: data.sourceUrl,
         sourceName: data.sourceName,
+        ...(data.unpin
+          ? { pinnedAt: null, pinnedBy: { disconnect: true } }
+          : {}),
         translations: updateTranslations(id, data),
         tags: replaceRelation(data.tagIds, (tagId) => ({ tagId })),
         clubs: replaceRelation(data.clubIds, (clubId) => ({ clubId })),
@@ -282,11 +291,11 @@ export class AdminPostRepository {
     });
   }
 
-  /** Soft delete; `false` — поста немає або вже видалений (повтор → 404). */
+  /** Soft delete разом зі зняттям закріплення (D56); `false` — поста немає або вже видалений (повтор → 404). */
   async softDelete(id: string, deletedAt: Date): Promise<boolean> {
     const { count } = await this.prisma.post.updateMany({
       where: { id, deletedAt: null },
-      data: { deletedAt },
+      data: { deletedAt, pinnedAt: null, pinnedById: null },
     });
     return count === 1;
   }

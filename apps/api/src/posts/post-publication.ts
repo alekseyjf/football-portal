@@ -93,6 +93,16 @@ export function resolvePostPublication(
   }
 }
 
+export function isSamePublication(
+  first: PostPublication,
+  second: PostPublication,
+): boolean {
+  return (
+    first.status === second.status &&
+    first.publishedAt?.getTime() === second.publishedAt?.getTime()
+  );
+}
+
 function valid(publication: PostPublication): PostPublicationResult {
   return { isValid: true, publication };
 }

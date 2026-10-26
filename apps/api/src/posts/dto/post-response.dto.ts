@@ -72,3 +72,13 @@ export class PaginatedPostsDto {
   limit!: number;
   totalPages!: number;
 }
+
+/**
+ * Новини головної сторінки сайту (D56): головна — закріплена редактором, інакше найсвіжіша; під нею — шість
+ * найсвіжіших без неї. Хто й коли закріпив — лише в адмінці.
+ */
+export class HomePostsDto {
+  /** `null` — живих новин немає */
+  lead!: PostSummaryDto | null;
+  latest!: PostSummaryDto[];
+}

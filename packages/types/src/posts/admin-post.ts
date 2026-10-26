@@ -21,6 +21,15 @@ export type CreatePostRequest = ApiSchemas['CreatePostDto'];
  */
 export type UpdatePostRequest = ApiSchemas['UpdatePostDto'];
 
+/**
+ * Тіло `POST /posts/{id}/pin` — закріпити головною на сайті (D56): `replacesPostId` — закріплена, яку редактор бачив
+ * у підтвердженні (`null` — жодної); закріплена вже інша → 409 `PINNED_POST_CHANGED`.
+ */
+export type PinPostRequest = ApiSchemas['PinPostDto'];
+
+/** `GET /posts/admin/pinned` — закріплена головна новина; `post: null` — жодної (головна на сайті — найсвіжіша). */
+export type PinnedAdminPost = ApiSchemas['PinnedAdminPostDto'];
+
 /** `DELETE /posts/{id}` — soft delete: новина зникає з сайту й адмінки. */
 export type DeletedPost = ApiSchemas['DeletedPostDto'];
 

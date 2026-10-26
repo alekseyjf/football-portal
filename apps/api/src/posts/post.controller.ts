@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Put,
@@ -18,15 +19,22 @@ import {
   AdminPostDto,
   DeletedPostDto,
   PaginatedAdminPostsDto,
+  PinnedAdminPostDto,
 } from './dto/admin-post-response.dto';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ListAdminPostsQueryDto } from './dto/list-admin-posts-query.dto';
 import { ListPostsQueryDto } from './dto/list-posts-query.dto';
+import { PinPostDto } from './dto/pin-post.dto';
 import { PostNumberParamDto } from './dto/post-number-param.dto';
-import { PaginatedPostsDto, PostDetailDto } from './dto/post-response.dto';
+import {
+  HomePostsDto,
+  PaginatedPostsDto,
+  PostDetailDto,
+} from './dto/post-response.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { AdminPostService } from './admin-post.service';
 import { PostEditorService } from './post-editor.service';
+import { PostPinService } from './post-pin.service';
 import { PublicPostService } from './public-post.service';
 
 @ApiTags('posts')
@@ -36,6 +44,7 @@ export class PostController {
     private publicPostService: PublicPostService,
     private adminPostService: AdminPostService,
     private postEditorService: PostEditorService,
+    private postPinService: PostPinService,
   ) {}
 
   /**
@@ -46,6 +55,16 @@ export class PostController {
   @Get()
   getPosts(@Query() query: ListPostsQueryDto): Promise<PaginatedPostsDto> {
     return this.publicPostService.getPublicPosts(query);
+  }
+
+  /**
+   * Новини головної сторінки сайту: головна — закріплена редактором, інакше найсвіжіша; під нею — шість найсвіжіших
+   * без неї (дубля немає).
+   */
+  // Раніше за `:number`: інакше `home` дістався б йому як номер (400)
+  @Get('home')
+  getHomePosts(@Query() query: ContentLanguageQueryDto): Promise<HomePostsDto> {
+    return this.publicPostService.getHomePosts(query.lang);
   }
 
   /**
@@ -60,6 +79,14 @@ export class PostController {
     @Query() query: ListAdminPostsQueryDto,
   ): Promise<PaginatedAdminPostsDto> {
     return this.adminPostService.getAdminPostPage(query);
+  }
+
+  /** Закріплена головна новина — для тексту підтвердження заміни; `post: null` — не закріплена жодна. */
+  // Раніше за `admin/:id`
+  @Get('admin/pinned')
+  @AdminOnly()
+  getPinnedPost(): Promise<PinnedAdminPostDto> {
+    return this.postPinService.getPinnedPost();
   }
 
   /**
@@ -103,7 +130,8 @@ export class PostController {
   }
 
   /**
-   * Змінити новину: переклади — upsert за мовою, передані зв'язки замінюють наявні.
+   * Змінити новину: переклади — upsert за мовою, передані зв'язки замінюють наявні. Новина зникла з сайту (чернетка,
+   * архів, дата в майбутньому) — закріплення знімається.
    * @throws {400} Невалідні поля; DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE, PUBLISHED_AT_NOT_ALLOWED, PUBLISHED_AT_REQUIRED, PUBLISHED_AT_IN_FUTURE, SCHEDULED_AT_IN_PAST, COVER_IMAGE_ALT_REQUIRED, COVER_IMAGE_CREDIT_REQUIRED, SOURCE_URL_REQUIRED, UNKNOWN_TAG, UNKNOWN_CLUB, UNKNOWN_COMPETITION
    * @throws {404} POST_NOT_FOUND
    */
@@ -118,7 +146,35 @@ export class PostController {
   }
 
   /**
-   * Видалити новину (soft delete: з сайту зникає, рядок лишається).
+   * Закріпити новину головною на сайті замість `replacesPostId` (попередню закріплену відкріплює). Вже закріплена —
+   * без змін.
+   * @throws {404} POST_NOT_FOUND — немає або видалена
+   * @throws {409} POST_NOT_LIVE — не на сайті: чернетка, ще не випущена запланована, архівна
+   * @throws {409} PINNED_POST_CHANGED — закріплена вже не `replacesPostId` (інша вкладка, інший редактор)
+   */
+  @Post(':id/pin')
+  @HttpCode(200)
+  @AdminOnly()
+  pinPost(
+    @Param('id') id: string,
+    @Body() dto: PinPostDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AdminPostDto> {
+    return this.postPinService.pinPost(id, dto, user.id);
+  }
+
+  /**
+   * Відкріпити новину: головною на сайті стане найсвіжіша. Не закріплена — без змін.
+   * @throws {404} POST_NOT_FOUND — немає або видалена
+   */
+  @Delete(':id/pin')
+  @AdminOnly()
+  unpinPost(@Param('id') id: string): Promise<AdminPostDto> {
+    return this.postPinService.unpinPost(id);
+  }
+
+  /**
+   * Видалити новину (soft delete: з сайту зникає, рядок лишається); закріплення знімається.
    * @throws {404} POST_NOT_FOUND
    */
   @Delete(':id')

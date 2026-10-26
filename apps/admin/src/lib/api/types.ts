@@ -22,6 +22,8 @@ export type {
   LoginRequest,
   MessageResponse,
   PaginatedAdminPosts,
+  PinnedAdminPost,
+  PinPostRequest,
   PostTranslationRequest,
   SyncRun,
   SyncRunStats,
@@ -32,7 +34,7 @@ export type {
 } from '@football-portal/types';
 
 export function adminPostTitle(
-  post: AdminPost,
+  post: Pick<AdminPost, 'translations'>,
   languageCode: string = 'en',
 ): string {
   return (

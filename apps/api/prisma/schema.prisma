@@ -152,7 +152,8 @@ model User {
   sanctions          UserSanction[]         @relation("SanctionedUser")
   issuedSanctions    UserSanction[]         @relation("SanctionIssuer")
   rateLimitEvents    RateLimitEvent[]
-  posts              Post[]
+  posts              Post[]                 @relation("PostAuthor")
+  pinnedPosts        Post[]                 @relation("PostPinnedBy")
   comments           Comment[]
   postLikes          PostLike[]
   commentLikes       CommentLike[]
@@ -283,11 +284,18 @@ model Post {
   /// Денормалізовано з PostLike — оновлюється в тій самій транзакції
   likeCount        Int        @default(0)
   dislikeCount     Int        @default(0)
+  /// Головна новина сайту — закріплена редактором (D56): коли закріпили; `null` — ні. Закріплена — лише жива
+  /// і не більше однієї: частковий унікальний індекс `Post_single_pinned_idx` (constraints.sql)
+  pinnedAt         DateTime?  @db.Timestamptz(3)
+  /// Хто закріпив — бачить лише адмінка (D56)
+  pinnedById       String?
   createdAt        DateTime   @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime   @updatedAt @db.Timestamptz(3)
   deletedAt        DateTime?  @db.Timestamptz(3)
 
-  author        User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  author        User              @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  // Акаунт не видаляється, а анонімізується (D19) — SetNull лише на випадок фізичного видалення рядка
+  pinnedBy      User?             @relation("PostPinnedBy", fields: [pinnedById], references: [id], onDelete: SetNull)
   translations  PostTranslation[]
   tags          PostTag[]
   competitions  PostCompetition[]

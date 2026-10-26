@@ -5,7 +5,11 @@ import { Prisma } from '@prisma/client';
  * `PrismaClientKnownRequestError` (`meta.driverAdapterError.cause`) — для відомих кодів і raw-запитів,
  * або «голий» `DriverAdapterError` (`cause`) — напр. deadlock у звичайному запиті (перевірено на dev-БД).
  */
-type DriverErrorCause = { originalCode?: unknown; kind?: unknown };
+type DriverErrorCause = {
+  originalCode?: unknown;
+  originalMessage?: unknown;
+  kind?: unknown;
+};
 
 function driverErrorCauseOf(error: unknown): DriverErrorCause | undefined {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -63,5 +67,21 @@ export function isUniqueViolationOn(
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === 'P2002' &&
     error.meta?.modelName === modelName
+  );
+}
+
+/**
+ * Унікальний індекс `indexName` уже зайнятий (`23505`) — і в сирому SQL, і для індексу, якого Prisma не знає
+ * (частковий з `constraints.sql`): назву індексу адаптер лишає лише в тексті помилки Postgres.
+ */
+export function isUniqueViolationOfIndex(
+  error: unknown,
+  indexName: string,
+): boolean {
+  const cause = driverErrorCauseOf(error);
+  return (
+    cause?.originalCode === '23505' &&
+    typeof cause.originalMessage === 'string' &&
+    cause.originalMessage.includes(`"${indexName}"`)
   );
 }
