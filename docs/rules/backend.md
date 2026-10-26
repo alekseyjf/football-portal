@@ -144,3 +144,11 @@ email = dto.email.toLowerCase().trim();
 **Rule 16 — Міграції** — до релізу дозволено squash; після — лише нові міграції, expand → backfill → contract, SQL читаємо (`--create-only`), `constraints.sql` не губимо, `pg_dump` перед `migrate deploy` — [`decisions/v5-foundation.md`](../decisions/v5-foundation.md), розділ 11.
 
 **Rule 17 — Лайки** — окремі таблиці на тип цілі (`PostLike`, `CommentLike`, `MatchLike`), лічильники — у тій самій транзакції; `DISLIKE` зберігаємо, але публічно не показуємо (бачить лише адмін).
+
+**Rule 18 — Дати — `timestamptz`** ⭐ (👤 2026-10-26, M1.6.4)
+```prisma
+// ✅ publishedAt DateTime? @db.Timestamptz(3)   — миттєвість з поясом (з міграції 0010 — усі дати)
+// ❌ publishedAt DateTime?                       — timestamp(3) без поясу: сирий SQL і `pg` читають його в поясі сесії / процесу
+// Календарний день без часу — @db.Date. Зміна типу колонки — ACCESS EXCLUSIVE і переписування таблиці
+// (decisions/v5-foundation.md, розділ 11, «Блокування й збій міграції»)
+```

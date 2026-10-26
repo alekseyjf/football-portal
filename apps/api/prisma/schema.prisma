@@ -6,6 +6,9 @@ datasource db {
   provider = "postgresql"
 }
 
+// Дати — лише `DateTime @db.Timestamptz(3)` (M1.6.4, міграція 0010): миттєвість з поясом, а не час без поясу,
+// який сирий SQL і клієнти (`pg`) читають у поясі сесії / процесу. Календарний день без часу — `@db.Date`.
+
 // ═════════════════════════════════════════
 // ENUMS
 // ═════════════════════════════════════════
@@ -138,11 +141,11 @@ model User {
   passwordHash String
   role         Role       @default(USER)
   status       UserStatus @default(ACTIVE)
-  lockedAt     DateTime?
+  lockedAt     DateTime?  @db.Timestamptz(3)
   /// Встановлюється при видаленні акаунта (D19); email/passwordHash/профіль вже анонімізовані
-  deletedAt    DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?  @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
 
   profile            UserProfile?
   sessions           AuthSession[]
@@ -162,7 +165,7 @@ model UserProfile {
   displayName String
   avatarUrl   String?
   bio         String?
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -174,15 +177,15 @@ model AuthSession {
   /// Усі ротації від одного логіну мають один familyId (для reuse-detection)
   familyId        String
   /// Логін, з якого почалась сім'я; абсолютний ліміт життя сесії (30 д) рахується від нього (2f)
-  familyStartedAt DateTime
+  familyStartedAt DateTime  @db.Timestamptz(3)
   tokenHash       String    @unique
   userAgent       String?
   ipAddress       String?
   /// min(ротація + 7 д, familyStartedAt + 30 д)
-  expiresAt       DateTime
-  lastUsedAt      DateTime?
-  revokedAt       DateTime?
-  createdAt       DateTime  @default(now())
+  expiresAt       DateTime  @db.Timestamptz(3)
+  lastUsedAt      DateTime? @db.Timestamptz(3)
+  revokedAt       DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -202,13 +205,13 @@ model UserSanction {
   type       SanctionType
   reason     SanctionReason
   note       String?
-  startsAt   DateTime       @default(now())
+  startsAt   DateTime       @default(now()) @db.Timestamptz(3)
   /// null = безстроково
-  endsAt     DateTime?
-  revokedAt  DateTime?
+  endsAt     DateTime?      @db.Timestamptz(3)
+  revokedAt  DateTime?      @db.Timestamptz(3)
   /// null = автоматично (анти-абуз)
   issuedById String?
-  createdAt  DateTime       @default(now())
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
 
   user     User  @relation("SanctionedUser", fields: [userId], references: [id], onDelete: Cascade)
   issuedBy User? @relation("SanctionIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
@@ -221,7 +224,7 @@ model RateLimitEvent {
   id        BigInt          @id @default(autoincrement())
   userId    String
   action    RateLimitAction
-  createdAt DateTime        @default(now())
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -237,9 +240,9 @@ model BlockedEmail {
   emailHash    String           @unique
   reason       EmailBlockReason
   /// null = безстроково
-  blockedUntil DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  blockedUntil DateTime?        @db.Timestamptz(3)
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
 
   @@index([blockedUntil])
 }
@@ -267,7 +270,7 @@ model Post {
   /// Один slug на всі мови, з EN-заголовка; не унікальний — унікальність тримає `number` (D24)
   slug             String
   status           PostStatus @default(DRAFT)
-  publishedAt      DateTime?
+  publishedAt      DateTime?  @db.Timestamptz(3)
   coverImageUrl    String?
   /// Підпис автора фото обкладинки («Stuart MacFarlane / Getty Images»), без «Фото:» — його додає сайт (D44)
   coverImageCredit String?
@@ -280,9 +283,9 @@ model Post {
   /// Денормалізовано з PostLike — оновлюється в тій самій транзакції
   likeCount        Int        @default(0)
   dislikeCount     Int        @default(0)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  deletedAt        DateTime?
+  createdAt        DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime   @updatedAt @db.Timestamptz(3)
+  deletedAt        DateTime?  @db.Timestamptz(3)
 
   author        User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
   translations  PostTranslation[]
@@ -304,8 +307,8 @@ model PostTranslation {
   content       String
   /// Опис обкладинки для незрячих — мовою перекладу (D44)
   coverImageAlt String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
 
   post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   language Language @relation(fields: [languageCode], references: [code])
@@ -317,7 +320,7 @@ model PostTranslation {
 model Tag {
   id        String   @id @default(cuid())
   slug      String   @unique
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   translations TagTranslation[]
   posts        PostTag[]
@@ -381,7 +384,7 @@ model CommentThread {
   matchId      String?  @unique
   isLocked     Boolean  @default(false)
   commentCount Int      @default(0)
-  createdAt    DateTime @default(now())
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
 
   post     Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
   match    Match?    @relation(fields: [matchId], references: [id], onDelete: Cascade)
@@ -401,11 +404,11 @@ model Comment {
   replyCount   Int       @default(0)
   likeCount    Int       @default(0)
   dislikeCount Int       @default(0)
-  pinnedAt     DateTime?
-  editedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  pinnedAt     DateTime? @db.Timestamptz(3)
+  editedAt     DateTime? @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt    DateTime? @db.Timestamptz(3)
 
   thread      CommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author      User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
@@ -426,8 +429,8 @@ model PostLike {
   userId    String
   postId    String
   type      LikeType @default(LIKE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -441,8 +444,8 @@ model CommentLike {
   userId    String
   commentId String
   type      LikeType @default(LIKE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
@@ -456,8 +459,8 @@ model MatchLike {
   userId    String
   matchId   String
   type      LikeType @default(LIKE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
@@ -474,7 +477,7 @@ model UserReactionActivity {
   targetId   String
   /// null = голос знято
   reaction   LikeType?
-  createdAt  DateTime       @default(now())
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -507,8 +510,8 @@ model Competition {
   /// Чи синкати й показувати (замість FOOTBALL_COMPETITION_IDS)
   isActive  Boolean         @default(true)
   sortOrder Int             @default(0)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @db.Timestamptz(3)
 
   area         Area?                    @relation(fields: [areaId], references: [id], onDelete: SetNull)
   seasons      Season[]
@@ -527,8 +530,8 @@ model Season {
   endDate         DateTime @db.Date
   isCurrent       Boolean  @default(false)
   currentMatchday Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
 
   competition  Competition         @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   participants SeasonClub[]
@@ -565,8 +568,8 @@ model Club {
   venueName  String?
   websiteUrl String?
   clubColors String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
 
   area         Area?             @relation(fields: [areaId], references: [id], onDelete: SetNull)
   seasons      SeasonClub[]
@@ -586,7 +589,7 @@ model Match {
   stage             String       @default("REGULAR_SEASON")
   groupName         String?
   matchday          Int?
-  kickoffAt         DateTime
+  kickoffAt         DateTime     @db.Timestamptz(3)
   status            MatchStatus  @default(SCHEDULED)
   minute            Int?
   homeClubId        String
@@ -601,8 +604,8 @@ model Match {
   venueName         String?
   likeCount         Int          @default(0)
   dislikeCount      Int          @default(0)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
 
   competition   Competition        @relation(fields: [competitionId], references: [id], onDelete: Restrict)
   season        Season             @relation(fields: [seasonId], references: [id], onDelete: Restrict)
@@ -639,7 +642,7 @@ model Standing {
   goalDiff     Int          @default(0)
   /// "W,D,L,W,W"
   form         String?
-  updatedAt    DateTime     @updatedAt
+  updatedAt    DateTime     @updatedAt @db.Timestamptz(3)
 
   season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Restrict)
@@ -656,7 +659,7 @@ model CompetitionExternalRef {
   provider      DataProvider
   externalId    String
   competitionId String
-  lastSyncedAt  DateTime?
+  lastSyncedAt  DateTime?    @db.Timestamptz(3)
   /// Хеш нормалізованого payload — пропускаємо upsert, якщо нічого не змінилось
   payloadHash   String?
 
@@ -670,7 +673,7 @@ model SeasonExternalRef {
   provider     DataProvider
   externalId   String
   seasonId     String
-  lastSyncedAt DateTime?
+  lastSyncedAt DateTime?    @db.Timestamptz(3)
   payloadHash  String?
 
   season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
@@ -683,7 +686,7 @@ model ClubExternalRef {
   provider     DataProvider
   externalId   String
   clubId       String
-  lastSyncedAt DateTime?
+  lastSyncedAt DateTime?    @db.Timestamptz(3)
   payloadHash  String?
 
   club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
@@ -696,7 +699,7 @@ model MatchExternalRef {
   provider     DataProvider
   externalId   String
   matchId      String
-  lastSyncedAt DateTime?
+  lastSyncedAt DateTime?    @db.Timestamptz(3)
   payloadHash  String?
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
@@ -714,8 +717,8 @@ model SyncRun {
   targetRef    String
   trigger      SyncTrigger
   status       SyncStatus   @default(RUNNING)
-  startedAt    DateTime     @default(now())
-  finishedAt   DateTime?
+  startedAt    DateTime     @default(now()) @db.Timestamptz(3)
+  finishedAt   DateTime?    @db.Timestamptz(3)
   /// { matchesUpserted, matchesSkipped, clubsUpserted, standingsRows, apiCalls }
   stats        Json?
   errorMessage String?
