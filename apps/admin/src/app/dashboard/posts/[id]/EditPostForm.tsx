@@ -15,6 +15,7 @@ import type { AdminPostDetail } from '@/lib/api/types';
 import { editorTimeZone, formatEditorDateTime } from '@/lib/editorDateTime';
 import { publicPostUrl } from '@/lib/publicWebUrl';
 import { DeletePostSection } from './DeletePostSection';
+import { PinPostSection } from './PinPostSection';
 
 /**
  * Редагування новини (D50): форма → `PUT /posts/{id}` лише зі зміненим → свіжа новина з API → форма з нею, на
@@ -52,6 +53,7 @@ export function EditPostForm({ post }: { post: AdminPostDetail }) {
         pendingLabel="Saving…"
         onSubmit={savePost}
       />
+      <PinPostSection post={savedPost} />
       <DeletePostSection post={savedPost} />
     </>
   );

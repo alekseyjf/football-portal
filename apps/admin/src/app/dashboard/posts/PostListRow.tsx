@@ -1,5 +1,7 @@
 import { AdminLink } from '@/components/AdminLink';
 import { PostStatusBadge } from '@/components/PostStatusBadge';
+import { PinnedBadge } from '@/components/pin/PinnedBadge';
+import { PinPostControl } from '@/components/pin/PinPostControl';
 import { POST_FORM_LANGUAGES } from '@/components/post-form/postFormSchema';
 import { adminAuthorName, adminPostTitle, type AdminPost } from '@/lib/api/types';
 import { formatEditorDateTime } from '@/lib/editorDateTime';
@@ -51,8 +53,14 @@ export function PostListRow({ post, timeZone }: { post: AdminPost; timeZone: str
           <span aria-hidden="true">·</span>
           <PostLanguages post={post} />
         </p>
+        {post.pinnedAt && (
+          <p className="mt-1.5">
+            <PinnedBadge post={post} />
+          </p>
+        )}
       </div>
-      <div className="flex shrink-0 items-center gap-3">
+      {/* Перенос — для помилки закріплення: вона стає окремим рядком під діями */}
+      <div className="flex shrink-0 flex-wrap items-center gap-3 sm:max-w-sm sm:justify-end">
         <PostStatusBadge post={post} />
         {/* Назва новини — для екранного диктора: інакше в переліку посилань — двадцять однакових «Edit».
             Без prefetch: кожен фільтр і сторінка дають до 20 нових посилань, по два запити prefetch на кожне, а
@@ -66,6 +74,7 @@ export function PostListRow({ post, timeZone }: { post: AdminPost; timeZone: str
             View on site<span className="sr-only"> “{title}” (opens in a new tab)</span>
           </a>
         )}
+        <PinPostControl post={post} hasTitleInLabel buttonClassName={`${LINK_CLASS} disabled:opacity-60`} />
       </div>
     </li>
   );

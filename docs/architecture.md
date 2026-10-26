@@ -121,6 +121,7 @@
 | Редагування новини в адмінці | `apps/admin/src/app/dashboard/posts/[id]/` (`EditPostView`, `EditPostForm`, `DeletePostSection`) |
 | Список новин в адмінці (фільтр, пошук, стан в URL) | `apps/admin/src/app/dashboard/posts/` (`PostsListView` і блоки); стан ↔ адреса — `lib/postListParams.ts`, `hooks/usePostListUrl.ts`; повернення до списку — `hooks/useLastPostListHref.ts` ([D50](decisions/D50-admin-post-editing.md)) |
 | Теги в адмінці (сторінка «Теги») | `apps/admin/src/app/dashboard/tags/`; спільне з формою новини — `components/tags/` (поля назв, схожі теги, попередження «так звуть клуб / турнір», правила `tagForm.ts`); правила списку й збігу — `lib/tagNames.ts`, `lib/footballNameMatches.ts`; схема форми — `packages/validation/src/forms.ts` (`tagFormSchema`) ([D51](decisions/D51-admin-tags.md)) |
+| Головна новина в адмінці (Pin / Unpin, заміна з підтвердженням, [D56](decisions/D56-pinned-lead-post.md)) | `apps/admin/src/components/pin/` (`PinPostControl` — кнопка й діалог, `PinnedBadge`); логіка — `hooks/usePinPostAction.ts`, запити й кеш — `hooks/usePinPost.ts`, правила — `lib/pinnedPost.ts`; секція сторінки редагування — `app/dashboard/posts/[id]/PinPostSection.tsx` |
 | Незбережені зміни в адмінці | сторож — `apps/admin/src/lib/unsavedChanges.ts`, `providers/UnsavedChangesProvider.tsx`, `hooks/useUnsavedChangesGuard.ts`; посилання — `components/AdminLink.tsx` (`next/link` напряму забороняє ESLint) |
 
 ---
