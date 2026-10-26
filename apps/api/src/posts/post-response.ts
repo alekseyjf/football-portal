@@ -94,6 +94,8 @@ export function toAdminPostView(
     status: postRow.status,
     publishedAt: postRow.publishedAt,
     isLive: isPostLive(postRow, now),
+    pinnedAt: postRow.pinnedAt,
+    pinnedBy: postRow.pinnedBy && toPublicAuthor(postRow.pinnedBy),
     coverImageUrl: postRow.coverImageUrl,
     createdAt: postRow.createdAt,
     updatedAt: postRow.updatedAt,

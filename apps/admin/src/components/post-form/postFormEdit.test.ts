@@ -33,6 +33,8 @@ function savedPost(overrides: Partial<AdminPostDetail> = {}): AdminPostDetail {
     status: 'DRAFT',
     publishedAt: null,
     isLive: false,
+    pinnedAt: null,
+    pinnedBy: null,
     coverImageUrl: null,
     coverImageCredit: null,
     videoUrl: null,

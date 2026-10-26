@@ -125,6 +125,32 @@ export class PublicPostRepository {
     return { posts, total };
   }
 
+  /** Найсвіжіші новини стрічки без фільтрів — для головної (D56). */
+  findLatestPublic(
+    scope: PublicPostScope,
+    languageCodes: string[],
+    take: number,
+  ): Promise<PostSummaryRow[]> {
+    return this.prisma.post.findMany({
+      where: publicPostWhere(scope),
+      select: postSummarySelect(languageCodes),
+      orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+      take,
+    });
+  }
+
+  /** Закріплена головна новина (D56), якщо вона є в стрічці; `null` — не закріплена жодна. */
+  findPinnedPublic(
+    scope: PublicPostScope,
+    languageCodes: string[],
+  ): Promise<PostSummaryRow | null> {
+    return this.prisma.post.findFirst({
+      // Закріпленою буває лише жива, але правило стрічки — і тут: головна завжди з тих, що бачить читач
+      where: { ...publicPostWhere(scope), pinnedAt: { not: null } },
+      select: postSummarySelect(languageCodes),
+    });
+  }
+
   findPublicByNumber(
     postNumber: number,
     scope: PublicPostScope,

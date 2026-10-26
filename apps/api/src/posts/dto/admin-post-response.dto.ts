@@ -35,6 +35,10 @@ export class AdminPostDto {
   publishedAt!: Date | null;
   /** Видно на сайті зараз: запланована, чия дата настала, — теж */
   isLive!: boolean;
+  /** Коли новину закріпили головною на сайті (D56); `null` — не закріплена */
+  pinnedAt!: Date | null;
+  /** Хто закріпив; `null` — не закріплена або акаунт фізично видалено (анонімізований — «Deleted user») */
+  pinnedBy!: PublicAuthorDto | null;
   coverImageUrl!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
@@ -59,6 +63,10 @@ export class AdminPostDetailDto {
   publishedAt!: Date | null;
   /** Видно на сайті зараз: запланована, чия дата настала, — теж */
   isLive!: boolean;
+  /** Коли новину закріпили головною на сайті (D56); `null` — не закріплена */
+  pinnedAt!: Date | null;
+  /** Хто закріпив; `null` — не закріплена або акаунт фізично видалено (анонімізований — «Deleted user») */
+  pinnedBy!: PublicAuthorDto | null;
   coverImageUrl!: string | null;
   /** Підпис автора фото обкладинки, без «Фото:»; `null` — немає */
   coverImageCredit!: string | null;
@@ -89,6 +97,12 @@ export class PaginatedAdminPostsDto {
   page!: number;
   limit!: number;
   totalPages!: number;
+}
+
+/** `GET /posts/admin/pinned` — закріплена головна новина. */
+export class PinnedAdminPostDto {
+  /** `null` — не закріплена жодна: головна на сайті — найсвіжіша */
+  post!: AdminPostDto | null;
 }
 
 /** `DELETE /posts/{id}`: новину приховано (soft delete). */

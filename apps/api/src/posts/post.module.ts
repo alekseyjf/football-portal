@@ -3,6 +3,8 @@ import { LanguagesModule } from '../languages/languages.module';
 import { AdminPostRepository } from './admin-post.repository';
 import { AdminPostService } from './admin-post.service';
 import { PostEditorService } from './post-editor.service';
+import { PostPinRepository } from './post-pin.repository';
+import { PostPinService } from './post-pin.service';
 import { PostController } from './post.controller';
 import { PublicPostRepository } from './public-post.repository';
 import { PublicPostService } from './public-post.service';
@@ -14,8 +16,10 @@ import { PublicPostService } from './public-post.service';
     PublicPostService,
     AdminPostService,
     PostEditorService,
+    PostPinService,
     PublicPostRepository,
     AdminPostRepository,
+    PostPinRepository,
   ],
 })
 export class PostModule {}

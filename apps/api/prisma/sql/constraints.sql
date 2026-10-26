@@ -42,6 +42,11 @@ CREATE UNIQUE INDEX "Language_single_default_idx"
 CREATE UNIQUE INDEX "Season_single_current_idx"
   ON "Season" ("competitionId") WHERE "isCurrent" = true;
 
+-- Post: не більше однієї закріпленої головної новини (D56) — ключ індексу стала. Те саме — у міграції 0011,
+-- тож `IF NOT EXISTS`
+CREATE UNIQUE INDEX IF NOT EXISTS "Post_single_pinned_idx"
+  ON "Post" ((true)) WHERE "pinnedAt" IS NOT NULL;
+
 -- Лок: не більше одного RUNNING синку на (provider, scope, target)
 CREATE UNIQUE INDEX "SyncRun_single_running_idx"
   ON "SyncRun" ("provider", "scope", "targetRef") WHERE "status" = 'RUNNING';

@@ -14,3 +14,9 @@ export type PostCompetition = ApiSchemas['PostCompetitionDto'];
 
 /** `GET /posts/{number}`. Коментарі — окремо: `GET /comments/post/{postId}`. */
 export type PostDetail = ApiSchemas['PostDetailDto'];
+
+/**
+ * `GET /posts/home` — новини головної (D56): головна — закріплена редактором, інакше найсвіжіша (`null` — новин
+ * немає); `latest` — шість найсвіжіших без неї.
+ */
+export type HomePosts = ApiSchemas['HomePostsDto'];

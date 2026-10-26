@@ -27,7 +27,9 @@ import {
   type PostCoverImageInput,
   type PostCoverImagePhoto,
 } from './post-cover-image';
+import { unpinsOnPublicationChange } from './post-pin';
 import {
+  isSamePublication,
   resolvePostPublication,
   type PostPublication,
   type PostPublicationInput,
@@ -147,6 +149,12 @@ export class PostEditorService {
         ...(isSamePublication(publication, currentPublication)
           ? {}
           : publication),
+        // Закріпленою буває лише жива (D56): зняли з публікації, в архів, у майбутнє — закріплення знімається тут же
+        unpin: unpinsOnPublicationChange({
+          current: currentPublication,
+          next: publication,
+          now,
+        }),
         slug,
         coverImageUrl: dto.coverImageUrl,
         coverImageCredit: coverImageTextToStore(
@@ -177,7 +185,7 @@ export class PostEditorService {
   }
 
   async deletePost(id: string): Promise<DeletedPostDto> {
-    // Soft delete — рядок лишається для модерації й аудиту
+    // Soft delete — рядок лишається для модерації й аудиту; закріплення знімається тим самим записом (D56)
     const isDeleted = await this.adminPostRepository.softDelete(id, new Date());
     if (!isDeleted) throw new NotFoundException('POST_NOT_FOUND');
     return { id };
@@ -257,16 +265,6 @@ export class PostEditorService {
   ): Promise<void> {
     if (isForeignKeyViolation(error)) await this.assertRelationsExist(dto);
   }
-}
-
-function isSamePublication(
-  first: PostPublication,
-  second: PostPublication,
-): boolean {
-  return (
-    first.status === second.status &&
-    first.publishedAt?.getTime() === second.publishedAt?.getTime()
-  );
 }
 
 /** Новий slug (D24) або `undefined` — не змінювати. */
