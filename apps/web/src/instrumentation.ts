@@ -1,15 +1,9 @@
 /**
- * Старт сервера Next: спершу — перевірка серверних змінних (`lib/env/server-env-schema.ts`). З поганим конфігом процес
- * завершується, як API: інакше Next пише «Ready» і відповідає 500 на кожну сторінку. Збірці (`next build`) змінні не
- * потрібні — вона цього не викликає.
+ * Старт сервера Next. Next збирає цей файл і для Edge-середовища, тож тут — лише вибір середовища: код для Node
+ * (`process.exit`, перевірка змінних) — в `instrumentation-node.ts`, його збирає й виконує лише Node.
  */
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-  const { serverEnv } = await import('@/lib/env/server-env');
-  try {
-    serverEnv();
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('./instrumentation-node');
   }
 }

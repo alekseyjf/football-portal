@@ -5,7 +5,7 @@ let cachedEnv: ServerEnv | undefined;
 
 /**
  * Перевірені серверні змінні web — лише на сервері (`server-only`: імпорт у клієнтському компоненті ламає збірку).
- * Уперше перевіряє `instrumentation.ts` при старті сервера.
+ * Змінні вже перевірено при старті сервера (`instrumentation-node.ts`); тут — розбір з кешем на весь процес.
  */
 export function serverEnv(): ServerEnv {
   cachedEnv ??= parseServerEnv(process.env);
