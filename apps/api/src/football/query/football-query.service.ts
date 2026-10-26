@@ -11,6 +11,7 @@ import type {
   LeagueMatchesPageDto,
   MatchDetailDto,
   MatchesInRangeDto,
+  NextKickoffDto,
 } from '../dto/match-response.dto';
 import type { StandingTableDto } from '../dto/standing-response.dto';
 import { COMPETITION_IN_PLAY_GRACE_DAYS } from '../football.constants';
@@ -189,6 +190,17 @@ export class FootballQueryService {
       MATCH_RANGE_MAX_ROWS,
     );
     return { matches: matches.map(toPublicMatchListItem) };
+  }
+
+  /**
+   * Коли найближчий запланований матч активних турнірів (від `from`) — «Найближчі матчі» головної, коли сьогодні
+   * матчів немає (D55). Межа — миттєвість від клієнта (ISO з поясом перевірив DTO): день він рахує у своєму поясі.
+   */
+  async getNextKickoff(from: string): Promise<NextKickoffDto> {
+    const kickoffAt = await this.footballRepository.findNextKickoffAt(
+      new Date(from),
+    );
+    return { kickoffAt };
   }
 
   private async buildFixtures(

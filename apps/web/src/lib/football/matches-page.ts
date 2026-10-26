@@ -22,9 +22,23 @@ export type LeagueMatchGroup = {
 };
 
 /**
- * Матчі дня → групи за турніром. Порядок груп — як у перемикачі ліг (`GET /football/leagues`,
- * за `sortOrder`); турнір поза списком (вимкнений, відкритий за slug) — наприкінці, за назвою.
- * Матчі в групі — у порядку API (за часом початку).
+ * Порядок турнірів матчів — як у перемикачі ліг (`GET /football/leagues`, за `sortOrder`); турнір поза списком
+ * (вимкнений, відкритий за slug) — наприкінці, за назвою. Той самий — на `/matches` і в стрічці матчів головної.
+ */
+export function compareLeaguesByOrder(orderedLeagues: League[]) {
+  const rankBySlug = new Map(
+    orderedLeagues.map((league, index) => [league.slug, index]),
+  );
+  const rankOf = (league: MatchLeague) =>
+    rankBySlug.get(league.slug) ?? Number.MAX_SAFE_INTEGER;
+  return (leftLeague: MatchLeague, rightLeague: MatchLeague): number =>
+    rankOf(leftLeague) - rankOf(rightLeague) ||
+    leftLeague.name.localeCompare(rightLeague.name) ||
+    leftLeague.slug.localeCompare(rightLeague.slug);
+}
+
+/**
+ * Матчі дня → групи за турніром (`compareLeaguesByOrder`). Матчі в групі — у порядку API (за часом початку).
  */
 export function groupMatchesByLeague(
   matches: MatchListItem[],
@@ -40,15 +54,9 @@ export function groupMatchesByLeague(
     group.matches.push(match);
   }
 
-  const rankBySlug = new Map(
-    orderedLeagues.map((league, index) => [league.slug, index]),
-  );
-  const rankOf = (group: LeagueMatchGroup) =>
-    rankBySlug.get(group.league.slug) ?? Number.MAX_SAFE_INTEGER;
-  return [...groupsBySlug.values()].sort(
-    (leftGroup, rightGroup) =>
-      rankOf(leftGroup) - rankOf(rightGroup) ||
-      leftGroup.league.name.localeCompare(rightGroup.league.name),
+  const compareLeagues = compareLeaguesByOrder(orderedLeagues);
+  return [...groupsBySlug.values()].sort((leftGroup, rightGroup) =>
+    compareLeagues(leftGroup.league, rightGroup.league),
   );
 }
 

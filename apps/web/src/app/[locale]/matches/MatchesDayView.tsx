@@ -9,11 +9,8 @@ import {
   leaguesQueryOptions,
   matchesInRangeQueryOptions,
 } from '@/hooks/useFootball';
-import { isMatchInPlay } from '@/hooks/useMatchStatusLabel';
+import { matchesRefetchInterval } from '@/lib/football/match-polling';
 import { groupMatchesByLeague } from '@/lib/football/matches-page';
-
-/** Є матч у грі — оновлювати список (LIVE-синк турніру й так не частіше 60 с). */
-const LIVE_REFETCH_INTERVAL_MS = 60_000;
 
 type Props = {
   /** День `YYYY-MM-DD` у поясі користувача */
@@ -36,10 +33,9 @@ export function MatchesDayView({
   const leagues = useQuery(leaguesQueryOptions());
   const matchesQuery = useQuery({
     ...matchesInRangeQueryOptions(from, to, leagueSlug),
+    // Те саме правило, що в стрічці головної (D55): у грі — 60 с, інакше — у момент найближчого початку
     refetchInterval: (query) =>
-      query.state.data?.matches.some((match) => isMatchInPlay(match.status))
-        ? LIVE_REFETCH_INTERVAL_MS
-        : false,
+      matchesRefetchInterval(query.state.data?.matches ?? [], new Date()),
   });
   const groups = groupMatchesByLeague(
     matchesQuery.data?.matches ?? [],

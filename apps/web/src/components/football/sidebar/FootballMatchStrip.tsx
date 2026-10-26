@@ -34,7 +34,9 @@ export function FootballMatchStrip({
     >
       <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-neutral-500">
         <span>
-          {formatMatchWhen(matchRow.kickoffAt)}
+          <time dateTime={matchRow.kickoffAt}>
+            {formatMatchWhen(matchRow.kickoffAt)}
+          </time>
           {/* Груповий етап кубка: у турі — матчі всіх груп (ЧС — 12) */}
           {matchRow.groupName && ` · ${groupLabel(matchRow.groupName)}`}
         </span>

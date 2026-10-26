@@ -11,16 +11,13 @@ type Props = {
   standingsTable: LeagueDashboard['standingsTable'];
   /** `null` — турнір ще не синкали */
   seasonLabel: string | null;
-  isLoading: boolean;
-  isError: boolean;
 };
 
+/** Таблиця обраної ліги — дані вже є: завантаження й помилку показує `FootballSidebar` (D55). */
 export function FootballSidebarStandingsPanel({
   standingsRows,
   standingsTable,
   seasonLabel,
-  isLoading,
-  isError,
 }: Props) {
   const tFootball = useTranslations('football');
   const { stageLabel, groupLabel } = useFootballStageLabels();
@@ -45,20 +42,10 @@ export function FootballSidebarStandingsPanel({
         </p>
       </div>
       <div className="p-2">
-        {isLoading && (
-          <p className="px-2 py-6 text-center text-xs text-neutral-500">
-            {tFootball('loadingTable')}
-          </p>
-        )}
-        {isError && (
-          <p className="px-2 py-4 text-xs text-red-400/90">
-            {tFootball('tableError')}
-          </p>
-        )}
         {standingsRows.length > 0 && (
           <FootballStandingsTable rows={standingsRows} />
         )}
-        {standingsRows.length === 0 && !isLoading && !isError && (
+        {standingsRows.length === 0 && (
           <p className="px-2 py-4 text-xs text-neutral-500 text-center">
             {/* Сезон є, а таблиці немає — її не дає провайдер (EC 2024), синк тут не допоможе */}
             {seasonLabel

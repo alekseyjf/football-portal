@@ -70,6 +70,12 @@ export class MatchesInRangeDto {
   matches!: MatchListItemDto[];
 }
 
+/** Найближчий запланований матч активних турнірів — лише час початку: день і матчі цього дня бере клієнт. */
+export class NextKickoffDto {
+  /** `null` — запланованих матчів попереду немає (міжсезоння) */
+  kickoffAt!: Date | null;
+}
+
 /** Сторінка матчів сезону, новіші першими. */
 export class LeagueMatchesPageDto {
   matches!: MatchRowDto[];

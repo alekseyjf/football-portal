@@ -15,12 +15,11 @@ type Props = {
   rounds: FixturesRound[];
   formatStatus: (status: MatchStatus) => string;
   formatMatchWhen: (iso: string) => string;
-  isLoading: boolean;
-  isError: boolean;
   listClassName?: string;
   roundListKeyPrefix: string;
 };
 
+/** Тури обраної ліги — дані вже є: завантаження й помилку показує `FootballSidebar` (D55). */
 export function FootballSidebarRoundsSection({
   sectionHeadingKey,
   emptyMessageKey,
@@ -28,8 +27,6 @@ export function FootballSidebarRoundsSection({
   rounds,
   formatStatus,
   formatMatchWhen,
-  isLoading,
-  isError,
   listClassName = 'space-y-3',
   roundListKeyPrefix,
 }: Props) {
@@ -41,27 +38,16 @@ export function FootballSidebarRoundsSection({
         {tFootball(sectionHeadingKey)}
       </h3>
       <div className={listClassName}>
-        {isLoading && (
-          <p className="text-xs text-neutral-500 py-4 text-center border border-neutral-800">
-            {tFootball('loadingFixtures')}
-          </p>
-        )}
-        {isError && (
-          <p className="text-xs text-red-400/90 px-2">
-            {tFootball('fixturesError')}
-          </p>
-        )}
-        {!isLoading &&
-          rounds.map((round) => (
-            <FootballRoundBlock
-              key={`${roundListKeyPrefix}-${round.stage}-${round.matchday ?? 'stage'}`}
-              roundKindKey={roundKindKey}
-              round={round}
-              formatStatus={formatStatus}
-              formatMatchWhen={formatMatchWhen}
-            />
-          ))}
-        {!isLoading && rounds.length === 0 && (
+        {rounds.map((round) => (
+          <FootballRoundBlock
+            key={`${roundListKeyPrefix}-${round.stage}-${round.matchday ?? 'stage'}`}
+            roundKindKey={roundKindKey}
+            round={round}
+            formatStatus={formatStatus}
+            formatMatchWhen={formatMatchWhen}
+          />
+        ))}
+        {rounds.length === 0 && (
           <p className="text-xs text-neutral-500 border border-neutral-800 px-3 py-4 text-center">
             {tFootball(emptyMessageKey)}
           </p>

@@ -33,8 +33,10 @@ import {
   LeagueMatchesPageDto,
   MatchDetailDto,
   MatchesInRangeDto,
+  NextKickoffDto,
 } from './dto/match-response.dto';
 import { MatchesRangeQueryDto } from './dto/matches-range-query.dto';
+import { NextKickoffQueryDto } from './dto/next-kickoff-query.dto';
 import { SeasonQueryDto } from './dto/season-query.dto';
 import { StandingTableDto } from './dto/standing-response.dto';
 import { SyncFootballDto } from './dto/sync-football.dto';
@@ -148,6 +150,20 @@ export class FootballController {
     @Query() rangeQuery: MatchesRangeQueryDto,
   ): Promise<MatchesInRangeDto> {
     return this.query.getMatchesInRange(rangeQuery);
+  }
+
+  /**
+   * Коли найближчий запланований матч активних турнірів — від `from` включно.
+   * @remarks Для «Найближчих матчів» головної, коли сьогодні матчів немає: день цього матчу й матчі дня клієнт бере сам
+   * (`GET /football/matches`). `kickoffAt: null` — попереду нічого (міжсезоння).
+   * @throws {400} Невалідні параметри — `from` без поясу чи не ISO
+   */
+  // Раніше за `matches/:id` — інакше `next-kickoff` став би id матчу
+  @Get('matches/next-kickoff')
+  nextKickoff(
+    @Query() nextKickoffQuery: NextKickoffQueryDto,
+  ): Promise<NextKickoffDto> {
+    return this.query.getNextKickoff(nextKickoffQuery.from);
   }
 
   /**

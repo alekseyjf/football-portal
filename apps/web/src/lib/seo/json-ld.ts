@@ -1,5 +1,38 @@
 const SCHEMA_ORG_CONTEXT = 'https://schema.org';
 
+/** Видання — сам сайт: назва й адреса (логотип — з брендом, OQ-24). */
+export type SitePublisher = { name: string; url: string };
+
+function organizationNode(publisher: SitePublisher) {
+  return { '@type': 'Organization', name: publisher.name, url: publisher.url };
+}
+
+/** `Organization` (D55) — видання, на головній; той самий вузол — `publisher` новин і сайту. */
+export function organizationJsonLd(publisher: SitePublisher) {
+  return { '@context': SCHEMA_ORG_CONTEXT, ...organizationNode(publisher) };
+}
+
+/**
+ * `WebSite` (D34, D55) — на головній кожної мови: з нього Google бере назву сайту для результатів пошуку. Без
+ * `SearchAction`: пошуку на сайті немає.
+ */
+export function webSiteJsonLd(site: {
+  name: string;
+  /** Повна адреса головної цією мовою (`https://…/uk`) */
+  url: string;
+  inLanguage: string;
+  publisher: SitePublisher;
+}) {
+  return {
+    '@context': SCHEMA_ORG_CONTEXT,
+    '@type': 'WebSite',
+    name: site.name,
+    url: site.url,
+    inLanguage: site.inLanguage,
+    publisher: organizationNode(site.publisher),
+  };
+}
+
 /** Пункт хлібних крихт; поточна сторінка — без адреси: Google бере адресу самої сторінки. */
 export type BreadcrumbItem = {
   name: string;
@@ -31,7 +64,7 @@ export type NewsArticleSource = {
   datePublished: string;
   /** `null` — автора немає (акаунт видалено): автором стає видання */
   authorName: string | null;
-  publisher: { name: string; url: string };
+  publisher: SitePublisher;
   /** Мова тексту (`resolvedLanguage`): без перекладу — мова оригіналу */
   inLanguage: string;
   /** Джерело новини (D26) */
@@ -43,11 +76,7 @@ export type NewsArticleSource = {
  * «Оновлено» (OQ-26). Логотип видання — з брендом (OQ-24), відео (`VideoObject`) — у M1.8.
  */
 export function newsArticleJsonLd(article: NewsArticleSource) {
-  const publisher = {
-    '@type': 'Organization',
-    name: article.publisher.name,
-    url: article.publisher.url,
-  };
+  const publisher = organizationNode(article.publisher);
   return {
     '@context': SCHEMA_ORG_CONTEXT,
     '@type': 'NewsArticle',

@@ -15,6 +15,9 @@ export type MatchListItem = ApiSchemas['MatchListItemDto'];
 /** `GET /football/matches?from=&to=[&league=]` — межі в поясі користувача рахує клієнт. */
 export type MatchesInRange = ApiSchemas['MatchesInRangeDto'];
 
+/** `GET /football/matches/next-kickoff?from=` — коли найближчий запланований матч; `null` — попереду нічого. */
+export type NextKickoff = ApiSchemas['NextKickoffDto'];
+
 /** `GET /football/matches/{id}`. Серія пенальті — окремо від рахунку. */
 export type MatchDetail = ApiSchemas['MatchDetailDto'];
 
