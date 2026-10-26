@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /*
- * Серверні змінні web (як схема env в API, backend Rule 13): перевіряються при старті сервера (`instrumentation.ts`) —
+ * Серверні змінні web (як схема env в API, backend Rule 13): перевіряються при старті сервера (`instrumentation-node.ts`) —
  * з відсутньою чи невалідною змінною `next start` не стартує й перелічує всі проблеми, без значень. Читаються під час
  * запиту, а не вбудовуються при збірці, як `NEXT_PUBLIC_*`: одна збірка — для будь-якої адреси. Перелік — `.env.example`.
  */
@@ -51,10 +51,30 @@ const serverEnvSchema = z
 
 export type ServerEnv = z.output<typeof serverEnvSchema>;
 
+type EnvSource = Record<string, string | undefined>;
+
+/** `SITE_URL: is required in production…` — назва змінної й що не так, без значення. */
+function problemsOf(error: z.ZodError): string[] {
+  return error.issues.map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`);
+}
+
+/**
+ * Проблеми серверних змінних; порожній список — усе гаразд. Чиста функція: що робити з проблемами, вирішує старт
+ * сервера (`instrumentation-node.ts`).
+ */
+export function validateServerEnv(source: EnvSource): string[] {
+  const result = serverEnvSchema.safeParse(source);
+  return result.success ? [] : problemsOf(result.error);
+}
+
+/** Повідомлення про невалідний конфіг: усі проблеми, кожна з нового рядка. */
+export function formatServerEnvProblems(problems: readonly string[]): string {
+  return `Invalid web server environment:\n${problems.map((problem) => `- ${problem}`).join('\n')}`;
+}
+
 /** Змінні → перевірений конфіг; помилка перелічує проблемні змінні, але не їхні значення. */
-export function parseServerEnv(source: Record<string, string | undefined>): ServerEnv {
+export function parseServerEnv(source: EnvSource): ServerEnv {
   const result = serverEnvSchema.safeParse(source);
   if (result.success) return result.data;
-  const problems = result.error.issues.map((issue) => `- ${issue.path.join('.') || 'env'}: ${issue.message}`);
-  throw new Error(`Invalid web server environment:\n${problems.join('\n')}`);
+  throw new Error(formatServerEnvProblems(problemsOf(result.error)));
 }

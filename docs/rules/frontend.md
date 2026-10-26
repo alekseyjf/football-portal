@@ -97,7 +97,7 @@
 > // Адреси в JSON-LD — повні: absoluteSiteUrl(pathname) з lib/site-url.ts (серверна SITE_URL)
 > ```
 >
-> ⭐ **Змінні середовища web** (2026-10-25, [D53](../decisions/D53-news-page.md)): `NEXT_PUBLIC_*` — лише те, що потрібно браузеру (вбудовується при збірці); решта — серверні, через zod-схему `lib/env/server-env-schema.ts` (перевірка при старті, `instrumentation.ts`) і `serverEnv()` з `server-only`. Клієнтському компоненту серверне значення передає сторінка пропом:
+> ⭐ **Змінні середовища web** (2026-10-25, [D53](../decisions/D53-news-page.md)): `NEXT_PUBLIC_*` — лише те, що потрібно браузеру (вбудовується при збірці); решта — серверні, через zod-схему `lib/env/server-env-schema.ts` (перевірка при старті — `instrumentation-node.ts`: Next збирає `instrumentation.ts` і для Edge, тож Node-код — лише в окремому файлі) і `serverEnv()` з `server-only`. Клієнтському компоненту серверне значення передає сторінка пропом:
 > ```typescript
 > // ✅ <NewsPostView siteUrl={siteUrl()} />  — у page.tsx (RSC)
 > // ❌ process.env.SITE_URL у 'use client' — там його немає; NEXT_PUBLIC_ «щоб працювало» — зайве вбудовування

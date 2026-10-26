@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { parseServerEnv } from './server-env-schema';
+import { parseServerEnv, validateServerEnv } from './server-env-schema';
+
+describe('Перевірка при старті сервера (validateServerEnv)', () => {
+  it('SITE_URL є — проблем немає', () => {
+    expect(validateServerEnv({ NODE_ENV: 'production', SITE_URL: 'https://portal.test' })).toEqual([]);
+  });
+
+  it('у production SITE_URL немає — одна проблема з назвою змінної', () => {
+    expect(validateServerEnv({ NODE_ENV: 'production' })).toEqual([
+      'SITE_URL: is required in production: site origin, e.g. https://example.com',
+    ]);
+  });
+
+  it('невалідна адреса — проблема з назвою змінної, без значення', () => {
+    const problems = validateServerEnv({ NODE_ENV: 'production', SITE_URL: 'https://portal.test/secret-path' });
+    expect(problems).toEqual(['SITE_URL: must be an http(s) origin without a path, e.g. https://example.com']);
+    expect(problems.join()).not.toContain('secret-path');
+  });
+});
 
 describe('Серверні змінні web', () => {
   it('production без SITE_URL (і з порожнім) — помилка називає змінну', () => {
