@@ -52,6 +52,7 @@ export class PostDetailDto extends PostSummaryDto {
   content!: string;
   /** Підпис автора фото обкладинки, без «Фото:» — його додає сайт мовою сторінки */
   coverImageCredit!: string | null;
+  /** Відео YouTube — завжди канонічне `https://www.youtube.com/watch?v={id}` (D54); `null` — відео немає */
   videoUrl!: string | null;
   /** Посилання на джерело новини (http або https); `null` — джерела немає */
   sourceUrl!: string | null;

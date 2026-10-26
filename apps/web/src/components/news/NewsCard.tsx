@@ -2,16 +2,13 @@
 
 import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
-import { LinkPendingLabel } from '@/components/layout/LinkPendingLabel';
 import { Link } from '@/i18n/navigation';
 import type { PostSummary } from '@/lib/api/types';
 import { contentLanguageName } from '@/lib/i18n/content-lang';
-import { newsFeedHref } from '@/lib/news/news-feed-filters';
-import { postKicker } from '@/lib/news/post-kicker';
 import { postPathSegment } from '@/lib/news/post-path';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
-import { useCollator } from '@/hooks/useCollator';
 import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
+import { PostKickerLink } from './PostKickerLink';
 
 type Props = {
   post: PostSummary;
@@ -41,10 +38,8 @@ export function NewsCard({
 }: Props) {
   const locale = useLocale();
   const contentLang = useApiContentLang();
-  const collator = useCollator();
   const formatDate = useDateTimeFormat();
   const t = useTranslations('feed');
-  const kicker = postKicker(post, collator);
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
   const fallbackNotice =
     post.resolvedLanguage !== contentLang
@@ -73,14 +68,11 @@ export function NewsCard({
         </div>
       )}
       <div className="flex flex-1 flex-col p-5">
-        {kicker && (
-          <Link
-            href={newsFeedHref(kicker.filters)}
-            className="relative z-10 mb-2 self-start text-xs font-semibold uppercase tracking-wide text-green-400 hover:text-green-300 hover:underline"
-          >
-            <LinkPendingLabel>{kicker.name}</LinkPendingLabel>
-          </Link>
-        )}
+        {/* Поверх розтягнутого посилання заголовка (`z-10`) — клікається окремо */}
+        <PostKickerLink
+          post={post}
+          className="relative z-10 mb-2 self-start text-xs font-semibold uppercase tracking-wide text-green-400 hover:text-green-300 hover:underline"
+        />
         <Heading
           lang={post.resolvedLanguage}
           className="mb-2 text-lg font-bold leading-snug line-clamp-3"

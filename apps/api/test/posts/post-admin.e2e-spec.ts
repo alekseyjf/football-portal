@@ -161,7 +161,8 @@ describe('Адмінка: список новин і новина для фор�
       translations: [DETAIL_TRANSLATION_UK, DETAIL_TRANSLATION_EN],
       coverImageUrl: 'https://e2e.test/cover.jpg',
       coverImageCredit: 'Getty Images',
-      videoUrl: 'https://e2e.test/video',
+      // Відео — у формі редактора, яку віддає API: канонічним (D54)
+      videoUrl: 'https://youtu.be/dQw4w9WgXcQ?si=e2e',
       sourceUrl: 'https://e2e.test/source',
       sourceName: 'E2E Sport',
       tagIds: [ids.transfers, ids.derby],
@@ -235,7 +236,7 @@ describe('Адмінка: список новин і новина для фор�
       isLive: false,
       coverImageUrl: 'https://e2e.test/cover.jpg',
       coverImageCredit: 'Getty Images',
-      videoUrl: 'https://e2e.test/video',
+      videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       sourceUrl: 'https://e2e.test/source',
       sourceName: 'E2E Sport',
       author: {

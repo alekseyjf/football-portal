@@ -14,6 +14,7 @@ import { PostRelationsFields } from './PostRelationsFields';
 import { PostSlugField } from './PostSlugField';
 import { PostSourceFields } from './PostSourceFields';
 import { PostTranslationFields } from './PostTranslationFields';
+import { PostVideoField } from './PostVideoField';
 import { PublicationFields } from './PublicationFields';
 import {
   hasUkTranslation,
@@ -45,8 +46,8 @@ interface PostFormProps {
 }
 
 /**
- * Форма новини — спільна для створення й редагування: переклади вкладками мов, адреса, обкладинка, джерело, теги,
- * клуби й турніри, публікація. Правила полів — `postFormSchemaFor`, тіло запиту будує той, хто зберігає.
+ * Форма новини — спільна для створення й редагування: переклади вкладками мов, адреса, обкладинка, відео, джерело,
+ * теги, клуби й турніри, публікація. Правила полів — `postFormSchemaFor`, тіло запиту будує той, хто зберігає.
  */
 export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSubmit }: PostFormProps) {
   const tabs = usePostFormTabs();
@@ -133,6 +134,7 @@ export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSub
 
       <PostSlugField register={register} control={control} errors={errors} post={post} />
       <CoverImageFields register={register} control={control} errors={errors} setValue={setValue} />
+      <PostVideoField register={register} errors={errors} />
       <PostSourceFields register={register} errors={errors} />
       <PostRelationsFields control={control} post={post} />
       <PublicationFields register={register} control={control} errors={errors} post={post} timeZone={timeZone} />

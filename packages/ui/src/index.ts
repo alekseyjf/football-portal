@@ -1,1 +1,1 @@
-export { MarkdownContent } from './markdown/MarkdownContent';
+export { MarkdownContent, type NewTabLabel } from './markdown/MarkdownContent';

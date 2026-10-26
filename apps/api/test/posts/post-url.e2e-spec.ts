@@ -79,17 +79,32 @@ describe('URL новини: номер і slug (D24)', () => {
     });
   });
 
-  it('чернетка, запланована й видалена за номером → 404', async () => {
+  it('за номером — лише жива: чернетка, запланована, знята з публікації, архівна, видалена й неіснуюча → 404', async () => {
     const draft = await createPost({});
     const scheduled = await createPost({
       status: 'SCHEDULED',
       publishedAt: new Date(Date.now() + DAY_MS).toISOString(),
     });
+    // Були на сайті: адреса могла розійтися, але сторінки вже немає (сайт віддає 404 — M1.6.2)
+    const unpublished = await createPost({ status: 'PUBLISHED' });
+    await updatePost(unpublished.id, { status: 'DRAFT' });
+    const archived = await createPost({ status: 'PUBLISHED' });
+    await updatePost(archived.id, { status: 'ARCHIVED' });
     const deleted = await createPost({ status: 'PUBLISHED' });
     await admin.delete(apiPath(`/posts/${deleted.id}`)).expect(200);
+    const live = await createPost({ status: 'PUBLISHED' });
+    await getPublicPost(live.number).expect(200);
 
-    for (const post of [draft, scheduled, deleted]) {
-      const response = await getPublicPost(post.number).expect(404);
+    const hiddenNumbers = [
+      draft,
+      scheduled,
+      unpublished,
+      archived,
+      deleted,
+    ].map((post) => post.number);
+    for (const postNumber of [...hiddenNumbers, live.number + 1]) {
+      const response = await getPublicPost(postNumber).expect(404);
+      expectMatchesContract(response, 'get', '/posts/{number}');
       expect(response.body).toMatchObject({ message: 'POST_NOT_FOUND' });
     }
   });

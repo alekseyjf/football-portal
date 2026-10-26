@@ -103,6 +103,20 @@ describe('postFormSchema', () => {
     ).toEqual([]);
   });
 
+  it('відео — лише YouTube у звичних формах; інше посилання — помилка біля поля (D54)', () => {
+    for (const videoUrl of [
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s',
+      'https://youtu.be/dQw4w9WgXcQ?si=share',
+      'https://www.youtube.com/shorts/aqz-KE-bpKQ',
+      '   ',
+    ]) {
+      expect(invalidFields(formValues({ videoUrl }))).toEqual([]);
+    }
+    for (const videoUrl of ['https://vimeo.com/123456789', 'http://youtu.be/dQw4w9WgXcQ', 'https://www.youtube.com/@premierleague']) {
+      expect(invalidFields(formValues({ videoUrl }))).toEqual(['videoUrl']);
+    }
+  });
+
   it('slug: порожній чи з пробілів — «не задано»; інакше латиниця й цифри через одинарні дефіси, до 80', () => {
     for (const slug of ['', '   ', ' north-london-derby ', 'top-10-2026']) {
       expect(invalidFields(formValues({ slug }))).toEqual([]);
@@ -193,6 +207,13 @@ describe('toCreatePostRequest', () => {
       translations: [{ languageCode: 'en', title: ENGLISH.titleEn, excerpt: ENGLISH.excerptEn, content: ENGLISH.contentEn }],
       status: 'DRAFT',
     });
+  });
+
+  it('відео — у запиті, лише коли задане, обрізане; канонічним його зробить API (D54)', () => {
+    expect(requestFor(formValues({ videoUrl: '  https://youtu.be/dQw4w9WgXcQ  ' }))).toMatchObject({
+      videoUrl: 'https://youtu.be/dQw4w9WgXcQ',
+    });
+    expect(requestFor(formValues())).not.toHaveProperty('videoUrl');
   });
 
   it('вибрані теги, клуби, турніри — масивами id; нічого не вибрано — поля немає (D51)', () => {

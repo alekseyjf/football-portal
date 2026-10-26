@@ -33,6 +33,7 @@ import { TrimString } from '../../common/validation/trim-string.transform';
 import {
   IsMediaUrl,
   IsSourceUrl,
+  IsYouTubeVideoUrl,
 } from '../../common/validation/url-field.decorators';
 import { IsTranslationLanguageCode } from '../../languages/dto/translation-fields';
 
@@ -147,9 +148,13 @@ export class PostFieldsDto {
   @MaxLength(POST_COVER_IMAGE_CREDIT_MAX_LENGTH)
   coverImageCredit?: string | null;
 
-  /** Лише https; `null` — прибрати */
+  /**
+   * Відео YouTube — посилання у звичних формах: `youtube.com/watch?v=…`, `youtu.be/…`, `youtube.com/shorts/…`,
+   * `youtube.com/embed/…` (лише https). API зберігає канонічне `https://www.youtube.com/watch?v={id}`;
+   * `null` — прибрати
+   */
   @IsOptional()
-  @IsMediaUrl()
+  @IsYouTubeVideoUrl()
   videoUrl?: string | null;
 
   /**
