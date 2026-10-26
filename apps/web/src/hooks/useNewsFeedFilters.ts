@@ -7,7 +7,7 @@ import {
   withoutTag,
   type NewsFeedFilters,
 } from '@/lib/news/news-feed-filters';
-import { newsFeedLeagueTabs } from '@/lib/news/news-feed-leagues';
+import { inPlayLeaguesWithSelected } from '@/lib/football/in-play-leagues';
 import { useApiContentLang } from './useApiContentLang';
 import {
   clubQueryOptions,
@@ -17,7 +17,7 @@ import {
 import { tagQueryOptions } from './useTags';
 
 /**
- * Вкладки ліг стрічки: турніри «у грі» + вибраний (`newsFeedLeagueTabs`). Вибраного немає серед увімкнених — його
+ * Вкладки ліг стрічки: турніри «у грі» + вибраний (`inPlayLeaguesWithSelected`). Вибраного немає серед увімкнених — його
  * назву дає `GET /football/leagues/{slug}`.
  */
 export function useNewsFeedLeagueTabs(selectedSlug: string | null): League[] {
@@ -31,7 +31,7 @@ export function useNewsFeedLeagueTabs(selectedSlug: string | null): League[] {
     ...leagueQueryOptions(selectedSlug ?? ''),
     enabled: needsSelectedLeague,
   });
-  return newsFeedLeagueTabs(
+  return inPlayLeaguesWithSelected(
     activeLeagues,
     selectedSlug,
     needsSelectedLeague ? (selectedLeagueQuery.data ?? null) : null,

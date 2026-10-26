@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { breadcrumbListJsonLd, newsArticleJsonLd, serializeJsonLd } from './json-ld';
+import {
+  breadcrumbListJsonLd,
+  newsArticleJsonLd,
+  organizationJsonLd,
+  serializeJsonLd,
+  webSiteJsonLd,
+} from './json-ld';
 
 describe('JSON-LD (D34)', () => {
   it('хлібні крихти: позиції з 1, у поточної сторінки — без адреси', () => {
@@ -55,6 +61,27 @@ describe('JSON-LD (D34)', () => {
     expect(bare).not.toHaveProperty('image');
     expect(bare).not.toHaveProperty('isBasedOn');
     expect(bare.author).toEqual([publisher]);
+  });
+
+  it('головна (D55): WebSite — назва, адреса головної мовою сторінки й видання; Organization — те саме видання', () => {
+    const publisher = { name: 'Футбольний портал', url: 'https://example.com' };
+
+    expect(
+      webSiteJsonLd({ name: 'Футбольний портал', url: 'https://example.com/uk', inLanguage: 'uk', publisher }),
+    ).toEqual({
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'Футбольний портал',
+      url: 'https://example.com/uk',
+      inLanguage: 'uk',
+      publisher: { '@type': 'Organization', name: 'Футбольний портал', url: 'https://example.com' },
+    });
+    expect(organizationJsonLd(publisher)).toEqual({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'Футбольний портал',
+      url: 'https://example.com',
+    });
   });
 
   it('текст з `</script>` і `<!--` не закриває тег: жодного `<`, а JSON — той самий', () => {

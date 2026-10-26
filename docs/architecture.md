@@ -106,12 +106,13 @@
 | Змінні середовища API (схема, доступ) | `apps/api/src/config/env.schema.ts`, `env.config.ts`; шаблон — `apps/api/.env.example` |
 | Health (`GET /api/v1/health`, ping БД) | `apps/api/src/health/health.controller.ts` |
 | E2E API: каркас (схема `e2e`, застосунок, логін) | `apps/api/test/support/`; тести — `apps/api/test/<модуль>/*.e2e-spec.ts` ([D30](decisions/D30-testing-and-local-env.md)) |
-| Стрічка новин `/news` (фільтри в адресі, вкладки ліг, чипи, «Завантажити ще») | `apps/web/src/app/[locale]/news/(feed)/` (`page.tsx`, `NewsFeedView`, `error.tsx`); блоки — `components/news/`; правила — `lib/news/news-feed-filters.ts`, `news-feed-pages.ts`, `news-feed-leagues.ts`, запит — `news-feed-query.ts`; хуки — `hooks/useNewsFeed.ts`, `useNewsFeedFilters.ts` ([D52](decisions/D52-news-feed.md)) |
+| Стрічка новин `/news` (фільтри в адресі, вкладки ліг, чипи, «Завантажити ще») | `apps/web/src/app/[locale]/news/(feed)/` (`page.tsx`, `NewsFeedView`, `error.tsx`); блоки — `components/news/`; правила — `lib/news/news-feed-filters.ts`, `news-feed-pages.ts`, турніри вкладок — `lib/football/in-play-leagues.ts`, запит — `news-feed-query.ts`; хуки — `hooks/useNewsFeed.ts`, `useNewsFeedFilters.ts` ([D52](decisions/D52-news-feed.md)) |
 | Картка новини (стрічка й головна), рубрика | `apps/web/src/components/news/NewsCard.tsx`, `NewsCardList.tsx`; рубрика — `PostKickerLink`, правило — `lib/news/post-kicker.ts` ([D52](decisions/D52-news-feed.md)) |
 | Сторінка новини (хлібні крихти, Markdown, теми, JSON-LD, метадані) | `apps/web/src/app/[locale]/news/[slugAndNumber]/` (`page.tsx`, `NewsPostView` і блоки, `error.tsx`); правила — `lib/news/post-topics.ts`, `post-metadata.ts`, `lib/seo/json-ld.ts`, адреса сайту — `lib/site-url.ts` (серверна `SITE_URL`: схема — `lib/env/`, перевірка при старті — `src/instrumentation.ts`); JSON-LD — `components/seo/JsonLd`; текст — `MarkdownContent` з `packages/ui` ([D53](decisions/D53-news-page.md)); відео — `PostVideo`, прев'ю й CSP — `apps/web/next.config.ts` ([D54](decisions/D54-post-video.md)) |
-| Сайдбар на головній | `apps/web/src/components/football/FootballSidebar.tsx` |
+| Головна (блоки незалежні, порядок у DOM, JSON-LD `WebSite` і `Organization`) | `apps/web/src/app/[locale]/(home)/` (`page.tsx`, `error.tsx`); новини — `components/home/` (`HomeNews`, скелетон, `home-news-layout.ts`), запит — `hooks/useHomeNews.ts`; повний збій — `lib/home/home-blocks.ts` ([D55](decisions/D55-home-page.md)) |
+| Сайдбар на головній | `apps/web/src/components/football/FootballSidebar.tsx`; перемикач — турніри «у грі» + обраний (`lib/football/in-play-leagues.ts`) |
 | Хуки / query keys футболу | `apps/web/src/hooks/useFootball.ts` (`leagueDashboardQueryOptions`) |
-| Slug ліги для SSR | `apps/web/src/app/resolveDefaultLeagueSlug.ts` |
+| Ліга сайдбару за замовчуванням (спершу «у грі», D55) | `apps/web/src/lib/football/default-league.ts` |
 | Синк з адмінки | `apps/admin/src/components/FootballSyncButton.tsx` |
 | Журнал синків в адмінці | `apps/admin/src/components/SyncRunsTable.tsx`, `hooks/useSyncRuns.ts` |
 | Панель адміна | `apps/admin/src/components/AdminShellBar.tsx`, `app/dashboard/layout.tsx` |

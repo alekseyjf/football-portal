@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { League } from '@/lib/api/types';
-import { newsFeedLeagueTabs } from './news-feed-leagues';
+import { inPlayLeaguesWithSelected } from './in-play-leagues';
 
 function league(slug: string, isInPlay: boolean): League {
   return {
@@ -23,12 +23,12 @@ const ACTIVE_LEAGUES = [
 ];
 
 function tabSlugs(selectedSlug: string | null, selectedLeague: League | null = null) {
-  return newsFeedLeagueTabs(ACTIVE_LEAGUES, selectedSlug, selectedLeague).map(
+  return inPlayLeaguesWithSelected(ACTIVE_LEAGUES, selectedSlug, selectedLeague).map(
     (tab) => tab.slug,
   );
 }
 
-describe('Вкладки ліг стрічки (M1.6.1)', () => {
+describe('Турніри вкладок стрічки й перемикача головної (M1.6.1, M1.6.3)', () => {
   it('без вибору — лише турніри «у грі», у порядку редакції', () => {
     expect(tabSlugs(null)).toEqual(['PL', 'CL']);
   });
