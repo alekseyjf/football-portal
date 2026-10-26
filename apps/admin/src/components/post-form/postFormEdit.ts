@@ -55,6 +55,7 @@ export function toPostFormValues(post: AdminPostDetail, timeZone: string): PostF
     coverImageAltEn: savedText(english?.coverImageAlt),
     coverImageAltUk: savedText(ukrainian?.coverImageAlt),
     coverImageCredit: savedText(post.coverImageCredit),
+    videoUrl: savedText(post.videoUrl),
     sourceUrl: savedText(post.sourceUrl),
     sourceName: savedText(post.sourceName),
     tagIds: toRelationIds(post.tags),
@@ -146,6 +147,11 @@ function coverImageChange(before: PostFormValues, after: PostFormValues): Update
   };
 }
 
+/** Відео (D54): змінене посилання — нове, очищене — `null`. Те саме відео іншою формою посилання API збереже тим самим. */
+function videoChange(before: PostFormValues, after: PostFormValues): UpdatePostRequest {
+  return before.videoUrl !== after.videoUrl ? { videoUrl: after.videoUrl || null } : {};
+}
+
 function sourceChange(before: PostFormValues, after: PostFormValues): UpdatePostRequest {
   const change = linkedTextChange(
     { before: before.sourceUrl, after: after.sourceUrl },
@@ -188,7 +194,7 @@ function publicationChange(before: PostFormValues, after: PostFormValues, timeZo
  * Тіло `PUT /posts/{id}` — лише змінене (👤 M1.5.2, D50): `saved` — поля збереженої новини (`toPostFormValues`),
  * `current` — форми після перевірки (обидва без пробілів по краях); порівнюємо значення. Не передане API не
  * чіпає, `null` — прибирає, тож правка не перезапише того, чого редактор не міняв. Зв'язки — набором
- * (`relationsChange`); відео форма не редагує — його немає в запиті зовсім.
+ * (`relationsChange`).
  */
 export function toUpdatePostRequest(
   saved: PostFormValues,
@@ -199,6 +205,7 @@ export function toUpdatePostRequest(
     ...translationsChange(saved, current),
     ...slugChange(saved, current),
     ...coverImageChange(saved, current),
+    ...videoChange(saved, current),
     ...sourceChange(saved, current),
     ...relationsChange(saved, current),
     ...publicationChange(saved, current, timeZone),

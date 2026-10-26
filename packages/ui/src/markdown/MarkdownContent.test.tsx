@@ -80,6 +80,42 @@ describe('MarkdownContent (D25)', () => {
     expect(html).toContain('<a href="/uk/matches/12345">звіт</a>');
   });
 
+  it('на сайті (siteUrl) посилання на свій хост — та сама вкладка, і з www чи без; інший хост — нова', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownContent
+        source={[
+          '[новина](https://www.footballportal.com/uk/news/derby-12)',
+          '[таблиця](//footballportal.com/uk/matches)',
+          '[двійник](https://footballportal.com.evil.example/uk)',
+          '[піддомен](https://shop.footballportal.com/)',
+        ].join(' ')}
+        siteUrl="https://footballportal.com"
+      />,
+    );
+
+    expect(html).toContain('<a href="https://www.footballportal.com/uk/news/derby-12">новина</a>');
+    expect(html).toContain('<a href="//footballportal.com/uk/matches">таблиця</a>');
+    expect(html).toContain(
+      '<a href="https://footballportal.com.evil.example/uk" target="_blank" rel="noopener">двійник</a>',
+    );
+    expect(html).toContain('<a href="https://shop.footballportal.com/" target="_blank" rel="noopener">піддомен</a>');
+  });
+
+  it('нова вкладка — з прихованим підписом мовою сторінки; своє посилання — без підпису', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownContent
+        source="[BBC Sport](https://www.bbc.com/sport) і [звіт](/uk/matches/12345)"
+        newTabLabel={{ text: '(відкривається в новій вкладці)', lang: 'uk' }}
+      />,
+    );
+
+    expect(html).toContain(
+      '<a href="https://www.bbc.com/sport" target="_blank" rel="noopener">BBC Sport' +
+        '<span class="sr-only" lang="uk"> (відкривається в новій вкладці)</span></a>',
+    );
+    expect(html).toContain('<a href="/uk/matches/12345">звіт</a>');
+  });
+
   it('з linkBaseUrl (перегляд в адмінці) наша сторінка — на сайті в новій вкладці, небезпечна адреса — як без нього', () => {
     const html = renderToStaticMarkup(
       <MarkdownContent

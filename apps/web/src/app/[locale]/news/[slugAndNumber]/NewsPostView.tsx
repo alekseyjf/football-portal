@@ -1,48 +1,66 @@
 'use client';
 
-import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
+import { MarkdownContent } from '@football-portal/ui';
+import { parseYouTubeVideoId } from '@football-portal/validation';
 import { contentLanguageName } from '@/lib/i18n/content-lang';
 import { postDetailQueryOptions } from '@/hooks/usePostDetail';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
-import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
-import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { LikeBar } from '@/components/features/LikeBar';
 import { CommentSection } from './CommentSection';
+import { NewsPostHeader } from './NewsPostHeader';
+import { NewsPostLoadError } from './NewsPostLoadError';
+import { NewsPostSkeleton } from './NewsPostSkeleton';
+import { PostBreadcrumbs } from './PostBreadcrumbs';
+import { PostCover } from './PostCover';
 import { PostSourceLine } from './PostSourceLine';
+import { PostTopics } from './PostTopics';
+import { PostVideo } from './PostVideo';
 
-export function NewsPostView({ postNumber }: { postNumber: number }) {
+const PAGE_CLASS = 'max-w-3xl mx-auto px-4 py-8';
+
+/**
+ * Сторінка новини (M1.6.2): хлібні крихти, верх (рубрика, заголовок, анонс, автор), головне медіа (відео, а без нього —
+ * обкладинка), текст у Markdown,
+ * джерело, теми, лайки й коментарі. Дані — з кешу, який наповнив сервер; без них (сервер не дочекався API) клієнт
+ * вантажить сам — скелетон, помилка — «Спробувати ще».
+ */
+type Props = {
+  postNumber: number;
+  /** Адреса сайту (`SITE_URL`) — посилання тексту на неї відкриваються в тій самій вкладці */
+  siteUrl: string;
+};
+
+export function NewsPostView({ postNumber, siteUrl }: Props) {
   const contentLang = useApiContentLang();
   const locale = useLocale();
-  const formatDate = useDateTimeFormat();
   const t = useTranslations('news');
-  const authorDisplayName = useAuthorDisplayName();
+  const postQuery = useQuery(postDetailQueryOptions(postNumber, contentLang));
+  const post = postQuery.data;
 
-  const { data: post, isLoading, isError } = useQuery(
-    postDetailQueryOptions(postNumber, contentLang),
-  );
-
-  if (isLoading) {
+  // Уже показану новину невдалий фоновий refetch не замінює
+  if (!post) {
+    const hasLoadError = postQuery.isError && !postQuery.isFetching;
     return (
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <p className="text-gray-400">{t('loading')}</p>
-      </main>
-    );
-  }
-
-  if (isError || !post) {
-    return (
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <p className="text-red-400">{t('loadError')}</p>
+      <main className={PAGE_CLASS}>
+        {hasLoadError ? (
+          <NewsPostLoadError onRetry={() => postQuery.refetch()} />
+        ) : (
+          <NewsPostSkeleton />
+        )}
       </main>
     );
   }
 
   const isFallback = post.resolvedLanguage !== contentLang;
+  // API зберігає відео канонічним (D54); не YouTube (запис в обхід API) — без плеєра
+  const videoId = post.videoUrl ? parseYouTubeVideoId(post.videoUrl) : null;
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-8">
+    <main className={PAGE_CLASS}>
+      <PostBreadcrumbs title={post.title} titleLang={post.resolvedLanguage} />
+
       {isFallback && (
         <p
           role="note"
@@ -54,66 +72,22 @@ export function NewsPostView({ postNumber }: { postNumber: number }) {
         </p>
       )}
 
-      {/* `lang` — лише на тексті новини: без перекладу він мовою оригіналу, а «Фото:», автор і дата — мовою сторінки */}
       <article>
-        {post.coverImageUrl && (
-          <figure className="mb-6">
-            {/* `unoptimized` — як у стрічці (довільний хост, без серверного fetch); `eager` — LCP */}
-            <div
-              className="relative w-full h-64 overflow-hidden rounded-2xl"
-              lang={post.resolvedLanguage}
-            >
-              <Image
-                src={post.coverImageUrl}
-                // Опис — мовою тексту (D44); без нього — порожній, а не заголовок: його й так прочитає h1
-                alt={post.coverImageAlt ?? ''}
-                fill
-                unoptimized
-                loading="eager"
-                sizes="(min-width: 768px) 768px, 100vw"
-                className="object-cover"
-              />
-            </div>
-            {post.coverImageCredit && (
-              <figcaption className="mt-2 text-xs text-gray-400">
-                {t('photoCredit', { credit: post.coverImageCredit })}
-              </figcaption>
-            )}
-          </figure>
-        )}
+        <NewsPostHeader post={post} />
+        {/* Відео — головне медіа замість обкладинки (D54): обкладинка стає його прев'ю */}
+        {videoId ? <PostVideo videoId={videoId} post={post} /> : <PostCover post={post} />}
 
-        <div className="mb-6">
-          <h1 lang={post.resolvedLanguage} className="text-3xl font-bold mb-3">
-            {post.title}
-          </h1>
-          <div className="flex items-center gap-3 text-sm text-gray-400">
-            <span>
-              {t('by')} {authorDisplayName(post.author)}
-            </span>
-            <span>·</span>
-            <time dateTime={post.publishedAt}>
-              {formatDate(post.publishedAt, {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </time>
-          </div>
-        </div>
-
+        {/* Текст — мовою перекладу; підпис «відкривається в новій вкладці» — мовою сторінки */}
         <div lang={post.resolvedLanguage}>
-          <p className="text-gray-300 text-lg leading-relaxed mb-6 border-l-4 border-green-500 pl-4 italic">
-            {post.excerpt}
-          </p>
-
-          <div className="prose prose-invert max-w-none">
-            <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
-              {post.content}
-            </p>
-          </div>
+          <MarkdownContent
+            source={post.content}
+            siteUrl={siteUrl}
+            newTabLabel={{ text: t('opensInNewTab'), lang: locale }}
+          />
         </div>
 
         <PostSourceLine sourceUrl={post.sourceUrl} sourceName={post.sourceName} />
+        <PostTopics post={post} />
 
         <div className="mt-8 flex items-center">
           <LikeBar targetType="post" targetId={post.id} />

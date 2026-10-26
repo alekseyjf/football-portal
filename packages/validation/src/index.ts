@@ -7,6 +7,7 @@ import { slugify } from './slug';
 
 export { SLUG_PATTERN, slugify } from './slug';
 export { publicTagPath } from './public-paths';
+export { normalizeYouTubeUrl, parseYouTubeVideoId } from './youtube';
 
 /** RFC 5321: довша адреса не доставляється. */
 export const EMAIL_MAX_LENGTH = 254;
@@ -33,7 +34,7 @@ export const DISPLAY_NAME_MAX_LENGTH = 50;
 export const COMMENT_MIN_LENGTH = 2;
 export const COMMENT_MAX_LENGTH = 2000;
 
-/** URL медіа поста (`coverImage`, `videoUrl`): лише https. */
+/** Адреса обкладинки поста (`coverImageUrl`): лише https. Відео — лише YouTube (`parseYouTubeVideoId`, D54). */
 export const MEDIA_URL_PROTOCOLS = ['https'];
 /** Посилання на джерело новини (`sourceUrl`). */
 export const SOURCE_URL_PROTOCOLS = ['http', 'https'];

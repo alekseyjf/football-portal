@@ -89,3 +89,16 @@
 **Rule 13 — Сторінка з даними має `error.tsx`** — зрозуміле повідомлення й «Спробувати ще», коли API недоступне.
 
 **Rule 14 — SEO-метадані будує одна функція** — canonical, hreflang (`en`, `uk`, `x-default`), Open Graph — зі спільного хелпера, не вручну на кожній сторінці ([D34](../decisions/D34-seo-multilingual.md)).
+
+> ⭐ **Доповнення до Rule 14** (2026-10-24, [D53](../decisions/D53-news-page.md)): структуровані дані (JSON-LD) — лише через `components/seo/JsonLd`:
+> ```typescript
+> // ✅ <JsonLd data={breadcrumbListJsonLd(items)} />  — React 19 пише текст <script> як є, `<` екранує serializeJsonLd
+> // ❌ <script dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />  — так у документації Next, але в проєкті заборонено
+> // Адреси в JSON-LD — повні: absoluteSiteUrl(pathname) з lib/site-url.ts (серверна SITE_URL)
+> ```
+>
+> ⭐ **Змінні середовища web** (2026-10-25, [D53](../decisions/D53-news-page.md)): `NEXT_PUBLIC_*` — лише те, що потрібно браузеру (вбудовується при збірці); решта — серверні, через zod-схему `lib/env/server-env-schema.ts` (перевірка при старті, `instrumentation.ts`) і `serverEnv()` з `server-only`. Клієнтському компоненту серверне значення передає сторінка пропом:
+> ```typescript
+> // ✅ <NewsPostView siteUrl={siteUrl()} />  — у page.tsx (RSC)
+> // ❌ process.env.SITE_URL у 'use client' — там його немає; NEXT_PUBLIC_ «щоб працювало» — зайве вбудовування
+> ```

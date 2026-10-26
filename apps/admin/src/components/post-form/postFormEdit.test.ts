@@ -7,6 +7,8 @@ import { publicationOptionsFor } from './publicationOptions';
 const TIME_ZONE = 'Europe/Kyiv';
 const COVER_IMAGE_URL = 'https://images.unsplash.com/photo-1?w=1200&h=630&fit=crop&q=80';
 const OTHER_COVER_IMAGE_URL = 'https://images.unsplash.com/photo-2?w=1200&h=630&fit=crop&q=80';
+/** Відео, як його зберігає API, — канонічне посилання (D54). */
+const SAVED_VIDEO_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 
 /** Переклад, як його надсилає форма (без опису фото); у збереженій новині — ще й `coverImageAlt`. */
 const ENGLISH = {
@@ -185,7 +187,7 @@ describe('toUpdatePostRequest: у PUT — лише змінене', () => {
   });
 
   it('незмінені зв’язки й відео в запит не йдуть, хоч би що змінилось: переданий масив замінив би зв’язки (D51)', () => {
-    const request = updateFor(savedPost({ ...WITH_COVER_IMAGE, ...WITH_RELATIONS, videoUrl: 'https://youtu.be/x' }), {
+    const request = updateFor(savedPost({ ...WITH_COVER_IMAGE, ...WITH_RELATIONS, videoUrl: SAVED_VIDEO_URL }), {
       titleEn: 'Arsenal beat Chelsea again',
       coverImageUrl: '',
       sourceUrl: 'https://bbc.com/a',
@@ -194,6 +196,17 @@ describe('toUpdatePostRequest: у PUT — лише змінене', () => {
     for (const fieldName of ['tagIds', 'clubIds', 'competitionIds', 'videoUrl']) {
       expect(request).not.toHaveProperty(fieldName);
     }
+  });
+
+  it('відео: збережене — у полі; змінене — нове посилання, очищене — null, те саме — не йде (D54)', () => {
+    const post = savedPost({ videoUrl: SAVED_VIDEO_URL });
+    expect(toPostFormValues(post, TIME_ZONE).videoUrl).toBe(SAVED_VIDEO_URL);
+    expect(updateFor(post, { videoUrl: 'https://youtu.be/aqz-KE-bpKQ' })).toEqual({
+      videoUrl: 'https://youtu.be/aqz-KE-bpKQ',
+    });
+    expect(updateFor(post, { videoUrl: '' })).toEqual({ videoUrl: null });
+    expect(updateFor(post, { videoUrl: SAVED_VIDEO_URL })).toEqual({});
+    expect(updateFor(savedPost(), { videoUrl: '' })).toEqual({});
   });
 
   it('зв’язки — набором: той самий в іншому порядку не йде, змінений — увесь набір лише цього виду (D51)', () => {

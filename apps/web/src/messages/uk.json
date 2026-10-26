@@ -35,13 +35,22 @@
     "translationUnavailable": "Переклад недоступний — показано мовою: {language}"
   },
   "news": {
-    "loading": "Завантаження статті…",
-    "loadError": "Не вдалося завантажити пост",
+    "loading": "Завантаження новини…",
+    "loadError": "Не вдалося завантажити новину",
+    "retry": "Спробувати ще",
     "by": "Автор",
     "translationUnavailable": "Переклад недоступний — показуємо оригінал ({language}).",
     "photoCredit": "Фото: {credit}",
     "source": "Джерело:",
-    "opensInNewTab": "(відкривається в новій вкладці)"
+    "opensInNewTab": "(відкривається в новій вкладці)",
+    "playVideo": "Відтворити відео: {title}",
+    "videoTitle": "Відео: {title}",
+    "topics": "Теми",
+    "breadcrumbs": {
+      "label": "Навігаційний ланцюжок",
+      "home": "Головна",
+      "news": "Новини"
+    }
   },
   "newsFeed": {
     "title": "Новини",

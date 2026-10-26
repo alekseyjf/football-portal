@@ -3,14 +3,18 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getTranslations } from 'next-intl/server';
+import { JsonLd } from '@/components/seo/JsonLd';
 import { isApiError } from '@/lib/api/http';
 import type { PostDetail } from '@/lib/api/types';
 import { localeToApiContentLang } from '@/lib/i18n/content-lang';
+import { postMetadata } from '@/lib/news/post-metadata';
 import { parsePostPathSegment, postPathSegment } from '@/lib/news/post-path';
 import { makeQueryClient } from '@/lib/query/queryClient';
+import { breadcrumbListJsonLd, newsArticleJsonLd } from '@/lib/seo/json-ld';
+import { absoluteSiteUrl, siteUrl } from '@/lib/site-url';
 import { fetchPostDetail, postDetailQueryOptions } from '@/hooks/usePostDetail';
-import { permanentRedirect } from '@/i18n/navigation';
-import { isAppLocale } from '@/i18n/routing';
+import { getPathname, permanentRedirect } from '@/i18n/navigation';
+import { isAppLocale, type AppLocale } from '@/i18n/routing';
 import { NewsPostView } from './NewsPostView';
 
 /** `slugAndNumber` — сегмент `{slug}-{number}` (D24): новину визначає номер. */
@@ -33,10 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       postRef.number,
       localeToApiContentLang(locale),
     );
-    return {
-      title: post.title,
-      description: post.excerpt,
-    };
+    return postMetadata(post);
   } catch (error) {
     // 404 — сторінка покаже загальну `app/not-found.tsx`; заголовок вкладки — той самий
     if (isApiError(error) && error.status === 404) {
@@ -45,6 +46,39 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const tNews = await getTranslations({ locale, namespace: 'news' });
     return { title: tNews('loadError') };
   }
+}
+
+/**
+ * Структуровані дані новини (D34, D53): `NewsArticle` і `BreadcrumbList` — ті самі пункти й назви, що й видимі
+ * хлібні крихти (`PostBreadcrumbs`). Адреси — повні (`SITE_URL`).
+ */
+async function postJsonLd(locale: AppLocale, post: PostDetail) {
+  const tCrumbs = await getTranslations({ locale, namespace: 'news.breadcrumbs' });
+  const tMeta = await getTranslations({ locale, namespace: 'meta' });
+  const pageUrl = absoluteSiteUrl(
+    getPathname({ href: `/news/${postPathSegment(post)}`, locale }),
+  );
+  return [
+    newsArticleJsonLd({
+      url: pageUrl,
+      headline: post.title,
+      description: post.excerpt,
+      imageUrl: post.coverImageUrl,
+      datePublished: post.publishedAt,
+      authorName: post.author.isDeleted ? null : post.author.name,
+      publisher: { name: tMeta('title'), url: siteUrl() },
+      inLanguage: post.resolvedLanguage,
+      sourceUrl: post.sourceUrl,
+    }),
+    breadcrumbListJsonLd([
+      { name: tCrumbs('home'), url: absoluteSiteUrl(getPathname({ href: '/', locale })) },
+      {
+        name: tCrumbs('news'),
+        url: absoluteSiteUrl(getPathname({ href: '/news', locale })),
+      },
+      { name: post.title },
+    ]),
+  ];
 }
 
 export default async function NewsPostPage({ params }: Props) {
@@ -75,8 +109,15 @@ export default async function NewsPostPage({ params }: Props) {
   }
 
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <NewsPostView postNumber={postRef.number} />
-    </HydrationBoundary>
+    <>
+      {post &&
+        (await postJsonLd(locale, post)).map((data) => (
+          <JsonLd key={String(data['@type'])} data={data} />
+        ))}
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        {/* Адреса сайту — з серверної змінної: клієнту вона потрібна лише тут, для «своїх» посилань тексту */}
+        <NewsPostView postNumber={postRef.number} siteUrl={siteUrl()} />
+      </HydrationBoundary>
+    </>
   );
 }

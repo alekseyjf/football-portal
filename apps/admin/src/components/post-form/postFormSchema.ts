@@ -10,6 +10,7 @@ import {
   postSourceNameSchema,
   postTitleSchema,
   sourceUrlSchema,
+  youtubeVideoUrlSchema,
 } from '@football-portal/validation/forms';
 import type { CreatePostRequest, PostTranslationRequest } from '@/lib/api/types';
 import { fromDateTimeLocalValue } from '@/lib/editorDateTime';
@@ -76,6 +77,8 @@ const formFieldsSchema = z.object({
   coverImageAltEn: z.string().trim(),
   coverImageAltUk: z.string().trim(),
   coverImageCredit: z.string().trim(),
+  // Лише YouTube — та сама перевірка, що в `@IsYouTubeVideoUrl()` API (D54)
+  videoUrl: optionalField(youtubeVideoUrlSchema),
   // http(s) — як `@IsSourceUrl()`; назва без адреси — в addSourceIssues
   sourceUrl: optionalField(sourceUrlSchema),
   sourceName: postSourceNameSchema,
@@ -124,6 +127,7 @@ export const EMPTY_POST_FORM_VALUES: PostFormValues = {
   coverImageAltEn: '',
   coverImageAltUk: '',
   coverImageCredit: '',
+  videoUrl: '',
   sourceUrl: '',
   sourceName: '',
   tagIds: [],
@@ -318,6 +322,8 @@ export function toCreatePostRequest(values: PostFormValues, timeZone: string): C
     ...(publishedAt ? { publishedAt } : {}),
     ...(coverImageUrl ? { coverImageUrl } : {}),
     ...(coverImageUrl && values.coverImageCredit ? { coverImageCredit: values.coverImageCredit } : {}),
+    // API збереже канонічне посилання (D54)
+    ...(values.videoUrl ? { videoUrl: values.videoUrl } : {}),
     // Назва джерела — лише з адресою (D26): форма не пропустить іншого, а API відповів би 400
     ...(values.sourceUrl ? { sourceUrl: values.sourceUrl } : {}),
     ...(values.sourceUrl && values.sourceName ? { sourceName: values.sourceName } : {}),

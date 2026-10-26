@@ -62,5 +62,5 @@ const clean = DOMPurify.sanitize(userContent);
 - ⭐ **Тест-сервер закритий:** Basic Auth + `noindex`; Swagger — лише за паролем; на проді Swagger вимкнений ([D31](../decisions/D31-test-environment.md)).
 - ⭐ **Текст новин — Markdown без сирого HTML** ([D25](../decisions/D25-markdown-content.md)) — `dangerouslySetInnerHTML` у проєкті заборонено.
 - ⭐ **Зовнішні URL, які API колись фетчитиме** (OG-превʼю, ресайз, імпорт) — лише після перевірки на приватні / локальні IP і без редиректів (вимога в `url-field.decorators.ts`).
-- ⭐ Перед продом — CSP для web, 2FA для адміна, закриття адмінки, аудит залежностей (M3.2).
+- ⭐ Перед продом — CSP для web, 2FA для адміна, закриття адмінки, аудит залежностей (M3.2). З M1.6.2 у web уже є `Content-Security-Policy: frame-src https://www.youtube-nocookie.com` (`next.config.ts`, [D54](../decisions/D54-post-video.md)): повна політика — розширення цього заголовка, а не новий.
 - ⭐ **Свіжі релізи npm — не раніше ніж через 7 днів** (2026-10-17, M1.3.2): `minimumReleaseAge: 10080` у `pnpm-workspace.yaml`, і для транзитивних залежностей — зламану версію зазвичай знімають з npm за години–дні. Терміновий патч безпеки — точна версія в `minimumReleaseAgeExclude`, через 7 днів рядок прибрати. Версії залежностей — діапазоном від конкретної версії (`^2.9.1`), не `latest`.

@@ -65,7 +65,7 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
         translations: [TRANSLATION_EN, TRANSLATION_UK],
         coverImageUrl: 'https://e2e.test/cover.jpg',
         coverImageCredit: 'Getty Images',
-        videoUrl: 'https://e2e.test/video',
+        videoUrl: 'https://www.youtube.com/shorts/aqz-KE-bpKQ',
         sourceUrl: 'https://e2e.test/source',
         sourceName: 'E2E Sport',
         tagIds: [tag.id],

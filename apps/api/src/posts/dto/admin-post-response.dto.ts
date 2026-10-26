@@ -62,7 +62,7 @@ export class AdminPostDetailDto {
   coverImageUrl!: string | null;
   /** Підпис автора фото обкладинки, без «Фото:»; `null` — немає */
   coverImageCredit!: string | null;
-  /** `null` — немає */
+  /** Відео YouTube — канонічне `https://www.youtube.com/watch?v={id}` (D54); `null` — немає */
   videoUrl!: string | null;
   /** Посилання на джерело (http або https); `null` — своя новина */
   sourceUrl!: string | null;

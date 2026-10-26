@@ -32,6 +32,7 @@ import {
   URL_MAX_LENGTH,
   utf8ByteLength,
 } from './index';
+import { parseYouTubeVideoId } from './youtube';
 
 // ─── Поля ───
 
@@ -68,7 +69,7 @@ export const commentContentSchema = z
   .min(COMMENT_MIN_LENGTH, `Comment must be at least ${COMMENT_MIN_LENGTH} characters`)
   .max(COMMENT_MAX_LENGTH, `Comment must be at most ${COMMENT_MAX_LENGTH} characters`);
 
-/** `coverImage` / `videoUrl` — лише https (як `@IsUrl` у DTO постів). */
+/** Адреса обкладинки — лише https (як `@IsMediaUrl()` у DTO постів). */
 export const mediaUrlSchema = z
   .string()
   .trim()
@@ -76,6 +77,19 @@ export const mediaUrlSchema = z
   .refine(
     (value) => hasAllowedProtocol(value, MEDIA_URL_PROTOCOLS),
     'Must be an https:// URL',
+  );
+
+/**
+ * Відео новини (D54) — посилання YouTube у звичних формах (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`), як
+ * `@IsYouTubeVideoUrl()` у DTO: перевіряє та сама функція. API збереже його канонічним.
+ */
+export const youtubeVideoUrlSchema = z
+  .string()
+  .trim()
+  .max(URL_MAX_LENGTH, `URL must be at most ${URL_MAX_LENGTH} characters`)
+  .refine(
+    (value) => parseYouTubeVideoId(value) !== null,
+    'Paste a YouTube video link: youtube.com/watch?v=…, youtu.be/…, youtube.com/shorts/… or /embed/…',
   );
 
 /** Поля перекладу поста (форма адмінки). */

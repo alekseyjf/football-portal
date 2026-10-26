@@ -36,12 +36,21 @@
   },
   "news": {
     "loading": "Loading article…",
-    "loadError": "Failed to load post",
+    "loadError": "Could not load the article",
+    "retry": "Try again",
     "by": "By",
     "translationUnavailable": "Translation not available — showing the original ({language}).",
     "photoCredit": "Photo: {credit}",
     "source": "Source:",
-    "opensInNewTab": "(opens in a new tab)"
+    "opensInNewTab": "(opens in a new tab)",
+    "playVideo": "Play video: {title}",
+    "videoTitle": "Video: {title}",
+    "topics": "Topics",
+    "breadcrumbs": {
+      "label": "Breadcrumb",
+      "home": "Home",
+      "news": "News"
+    }
   },
   "newsFeed": {
     "title": "News",
