@@ -8,6 +8,7 @@ import type {
   LiveTouchResult,
   MatchDetail,
   MatchesInRange,
+  NextKickoff,
 } from '@/lib/api/types';
 
 export const footballKeys = {
@@ -20,6 +21,7 @@ export const footballKeys = {
   /** `leagueSlug: null` — усі активні турніри */
   matchesInRange: (from: string, to: string, leagueSlug: string | null) =>
     ['football', 'matches-in-range', from, to, leagueSlug] as const,
+  nextKickoff: (from: string) => ['football', 'next-kickoff', from] as const,
 };
 
 /** Активні турніри для перемикача: змінюються лише з адмінки / синку — кеш довший. */
@@ -82,6 +84,21 @@ export function matchesInRangeQueryOptions(
     queryFn: () =>
       apiGet<MatchesInRange>(`/football/matches?${searchParams}`),
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Коли найближчий запланований матч від `from` (кінець сьогоднішнього дня в поясі читача) — «Найближчі матчі»
+ * головної, коли сьогодні матчів немає (D55).
+ */
+export function nextKickoffQueryOptions(from: string) {
+  return queryOptions({
+    queryKey: footballKeys.nextKickoff(from),
+    queryFn: () =>
+      apiGet<NextKickoff>(
+        `/football/matches/next-kickoff?${new URLSearchParams({ from })}`,
+      ),
+    staleTime: 5 * 60_000,
   });
 }
 

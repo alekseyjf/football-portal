@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { MatchStatus, type Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { pendingMatchWhere } from '../football-competition-status';
 import { IN_PLAY_MATCH_STATUSES } from '../football-match-status';
@@ -292,6 +292,23 @@ export class FootballRepository {
       orderBy: [{ kickoffAt: 'asc' }, { id: 'asc' }],
       take: maxRows,
     });
+  }
+
+  /**
+   * Початок найближчого запланованого матчу активних турнірів — від `from` включно (індекс `[kickoffAt]`): «Найближчі
+   * матчі» головної, коли сьогодні матчів немає (D55). `null` — попереду нічого.
+   */
+  async findNextKickoffAt(from: Date): Promise<Date | null> {
+    const nextMatch = await this.prisma.match.findFirst({
+      where: {
+        kickoffAt: { gte: from },
+        status: MatchStatus.SCHEDULED,
+        competition: { isActive: true },
+      },
+      select: { kickoffAt: true },
+      orderBy: [{ kickoffAt: 'asc' }, { id: 'asc' }],
+    });
+    return nextMatch?.kickoffAt ?? null;
   }
 
   findMatchById(id: string): Promise<MatchDetailRecord | null> {
