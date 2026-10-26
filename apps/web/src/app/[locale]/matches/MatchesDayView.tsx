@@ -9,7 +9,7 @@ import {
   leaguesQueryOptions,
   matchesInRangeQueryOptions,
 } from '@/hooks/useFootball';
-import { matchesRefetchInterval } from '@/lib/football/match-polling';
+import { useMatchesPolling } from '@/hooks/useMatchesPolling';
 import { groupMatchesByLeague } from '@/lib/football/matches-page';
 
 type Props = {
@@ -30,12 +30,12 @@ export function MatchesDayView({
   leagueSlug,
 }: Props) {
   const t = useTranslations('matches');
+  const matchesPolling = useMatchesPolling();
   const leagues = useQuery(leaguesQueryOptions());
   const matchesQuery = useQuery({
     ...matchesInRangeQueryOptions(from, to, leagueSlug),
-    // Те саме правило, що в стрічці головної (D55): у грі — 60 с, інакше — у момент найближчого початку
-    refetchInterval: (query) =>
-      matchesRefetchInterval(query.state.data?.matches ?? [], new Date()),
+    // Те саме правило, що в стрічці головної (D55): у грі — 60 с, інакше — після найближчого початку
+    ...matchesPolling,
   });
   const groups = groupMatchesByLeague(
     matchesQuery.data?.matches ?? [],

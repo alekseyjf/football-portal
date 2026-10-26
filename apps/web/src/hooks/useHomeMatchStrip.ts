@@ -7,12 +7,12 @@ import {
   matchStripDayOf,
   type MatchStripDay,
 } from '@/lib/football/home-match-strip';
-import { matchesRefetchInterval } from '@/lib/football/match-polling';
 import {
   leaguesQueryOptions,
   matchesInRangeQueryOptions,
   nextKickoffQueryOptions,
 } from './useFootball';
+import { useMatchesPolling } from './useMatchesPolling';
 
 export type HomeMatchStripState =
   | { status: 'loading' }
@@ -44,7 +44,7 @@ function pendingStep(query: StepQuery): HomeMatchStripState | null {
 }
 
 /**
- * Стрічка матчів головної (D55): матчі сьогодні в поясі читача (їх перечитує `matchesRefetchInterval`); сьогодні
+ * Стрічка матчів головної (D55): матчі сьогодні в поясі читача (їх перечитує `useMatchesPolling`); сьогодні
  * порожньо — день найближчого матчу (`GET /football/matches/next-kickoff`) і матчі цього дня; немає й таких — `none`.
  * Дані — з кешу, який наповнив сервер (ті самі ключі); чого немає — клієнт вантажить сам.
  *
@@ -52,11 +52,11 @@ function pendingStep(query: StepQuery): HomeMatchStripState | null {
  */
 export function useHomeMatchStrip(today: MatchStripDay): HomeMatchStripState {
   const timeZone = useTimeZone() ?? DEFAULT_TIME_ZONE;
+  const matchesPolling = useMatchesPolling();
   const leagues = useQuery(leaguesQueryOptions());
   const todayQuery = useQuery({
     ...matchesInRangeQueryOptions(today.from, today.to, null),
-    refetchInterval: (query) =>
-      matchesRefetchInterval(query.state.data?.matches ?? [], new Date()),
+    ...matchesPolling,
   });
   const todayMatches = todayQuery.data?.matches;
   const isTodayEmpty = todayMatches?.length === 0;
