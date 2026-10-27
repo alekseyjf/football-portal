@@ -8,7 +8,10 @@ export const RATE_LIMIT_EVENT_RETENTION_MS = 24 * HOUR_MS;
 /** Прострочені `AuthSession` тримаємо ще тиждень (розбір інцидентів), потім cron видаляє. */
 export const EXPIRED_SESSION_RETENTION_MS = 7 * 24 * HOUR_MS;
 
-/** Друга невідкликана санкція того самого типу → блок акаунта (P2-11). */
+/** Strike рахується, лише якщо санкцію видано за останні 30 днів (D37): давній «вибух» не блокує. */
+export const ABUSE_STRIKE_WINDOW_MS = 30 * 24 * HOUR_MS;
+
+/** Друга невідкликана санкція того самого типу за `ABUSE_STRIKE_WINDOW_MS` → блок акаунта (P2-11, D37). */
 export const ABUSE_STRIKES_LOCK_ACCOUNT = 2;
 
 export const ACCOUNT_LOCKED_CODE = 'ACCOUNT_LOCKED';
