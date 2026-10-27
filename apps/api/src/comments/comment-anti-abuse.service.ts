@@ -17,7 +17,7 @@ export class CommentAntiAbuseService {
   }
 
   /**
-   * Реєструє спробу коментаря (з неї ж рахується cooldown); burst → 24h бан, повторний strike → блок акаунта.
+   * Реєструє спробу коментаря (з неї ж рахується cooldown); burst → 24h бан, повторний strike за 30 днів → блок акаунта.
    */
   async recordCommentAttemptAndEnforceBurstOrThrow(
     userId: string,

@@ -90,7 +90,7 @@ All routes prefixed with `/api/v1/`. Swagger UI — `/api/docs` (JSON — `/api/
 - Files: `management/user.controller.ts`, `management/user.service.ts`, `user.repository.ts`, `deleted-account.ts`, `public-author.ts` (`PublicAuthor { id, name, avatarUrl, isDeleted }`)
 
 ### Security — `src/security/`
-- Анти-абуз коментарів / лайків (`abuse-protection.service.ts`): cooldown коментарів 60 с (`COMMENT_COOLDOWN_MS`), burst 5 за 5 с → санкція на дію 24 год, повторний strike → `LOCKED` + відкликання сесій (`account-moderation.service.ts`)
+- Анти-абуз коментарів / лайків (`abuse-protection.service.ts`): cooldown коментарів 60 с (`COMMENT_COOLDOWN_MS`), burst 5 за 5 с → санкція на дію 24 год, повторний strike за 30 днів (D37) → `LOCKED` + відкликання сесій (`account-moderation.service.ts`)
 - `throttling/request-throttling.ts` — ліміти на IP / акаунт лише на окремих роутах (login, register, refresh, `DELETE /users/me`, `live-touch`); сховище — пам'ять процесу
 - `email-blocklist/`, `security-cleanup.cron.ts` (щогодини: прострочені `AuthSession` > 7 д, `RateLimitEvent` > 24 год, `BlockedEmail`)
 

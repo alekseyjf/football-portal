@@ -10,6 +10,7 @@ import { envConfig } from '../config/env.config';
 import type { AppEnv } from '../config/env.schema';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ABUSE_STRIKE_WINDOW_MS,
   ABUSE_STRIKES_LOCK_ACCOUNT,
   ACCOUNT_LOCKED_CODE,
   getRateLimitPolicy,
@@ -77,7 +78,7 @@ export class AbuseProtectionService {
 
   /**
    * Записати спробу; `burstThreshold` подій у вікні → санкція (403).
-   * Друга невідкликана санкція типу → блок акаунта (403 `ACCOUNT_LOCKED`).
+   * Друга невідкликана санкція типу за 30 днів → блок акаунта (403 `ACCOUNT_LOCKED`, D37).
    * Події після санкції не видаляємо — з них рахується cooldown (P2-11).
    */
   async recordActionAndEnforceBurst(
@@ -128,9 +129,10 @@ export class AbuseProtectionService {
     );
     if (alreadySuspended) return 'SUSPENDED';
 
-    const previousStrikes = await this.sanctionRepository.countStrikes(
+    const previousStrikes = await this.sanctionRepository.countStrikesSince(
       userId,
       policy.sanctionType,
+      new Date(issuedAt.getTime() - ABUSE_STRIKE_WINDOW_MS),
       tx,
     );
     await this.sanctionRepository.create(

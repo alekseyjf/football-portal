@@ -25,7 +25,7 @@
 | [D24](D24-news-url-slug-number.md) | URL новини `{slug}-{номер}`: новину визначає номер, slug один на всі мови | M1.4.1 ✅, M1.5.1 ✅ |
 | [D25](D25-markdown-content.md) | Текст новин у Markdown: API зберігає як є, рендер і правила безпеки — у спільному рендерері | M1.4.3 ✅, M1.5.1 ✅, M1.6 |
 | [D26](D26-post-sources.md) | Джерело новини — одне на пост (адреса й назва); кілька — таблиця `PostSource`, відкладено | M1.4.5 ✅, M1.5.1 ✅ |
-| [D27](D27-youtube-style-comments.md) | Коментарі як на YouTube | M1.7 |
+| [D27](D27-youtube-style-comments.md) | Коментарі як на YouTube: один рівень (`parentId = rootId`, адресат — `replyToUserId` / `replyToCommentId`), тестові коментарі видаляємо замість «сплющення»; корінь з відповідями після видалення — заглушка; порції курсором — «Популярні» (лайки ↓ → новіші) / «Нові», лайки з порцією; редагування 15 хв | M1.7.2–M1.7.4 |
 | [D28](D28-openapi-contract.md) | OpenAPI (Swagger) як джерело правди контракту; типи web / admin — з нього | M1.3.4–M1.3.5 ✅ |
 | [D29](D29-strict-typescript-api.md) | Суворий TypeScript в API | M1.3 |
 | [D30](D30-testing-and-local-env.md) | Тести й середовище: без Docker локально | M1.3, M1.10 |
@@ -35,7 +35,7 @@
 | [D34](D34-seo-multilingual.md) | SEO багатомовного сайту | M1.8 |
 | [D35](D35-caching-measure-first.md) | Кеш: спершу вимірювання | M2.12 |
 | [D36](D36-sync-operations.md) | Синк: прапорець cron, пропуск завершених турнірів | M1.11 |
-| [D37](D37-anti-abuse-strike-window.md) | Strike-и за 30 днів, розблокування адміном | M1.7, M2.6 |
+| [D37](D37-anti-abuse-strike-window.md) | Strike-и за 30 днів, розблокування адміном | M1.7.1 ✅, M2.6 |
 | [D38](D38-news-list-load-more.md) | «Завантажити ще» з посиланнями | M1.6 |
 | [D39](D39-milestones-and-dod.md) | Віхи й Definition of Done | — |
 | [D40](D40-development-process.md) | Процес розробки | — |

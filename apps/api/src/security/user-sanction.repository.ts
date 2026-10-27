@@ -52,14 +52,18 @@ export class UserSanctionRepository {
     return activeSanction !== null;
   }
 
-  /** Strikes = невідкликані санкції типу за весь час, у т.ч. прострочені (P2-11). */
-  countStrikes(
+  /**
+   * Strikes = невідкликані санкції типу, що почались від `since` (вікно D37), у т.ч. прострочені;
+   * відкликана адміном — не strike (P2-11).
+   */
+  countStrikesSince(
     userId: string,
     type: SanctionType,
+    since: Date,
     db: Prisma.TransactionClient = this.prisma,
   ): Promise<number> {
     return db.userSanction.count({
-      where: { userId, type, revokedAt: null },
+      where: { userId, type, revokedAt: null, startsAt: { gte: since } },
     });
   }
 

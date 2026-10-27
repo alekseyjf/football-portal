@@ -16,7 +16,7 @@ export class LikeAntiAbuseService {
   }
 
   /**
-   * Реєструє спробу лайку; burst у вікні → 24h бан на лайки, повторний strike → блок акаунта.
+   * Реєструє спробу лайку; burst у вікні → 24h бан на лайки, повторний strike за 30 днів → блок акаунта.
    */
   async recordLikeAttemptAndEnforceBurstOrThrow(
     userId: string,
