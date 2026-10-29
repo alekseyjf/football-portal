@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role, type Prisma } from '@prisma/client';
+import { Role } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import {
   isForeignKeyViolation,
@@ -14,43 +14,31 @@ import {
 } from '../prisma/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommentAntiAbuseService } from './comment-anti-abuse.service';
-import { toPublicComment } from './comment-response';
-import { collectCommentSubtree } from './comment-subtree';
-import { MAX_COMMENT_THREAD_DEPTH } from './comment-thread.constants';
+import { COMMENT_THREAD_CHANGED } from './comment-errors';
+import { toCommentItem } from './comment-response';
+import { readCommentTargetRef, type CommentTargetRef } from './comment-target';
 import {
   CommentThreadRepository,
-  type CommentTargetState,
   type ThreadState,
 } from './comment-thread.repository';
-import { buildCommentTreeFromFlat } from './comment-thread.util';
 import {
   CommentRepository,
   type CommentModerationRow,
-  type LockedComment,
+  type NewCommentRow,
 } from './comment.repository';
 import type {
-  CommentDto,
-  PurgedCommentDto,
+  CommentItemDto,
   SoftDeletedCommentDto,
 } from './dto/comment-response.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
-type CommentTargetRef =
-  | { kind: 'post'; postId: string }
-  | { kind: 'match'; matchId: string };
-
 type CommentTarget = CommentTargetRef & { thread: ThreadState | null };
 
-/** Положення нової відповіді в гілці (P4-2). */
+/** Відповідь у гілці (D27): тред батька й корінь з адресатом. */
 type ReplyPlacement = {
-  parentId: string;
   threadId: string;
-  rootId: string;
-  depth: number;
+  branch: NonNullable<NewCommentRow['branch']>;
 };
-
-/** Транзакцію відкочено через паралельний запис у тому ж піддереві — повтор безпечний. */
-const COMMENT_THREAD_CHANGED = 'COMMENT_THREAD_CHANGED';
 
 /**
  * Спроби транзакції створення: другий шанс — якщо тред щойно створив паралельний перший
@@ -60,20 +48,11 @@ const COMMENT_THREAD_CHANGED = 'COMMENT_THREAD_CHANGED';
 const INSERT_COMMENT_ATTEMPTS = 2;
 
 /**
- * Рівно одна ціль (P4-1). `null` = не передано: `@IsOptional` пропускає `null` без валідації
- * (так само, як `publishedAt: null` у постах).
+ * Один рівень, як на YouTube (D27): відповідь — завжди під коренем гілки. Відповідь на корінь — без адресата;
+ * на відповідь (і від старого клієнта з деревом) — у ту саму гілку, з відповіддю й автором, кому відповіли.
+ * Батько — живий і в треді цілі (P4-2).
  */
-function readTargetRef(dto: CreateCommentDto): CommentTargetRef {
-  const postId = dto.postId ?? null;
-  const matchId = dto.matchId ?? null;
-  if (postId !== null && matchId === null) return { kind: 'post', postId };
-  if (matchId !== null && postId === null) return { kind: 'match', matchId };
-  throw new BadRequestException('COMMENT_TARGET_INVALID');
-}
-
-/** Батько — живий і в треді цілі; глибина — з батька (P4-2). */
 function placeReply(
-  parentId: string,
   parent: CommentModerationRow | null,
   targetThread: ThreadState | null,
 ): ReplyPlacement {
@@ -84,15 +63,23 @@ function placeReply(
   if (parent.threadId !== targetThread?.id) {
     throw new BadRequestException('PARENT_COMMENT_MISMATCH');
   }
-  const depth = parent.depth + 1;
-  if (depth > MAX_COMMENT_THREAD_DEPTH) {
-    throw new BadRequestException('COMMENT_DEPTH_EXCEEDED');
+  if (parent.rootId === null) {
+    return {
+      threadId: parent.threadId,
+      branch: {
+        rootId: parent.id,
+        replyToCommentId: null,
+        replyToUserId: null,
+      },
+    };
   }
   return {
-    parentId,
     threadId: parent.threadId,
-    rootId: parent.rootId ?? parent.id,
-    depth,
+    branch: {
+      rootId: parent.rootId,
+      replyToCommentId: parent.id,
+      replyToUserId: parent.authorId,
+    },
   };
 }
 
@@ -103,6 +90,7 @@ function isInsertRetryable(error: unknown): boolean {
   );
 }
 
+/** Запис коментарів: створення й видалення автором або адміном. */
 @Injectable()
 export class CommentService {
   constructor(
@@ -112,28 +100,12 @@ export class CommentService {
     private prisma: PrismaService,
   ) {}
 
-  /** Неживий пост → 404 (P4-1); живий без жодного коментаря → `[]`. */
-  async getCommentsByPost(postId: string): Promise<CommentDto[]> {
-    const target = await this.threadRepository.findLivePostTarget(
-      postId,
-      new Date(),
-    );
-    if (!target) throw new NotFoundException('POST_NOT_FOUND');
-    return this.buildThreadTree(target);
-  }
-
-  async getCommentsByMatch(matchId: string): Promise<CommentDto[]> {
-    const target = await this.threadRepository.findMatchTarget(matchId);
-    if (!target) throw new NotFoundException('MATCH_NOT_FOUND');
-    return this.buildThreadTree(target);
-  }
-
   async createComment(
     dto: CreateCommentDto,
     user: AuthenticatedUser,
-  ): Promise<CommentDto> {
+  ): Promise<CommentItemDto> {
     const isAdmin = user.role === Role.ADMIN;
-    const targetRef = readTargetRef(dto);
+    const targetRef = readCommentTargetRef(dto);
     const parentId = dto.parentId ?? null;
     // Ціль і батько — незалежні читання
     const [target, parent] = await Promise.all([
@@ -146,7 +118,7 @@ export class CommentService {
     if (target.thread?.isLocked && !isAdmin) {
       throw new ForbiddenException('COMMENT_THREAD_LOCKED');
     }
-    const reply = parentId ? placeReply(parentId, parent, target.thread) : null;
+    const reply = parentId ? placeReply(parent, target.thread) : null;
 
     await this.commentAntiAbuse.assertCanCommentOrThrow(user.id, isAdmin);
     await this.commentAntiAbuse.recordCommentAttemptAndEnforceBurstOrThrow(
@@ -161,6 +133,10 @@ export class CommentService {
         if (attempt < INSERT_COMMENT_ATTEMPTS && isInsertRetryable(error)) {
           continue;
         }
+        // Відповідь, кому відповіли, purge-нули між читанням батька і вставкою (FK `replyToCommentId`)
+        if (reply && isForeignKeyViolation(error)) {
+          throw new NotFoundException('PARENT_COMMENT_NOT_FOUND');
+        }
         if (isTransientTransactionError(error)) {
           throw new ConflictException(COMMENT_THREAD_CHANGED);
         }
@@ -169,7 +145,10 @@ export class CommentService {
     }
   }
 
-  /** Soft delete коментаря разом з усією гілкою відповідей під ним (P4-5). */
+  /**
+   * Soft delete (D27): відповідь — зникає, інші відповіді гілки лишаються; корінь з живими відповідями стає
+   * заглушкою (похідний стан — `listedRootWhere`), без відповідей — зникає.
+   */
   async deleteComment(
     id: string,
     user: AuthenticatedUser,
@@ -184,115 +163,27 @@ export class CommentService {
     }
 
     try {
-      const deletedCount = await this.prisma.$transaction(async (tx) => {
-        // Батько блокується першим (UPDATE), ціль — другою: той самий порядок, що в create / purge
-        if (comment.parentId) {
-          await this.commentRepository.changeReplyCount(
-            tx,
-            comment.parentId,
-            -1,
-          );
+      await this.prisma.$transaction(async (tx) => {
+        // Корінь гілки блокується першим (UPDATE), ціль — другою: той самий порядок, що в create / purge
+        if (comment.rootId) {
+          await this.commentRepository.changeReplyCount(tx, comment.rootId, -1);
         }
-        const deletedAt = new Date();
         const isTargetDeleted = await this.commentRepository.softDeleteIfLive(
           tx,
           id,
-          deletedAt,
+          new Date(),
         );
-        // Паралельний delete / purge встиг першим — декремент батька відкочується
+        // Паралельний delete / purge встиг першим — декремент кореня відкочується
         if (!isTargetDeleted) throw new NotFoundException('COMMENT_NOT_FOUND');
-
-        // По рівнях: відповідь, закомічена до нашого UPDATE рівня, потрапить у наступний
-        let deletedTotal = 1;
-        let levelIds = [id];
-        while (levelIds.length > 0) {
-          levelIds = await this.commentRepository.softDeleteLiveRepliesOf(
-            tx,
-            levelIds,
-            deletedAt,
-          );
-          deletedTotal += levelIds.length;
-        }
-
         await this.threadRepository.changeCommentCount(
           tx,
           comment.threadId,
-          -deletedTotal,
+          -1,
         );
-        return deletedTotal;
       });
-      return { id, deletedCount };
+      return { id };
     } catch (error) {
       if (isTransientTransactionError(error)) {
-        throw new ConflictException(COMMENT_THREAD_CHANGED);
-      }
-      throw error;
-    }
-  }
-
-  /** ADMIN: фізичне видалення коментаря без жодної відповіді (P4-6, розділ 7.5.2). */
-  async purgeComment(id: string): Promise<PurgedCommentDto> {
-    const comment = await this.findForPurgeOrThrow(id);
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        const { lockedTarget } = await this.lockForPurge(tx, comment, [id]);
-        const isPurged = await this.commentRepository.purgeIfNoReplies(tx, id);
-        if (!isPurged) throw new ConflictException('COMMENT_HAS_REPLIES');
-        const wasTargetLive = lockedTarget.deletedAt === null;
-        await this.decrementCountersAfterPurge(tx, comment, {
-          wasTargetLive,
-          purgedLiveCount: wasTargetLive ? 1 : 0,
-        });
-      });
-    } catch (error) {
-      // Відповідь з'явилась між перевіркою і DELETE → FK
-      if (isForeignKeyViolation(error)) {
-        throw new ConflictException('COMMENT_HAS_REPLIES');
-      }
-      if (isTransientTransactionError(error)) {
-        throw new ConflictException(COMMENT_THREAD_CHANGED);
-      }
-      throw error;
-    }
-    return { id, purgedCount: 1 };
-  }
-
-  /** ADMIN: фізичне видалення коментаря з усім піддеревом відповідей (P4-7). */
-  async purgeCommentThread(id: string): Promise<PurgedCommentDto> {
-    const comment = await this.findForPurgeOrThrow(id);
-    try {
-      const purgedCount = await this.prisma.$transaction(async (tx) => {
-        const branch = await this.commentRepository.findBranch(
-          tx,
-          comment.rootId ?? comment.id,
-        );
-        const subtree = collectCommentSubtree(branch, id);
-        if (!subtree) throw new NotFoundException('COMMENT_NOT_FOUND');
-        const { lockedTarget, lockedComments } = await this.lockForPurge(
-          tx,
-          comment,
-          subtree.commentIds,
-        );
-
-        // Найглибші першими: на момент видалення батька його дітей уже немає (Restrict)
-        let purgedTotal = 0;
-        for (const levelIds of subtree.levelsDeepestFirst) {
-          purgedTotal += await this.commentRepository.purgeByIds(tx, levelIds);
-        }
-        // Живість — зі стану під блокуванням, а не з читання гілки: паралельний soft delete
-        // нащадка міг закомітитися між ними й уже відняв свої рядки (інакше — подвійний декремент)
-        await this.decrementCountersAfterPurge(tx, comment, {
-          wasTargetLive: lockedTarget.deletedAt === null,
-          purgedLiveCount: lockedComments.filter(
-            (locked) => locked.deletedAt === null,
-          ).length,
-        });
-        return purgedTotal;
-      });
-      return { id, purgedCount };
-    } catch (error) {
-      // Нова відповідь у піддереві (FK) або deadlock — стан змінився, адмін повторює
-      if (isForeignKeyViolation(error) || isTransientTransactionError(error)) {
         throw new ConflictException(COMMENT_THREAD_CHANGED);
       }
       throw error;
@@ -305,19 +196,19 @@ export class CommentService {
     user: AuthenticatedUser,
     target: CommentTarget,
     reply: ReplyPlacement | null,
-  ): Promise<CommentDto> {
+  ): Promise<CommentItemDto> {
     const isAdmin = user.role === Role.ADMIN;
-    // Порядок блокувань — батько → тред, як і в delete: без deadlock-ів між ними
+    // Порядок блокувань — корінь → тред, як і в delete: без deadlock-ів між ними
     return this.prisma.$transaction(async (tx) => {
       let threadId: string;
       if (reply) {
-        const isParentLive =
-          await this.commentRepository.incrementReplyCountIfLive(
+        const isBranchOpen =
+          await this.commentRepository.incrementReplyCountIfBranchOpen(
             tx,
-            reply.parentId,
+            reply.branch.rootId,
             reply.threadId,
           );
-        if (!isParentLive) {
+        if (!isBranchOpen) {
           throw new NotFoundException('PARENT_COMMENT_NOT_FOUND');
         }
         threadId = reply.threadId;
@@ -336,9 +227,7 @@ export class CommentService {
         threadId,
         authorId: user.id,
         content,
-        parentId: reply?.parentId ?? null,
-        rootId: reply?.rootId ?? null,
-        depth: reply?.depth ?? 0,
+        branch: reply?.branch ?? null,
       });
       const threadAfter = await this.threadRepository.changeCommentCount(
         tx,
@@ -349,18 +238,9 @@ export class CommentService {
       if (threadAfter.isLocked && !isAdmin) {
         throw new ForbiddenException('COMMENT_THREAD_LOCKED');
       }
-      return { ...toPublicComment(createdComment), replies: [] };
+      // Щойно створений — ще без голосів
+      return toCommentItem(createdComment, null);
     });
-  }
-
-  private async buildThreadTree(
-    target: CommentTargetState,
-  ): Promise<CommentDto[]> {
-    if (!target.thread) return [];
-    const comments = await this.commentRepository.findLiveInThread(
-      target.thread.id,
-    );
-    return buildCommentTreeFromFlat(comments.map(toPublicComment));
   }
 
   /** Пост — живий, матч — існує (P4-1). */
@@ -380,53 +260,5 @@ export class CommentService {
     );
     if (!state) throw new NotFoundException('MATCH_NOT_FOUND');
     return { ...targetRef, thread: state.thread };
-  }
-
-  /** Purge дозволений і для вже soft-видаленого коментаря. */
-  private async findForPurgeOrThrow(id: string): Promise<CommentModerationRow> {
-    const comment = await this.commentRepository.findForModeration(id);
-    if (!comment) throw new NotFoundException('COMMENT_NOT_FOUND');
-    return comment;
-  }
-
-  /**
-   * Блокує батька, потім ціль з піддеревом (від предків до нащадків) — той самий порядок,
-   * що в soft delete, тож паралельні delete / purge однієї гілки не зациклюються.
-   * Повертає стан рядків під блокуванням.
-   */
-  private async lockForPurge(
-    tx: Prisma.TransactionClient,
-    comment: CommentModerationRow,
-    commentIds: string[],
-  ): Promise<{ lockedTarget: LockedComment; lockedComments: LockedComment[] }> {
-    if (comment.parentId) {
-      await this.commentRepository.lockForWrite(tx, [comment.parentId]);
-    }
-    const lockedComments = await this.commentRepository.lockForWrite(
-      tx,
-      commentIds,
-    );
-    const lockedTarget = lockedComments.find(
-      (locked) => locked.id === comment.id,
-    );
-    if (!lockedTarget) throw new NotFoundException('COMMENT_NOT_FOUND');
-    return { lockedTarget, lockedComments };
-  }
-
-  private async decrementCountersAfterPurge(
-    tx: Prisma.TransactionClient,
-    comment: CommentModerationRow,
-    purged: { wasTargetLive: boolean; purgedLiveCount: number },
-  ): Promise<void> {
-    if (purged.purgedLiveCount > 0) {
-      await this.threadRepository.changeCommentCount(
-        tx,
-        comment.threadId,
-        -purged.purgedLiveCount,
-      );
-    }
-    if (purged.wasTargetLive && comment.parentId) {
-      await this.commentRepository.changeReplyCount(tx, comment.parentId, -1);
-    }
   }
 }

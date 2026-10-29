@@ -33,6 +33,8 @@ export const DISPLAY_NAME_MAX_LENGTH = 50;
 /** Текст коментаря — після trim. */
 export const COMMENT_MIN_LENGTH = 2;
 export const COMMENT_MAX_LENGTH = 2000;
+/** Порція коментарів (`GET /comments?limit=`, `…/replies?limit=`, D27): сайт бере 20 коренів і 10 відповідей. */
+export const COMMENTS_PAGE_LIMIT_MAX = 50;
 
 /** Адреса обкладинки поста (`coverImageUrl`): лише https. Відео — лише YouTube (`parseYouTubeVideoId`, D54). */
 export const MEDIA_URL_PROTOCOLS = ['https'];

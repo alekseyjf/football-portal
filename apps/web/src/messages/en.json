@@ -185,8 +185,7 @@
     "deleteConfirm": "Delete this comment?",
     "deleteConfirmWithReplies": "Delete this comment and its {count, plural, one {# reply} other {# replies}}? The whole thread below it will be hidden.",
     "threadLocked": "This discussion is closed to new comments.",
-    "parentDeleted": "The comment you are replying to has been deleted.",
-    "depthExceeded": "Maximum reply depth reached."
+    "parentDeleted": "The comment you are replying to has been deleted."
   },
   "auth": {
     "email": "Email",

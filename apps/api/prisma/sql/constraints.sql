@@ -13,6 +13,22 @@ ALTER TABLE "CommentThread"
   ADD CONSTRAINT "CommentThread_single_target_check"
   CHECK (num_nonnulls("postId", "matchId") = 1);
 
+-- Comment: один рівень, як на YouTube (D27). Корінь — без батька, кореня й адресата, глибина 0; відповідь — під
+-- коренем гілки (`parentId = rootId`), глибина 1. `IS NOT NULL` — бо CHECK з NULL-результатом проходить.
+-- Те саме — у міграції 0012
+ALTER TABLE "Comment"
+  ADD CONSTRAINT "Comment_single_level_check"
+  CHECK (
+    CASE WHEN "parentId" IS NULL
+      THEN "rootId" IS NULL AND "depth" = 0 AND "replyToCommentId" IS NULL AND "replyToUserId" IS NULL
+      ELSE "rootId" IS NOT NULL AND "rootId" = "parentId" AND "depth" = 1
+    END
+  );
+
+-- Comment: порція коренів треду, нові першими (D27) — лише корені. Те саме — у міграції 0012, тож `IF NOT EXISTS`
+CREATE INDEX IF NOT EXISTS "Comment_thread_roots_newest_idx"
+  ON "Comment" ("threadId", "createdAt" DESC, "id" DESC) WHERE "parentId" IS NULL;
+
 -- Match: різні клуби
 ALTER TABLE "Match"
   ADD CONSTRAINT "Match_distinct_clubs_check"

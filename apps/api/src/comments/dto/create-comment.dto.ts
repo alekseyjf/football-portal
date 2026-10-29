@@ -12,7 +12,7 @@ import {
 import { TrimString } from '../../common/validation/trim-string.transform';
 
 /** cuid — 25 символів; межа лише від сміття в запиті, існування перевіряє сервіс. */
-const COMMENT_REF_MAX_LENGTH = 64;
+export const COMMENT_REF_MAX_LENGTH = 64;
 
 export class CreateCommentDto {
   /** Текст коментаря; пробіли по краях обрізаються */
@@ -39,7 +39,7 @@ export class CreateCommentDto {
   @MaxLength(COMMENT_REF_MAX_LENGTH)
   matchId?: string | null;
 
-  /** Коментар, на який це відповідь (з того самого треду) */
+  /** Коментар, на який це відповідь (з того самого треду). Відповідь на відповідь API пише в корінь її гілки й запам'ятовує, кому відповіли (`replyTo`) */
   @IsOptional()
   @IsString()
   @IsNotEmpty()

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { livePostWhere } from '../posts/post-visibility';
+import {
+  livePostWhere,
+  publicPostWhere,
+  type PublicPostScope,
+} from '../posts/post-visibility';
 import { PrismaService } from '../prisma/prisma.service';
 
 const THREAD_SELECT = {
@@ -26,6 +30,18 @@ export class CommentThreadRepository {
   ): Promise<CommentTargetState | null> {
     const post = await this.prisma.post.findFirst({
       where: { id: postId, ...livePostWhere(now) },
+      select: { commentThread: { select: THREAD_SELECT } },
+    });
+    return post ? { thread: post.commentThread } : null;
+  }
+
+  /** Порції коментарів (D27): пост — як у стрічці й новині, з перекладом default-мови (P3-5). */
+  async findPublicPostTarget(
+    postId: string,
+    scope: PublicPostScope,
+  ): Promise<CommentTargetState | null> {
+    const post = await this.prisma.post.findFirst({
+      where: { id: postId, ...publicPostWhere(scope) },
       select: { commentThread: { select: THREAD_SELECT } },
     });
     return post ? { thread: post.commentThread } : null;
