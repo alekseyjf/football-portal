@@ -17,8 +17,6 @@ export function useCommentErrorMessage() {
         return t('threadLocked');
       case 'PARENT_COMMENT_NOT_FOUND':
         return t('parentDeleted');
-      case 'COMMENT_DEPTH_EXCEEDED':
-        return t('depthExceeded');
       default:
         return null;
     }

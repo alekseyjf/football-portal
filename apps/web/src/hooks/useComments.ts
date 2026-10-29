@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiDelete } from '@/lib/api/http';
 import type {
   Comment,
+  CommentItem,
   CreateCommentRequest,
   SoftDeletedComment,
 } from '@/lib/api/types';
@@ -24,7 +25,7 @@ export function useCreateComment(postId: string) {
 
   return useMutation({
     mutationFn: (data: CreateCommentRequest) =>
-      apiPost<Comment>('/comments', data),
+      apiPost<CommentItem>('/comments', data),
     onSuccess: () => {
       // Інвалідуємо кеш — TanStack автоматично рефетчить коментарі
       queryClient.invalidateQueries({ queryKey: commentsQueryKey(postId) });
@@ -32,7 +33,7 @@ export function useCreateComment(postId: string) {
   });
 }
 
-// Видалити коментар (API ховає й усю гілку відповідей під ним)
+// Видалити коментар (відповіді кореня API лишає під заглушкою, D27)
 export function useDeleteComment(postId: string) {
   const queryClient = useQueryClient();
 

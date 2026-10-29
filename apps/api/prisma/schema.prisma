@@ -154,7 +154,8 @@ model User {
   rateLimitEvents    RateLimitEvent[]
   posts              Post[]                 @relation("PostAuthor")
   pinnedPosts        Post[]                 @relation("PostPinnedBy")
-  comments           Comment[]
+  comments           Comment[]              @relation("CommentAuthor")
+  repliedToComments  Comment[]              @relation("CommentReplyToUser")
   postLikes          PostLike[]
   commentLikes       CommentLike[]
   matchLikes         MatchLike[]
@@ -399,16 +400,22 @@ model CommentThread {
   comments Comment[]
 }
 
+/// Один рівень, як на YouTube (D27): корінь + відповіді під ним; CHECK «відповідь — лише першого рівня» — у SQL.
 model Comment {
-  id           String    @id @default(cuid())
-  threadId     String
-  authorId     String
-  /// Безпосередній батько (на кого відповіли)
-  parentId     String?
+  id               String    @id @default(cuid())
+  threadId         String
+  authorId         String
+  /// Корінь гілки, під яким відповідь; null — сам корінь. Завжди = rootId (D27)
+  parentId         String?
   /// Кореневий коментар гілки; null — якщо сам корінь
-  rootId       String?
-  depth        Int       @default(0)
-  content      String
+  rootId           String?
+  /// 0 — корінь, 1 — відповідь
+  depth            Int       @default(0)
+  /// Відповідь на відповідь (D27): на яку саме; null — відповідь на корінь або її purge-нули
+  replyToCommentId String?
+  /// Автор відповіді, якій відповіли («@Ім'я» сайт бере з профілю); null — як replyToCommentId
+  replyToUserId    String?
+  content          String
   replyCount   Int       @default(0)
   likeCount    Int       @default(0)
   dislikeCount Int       @default(0)
@@ -418,18 +425,27 @@ model Comment {
   updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt    DateTime? @db.Timestamptz(3)
 
-  thread      CommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  author      User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  parent      Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Restrict)
-  replies     Comment[]     @relation("CommentReplies")
-  root        Comment?      @relation("CommentRoot", fields: [rootId], references: [id], onDelete: Restrict)
-  descendants Comment[]     @relation("CommentRoot")
-  likes       CommentLike[]
+  thread         CommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author         User          @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  parent         Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Restrict)
+  replies        Comment[]     @relation("CommentReplies")
+  root           Comment?      @relation("CommentRoot", fields: [rootId], references: [id], onDelete: Restrict)
+  descendants    Comment[]     @relation("CommentRoot")
+  replyToComment Comment?      @relation("CommentReplyTo", fields: [replyToCommentId], references: [id], onDelete: SetNull)
+  repliedBy      Comment[]     @relation("CommentReplyTo")
+  replyToUser    User?         @relation("CommentReplyToUser", fields: [replyToUserId], references: [id], onDelete: SetNull)
+  likes          CommentLike[]
 
-  @@index([threadId, parentId, createdAt])
+  // Корені треду, нові першими, — частковий індекс "Comment_thread_roots_newest_idx" (лише корені) у міграції 0012
+  // і prisma/sql/constraints.sql: Prisma часткових індексів не знає
   @@index([threadId, pinnedAt])
-  @@index([rootId, createdAt])
+  // Відповіді гілки за порядком порцій: createdAt, id (D27)
+  @@index([rootId, createdAt, id])
   @@index([authorId, createdAt])
+  // FK, на які посилаються видалені purge рядки: без індексу кожен видалений рядок перевіряє всю таблицю
+  // (M1.7.2, замір: 20 відповідей на 657 тис. рядків — 3,3 с проти 5 000 — 0,34 с з індексами)
+  @@index([parentId])
+  @@index([replyToCommentId])
 }
 
 model PostLike {

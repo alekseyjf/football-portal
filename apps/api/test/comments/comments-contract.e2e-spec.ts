@@ -2,18 +2,17 @@ import { Role } from '@prisma/client';
 import request from 'supertest';
 import { apiPath, createE2eApp, type E2eApp } from '../support/e2e-app';
 import { createUser, loginAs } from '../support/e2e-auth';
+import { postComment } from '../support/e2e-comments';
 import { publishPost } from '../support/e2e-content';
 import { resetE2eData } from '../support/e2e-database';
 import { seedFootballLeague } from '../support/e2e-football';
 import { expectMatchesContract } from '../support/openapi-contract';
 
-interface CommentBody {
-  id: string;
-  replies: CommentBody[];
-}
-
-/** Відповіді коментарів — за `packages/types/openapi.json` (D28). */
-describe('Коментарі: відповіді за контрактом OpenAPI', () => {
+/**
+ * Старе дерево `GET /comments/post/{postId}` / `…/match/{matchId}` живе до M1.7.3 (D27): на даних з одного рівня
+ * воно дає два рівні, і поточний сайт працює. Відповіді — за `packages/types/openapi.json` (D28).
+ */
+describe('Коментарі: старе дерево й помилки за контрактом OpenAPI', () => {
   let e2e: E2eApp;
   let admin: request.Agent;
   let author: request.Agent;
@@ -22,18 +21,6 @@ describe('Коментарі: відповіді за контрактом OpenA
 
   function server() {
     return request(e2e.app.getHttpServer());
-  }
-
-  async function comment(
-    agent: request.Agent,
-    body: Record<string, string>,
-  ): Promise<CommentBody> {
-    const response = await agent
-      .post(apiPath('/comments'))
-      .send(body)
-      .expect(201);
-    expectMatchesContract(response, 'post', '/comments');
-    return response.body as CommentBody;
   }
 
   beforeAll(async () => {
@@ -47,12 +34,17 @@ describe('Коментарі: відповіді за контрактом OpenA
   });
   afterAll(() => e2e.close());
 
-  it('новина: дерево з відповіддю; видалення автором ховає гілку', async () => {
-    const root = await comment(author, { content: 'Great match!', postId });
-    const reply = await comment(admin, {
+  it('новина: відповідь на відповідь — у дереві на другому рівні; відповіді видаленого кореня — серед коренів', async () => {
+    const root = await postComment(author, { content: 'Great match!', postId });
+    const reply = await postComment(admin, {
       content: 'Agreed',
       postId,
       parentId: root.id,
+    });
+    const replyToReply = await postComment(author, {
+      content: 'Thanks',
+      postId,
+      parentId: reply.id,
     });
 
     const tree = await server()
@@ -60,19 +52,27 @@ describe('Коментарі: відповіді за контрактом OpenA
       .expect(200);
     expectMatchesContract(tree, 'get', '/comments/post/{postId}');
     expect(tree.body).toMatchObject([
-      { id: root.id, replies: [{ id: reply.id, replies: [] }] },
+      {
+        id: root.id,
+        replies: [
+          { id: reply.id, replies: [] },
+          { id: replyToReply.id, replies: [] },
+        ],
+      },
     ]);
 
-    const deleted = await author
-      .delete(apiPath(`/comments/${root.id}`))
+    await author.delete(apiPath(`/comments/${root.id}`)).expect(200);
+    const orphans = await server()
+      .get(apiPath(`/comments/post/${postId}`))
       .expect(200);
-    expectMatchesContract(deleted, 'delete', '/comments/{id}');
-    expect(deleted.body).toEqual({ id: root.id, deletedCount: 2 });
+    expect(
+      (orphans.body as { id: string }[]).map((comment) => comment.id).sort(),
+    ).toEqual([reply.id, replyToReply.id].sort());
   });
 
-  it('матч: дерево; адмін видаляє фізично коментар і гілку', async () => {
-    const root = await comment(author, { content: 'What a goal', matchId });
-    const reply = await comment(author, {
+  it('матч: дерево', async () => {
+    const root = await postComment(author, { content: 'What a goal', matchId });
+    await postComment(admin, {
       content: 'Top corner',
       matchId,
       parentId: root.id,
@@ -82,26 +82,7 @@ describe('Коментарі: відповіді за контрактом OpenA
       .get(apiPath(`/comments/match/${matchId}`))
       .expect(200);
     expectMatchesContract(tree, 'get', '/comments/match/{matchId}');
-
-    const blocked = await admin
-      .delete(apiPath(`/comments/${root.id}/purge`))
-      .expect(409);
-    expectMatchesContract(blocked, 'delete', '/comments/{id}/purge');
-
-    const purged = await admin
-      .delete(apiPath(`/comments/${reply.id}/purge`))
-      .expect(200);
-    expectMatchesContract(purged, 'delete', '/comments/{id}/purge');
-
-    const purgedThread = await admin
-      .delete(apiPath(`/comments/${root.id}/purge-thread`))
-      .expect(200);
-    expectMatchesContract(
-      purgedThread,
-      'delete',
-      '/comments/{id}/purge-thread',
-    );
-    expect(purgedThread.body).toEqual({ id: root.id, purgedCount: 1 });
+    expect(tree.body).toMatchObject([{ id: root.id, replies: [{}] }]);
   });
 
   it('помилки — за контрактом: дві цілі, невідома новина, чужий коментар', async () => {
@@ -116,7 +97,10 @@ describe('Коментарі: відповіді за контрактом OpenA
       .expect(404);
     expectMatchesContract(missingPost, 'get', '/comments/post/{postId}');
 
-    const adminComment = await comment(admin, { content: 'Pinned?', postId });
+    const adminComment = await postComment(admin, {
+      content: 'Pinned?',
+      postId,
+    });
     const foreign = await author
       .delete(apiPath(`/comments/${adminComment.id}`))
       .expect(403);

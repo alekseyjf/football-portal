@@ -4,10 +4,9 @@ import type { CommentDto } from './dto/comment-response.dto';
 export type PublicCommentFlat = Omit<CommentDto, 'replies'>;
 
 /**
- * З плоского списку живих коментарів треду будує дерево (parentId → replies).
- * Корені: закріплені першими, далі новіші; відповіді — хронологічно.
- * Під видаленим коментарем живих немає (P4-5), тож «сиріт» бути не повинно;
- * якщо все ж трапиться — вузол піде в корені, а не зникне.
+ * З плоского списку живих коментарів треду будує дерево (parentId → replies) — старе
+ * `GET /comments/post/{postId}`, до M1.7.3. Корені: закріплені першими, далі новіші; відповіді — хронологічно.
+ * Відповіді видаленого кореня (заглушки, D27) — «сироти»: вони йдуть у корені, а не зникають.
  */
 export function buildCommentTreeFromFlat(
   comments: PublicCommentFlat[],
