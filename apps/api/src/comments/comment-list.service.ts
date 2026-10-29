@@ -14,7 +14,7 @@ import {
   type CommentPagePosition,
 } from './comment-cursor';
 import { splitCommentPage } from './comment-page';
-import { toCommentItem, toPublicComment } from './comment-response';
+import { toCommentItem } from './comment-response';
 import {
   readCommentTargetRef,
   rootListScope,
@@ -24,15 +24,17 @@ import {
   CommentThreadRepository,
   type CommentTargetState,
 } from './comment-thread.repository';
-import { buildCommentTreeFromFlat } from './comment-thread.util';
 import { CommentRepository, type CommentItemRow } from './comment.repository';
-import type { CommentDto, CommentPageDto } from './dto/comment-response.dto';
+import type {
+  CommentPageDto,
+  CommentRootsPageDto,
+} from './dto/comment-response.dto';
 import type {
   ListCommentRepliesQueryDto,
   ListCommentsQueryDto,
 } from './dto/list-comments-query.dto';
 
-/** Читання коментарів: порції (D27) і старе дерево (до M1.7.3). */
+/** Читання коментарів порціями (D27). */
 @Injectable()
 export class CommentListService {
   constructor(
@@ -41,28 +43,32 @@ export class CommentListService {
     private languageService: LanguageService,
   ) {}
 
-  /** Корені новини чи матчу, нові першими; без жодного коментаря — порожня порція. */
+  /**
+   * Корені новини чи матчу, нові першими; без жодного коментаря — порожня порція. Лічильник — `commentCount` треду,
+   * який і так читаємо: він змінюється в транзакції коментаря (D27), без `COUNT(*)` на порцію.
+   */
   async getRootsPage(
     query: ListCommentsQueryDto,
     viewer: AuthenticatedUser | undefined,
-  ): Promise<CommentPageDto> {
+  ): Promise<CommentRootsPageDto> {
     const targetRef = readCommentTargetRef(query);
     const cursorContext: CommentCursorContext = {
       order: query.sort,
       scope: rootListScope(targetRef),
     };
     const position = readCursorOrThrow(query.cursor, cursorContext);
-    const target = await this.loadPublicTarget(targetRef);
-    if (!target.thread) return { items: [], nextCursor: null };
+    const { thread } = await this.loadPublicTarget(targetRef);
+    if (!thread) return { items: [], nextCursor: null, commentCount: 0 };
 
     const rowsWithExtra = await this.commentRepository.findRootsPage(
-      target.thread.id,
+      thread.id,
       { position, take: query.limit + 1 },
     );
-    return this.toCommentPage(rowsWithExtra, query.limit, {
+    const page = await this.toCommentPage(rowsWithExtra, query.limit, {
       cursorContext,
       viewer,
     });
+    return { ...page, commentCount: thread.commentCount };
   }
 
   /** Живі відповіді гілки, від старих до нових; корінь — живий або заглушка (D27). */
@@ -90,22 +96,6 @@ export class CommentListService {
       cursorContext,
       viewer,
     });
-  }
-
-  /** Неживий пост → 404 (P4-1); живий без жодного коментаря → `[]`. */
-  async getCommentsByPost(postId: string): Promise<CommentDto[]> {
-    const target = await this.threadRepository.findLivePostTarget(
-      postId,
-      new Date(),
-    );
-    if (!target) throw new NotFoundException('POST_NOT_FOUND');
-    return this.buildThreadTree(target);
-  }
-
-  async getCommentsByMatch(matchId: string): Promise<CommentDto[]> {
-    const target = await this.threadRepository.findMatchTarget(matchId);
-    if (!target) throw new NotFoundException('MATCH_NOT_FOUND');
-    return this.buildThreadTree(target);
   }
 
   /** Пост — як у стрічці й новині (`publicPostWhere`), матч — існує. */
@@ -156,16 +146,6 @@ export class CommentListService {
         ? encodeCommentCursor(page.cursorContext, nextPosition)
         : null,
     };
-  }
-
-  private async buildThreadTree(
-    target: CommentTargetState,
-  ): Promise<CommentDto[]> {
-    if (!target.thread) return [];
-    const comments = await this.commentRepository.findLiveInThread(
-      target.thread.id,
-    );
-    return buildCommentTreeFromFlat(comments.map(toPublicComment));
   }
 }
 

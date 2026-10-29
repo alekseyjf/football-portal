@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const THREAD_SELECT = {
   id: true,
   isLocked: true,
+  commentCount: true,
 } satisfies Prisma.CommentThreadSelect;
 
 export type ThreadState = Prisma.CommentThreadGetPayload<{
@@ -23,7 +24,7 @@ export type CommentTargetState = { thread: ThreadState | null };
 export class CommentThreadRepository {
   constructor(private prisma: PrismaService) {}
 
-  /** `null` — поста немає або він не живий (P3-1). */
+  /** Ціль нового коментаря; `null` — поста немає або він не живий (P3-1). */
   async findLivePostTarget(
     postId: string,
     now: Date,

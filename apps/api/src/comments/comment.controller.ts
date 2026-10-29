@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -18,13 +19,14 @@ import {
   AuthRequired,
 } from '../auth/guards/access.decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
+import { CommentEditService } from './comment-edit.service';
 import { CommentListService } from './comment-list.service';
 import { CommentPurgeService } from './comment-purge.service';
 import { CommentService } from './comment.service';
 import {
-  CommentDto,
   CommentItemDto,
   CommentPageDto,
+  CommentRootsPageDto,
   PurgedCommentDto,
   SoftDeletedCommentDto,
 } from './dto/comment-response.dto';
@@ -33,6 +35,7 @@ import {
   ListCommentRepliesQueryDto,
   ListCommentsQueryDto,
 } from './dto/list-comments-query.dto';
+import { UpdateCommentDto } from './dto/update-comment.dto';
 
 @ApiTags('comments')
 @Controller('comments')
@@ -40,12 +43,13 @@ export class CommentController {
   constructor(
     private commentListService: CommentListService,
     private commentService: CommentService,
+    private commentEditService: CommentEditService,
     private commentPurgeService: CommentPurgeService,
   ) {}
 
   /**
-   * Порція коренів новини чи матчу (як на YouTube): нові першими, далі — `nextCursor`. Видалений корінь, під яким
-   * лишились відповіді, — заглушка. Зі сесією — ще й `myReaction`.
+   * Порція коренів новини чи матчу (як на YouTube): нові першими, далі — `nextCursor`; у кожній — `commentCount`.
+   * Видалений корінь, під яким лишились відповіді, — заглушка. Зі сесією — ще й `myReaction`.
    * @throws {400} COMMENT_TARGET_INVALID — не рівно одне з postId / matchId; COMMENT_CURSOR_INVALID — курсор не з цього списку чи порядку
    * @throws {404} POST_NOT_FOUND — немає, ще не опублікована або видалена; MATCH_NOT_FOUND
    */
@@ -54,26 +58,8 @@ export class CommentController {
   getComments(
     @Query() query: ListCommentsQueryDto,
     @OptionalCurrentUser() user: AuthenticatedUser | undefined,
-  ): Promise<CommentPageDto> {
+  ): Promise<CommentRootsPageDto> {
     return this.commentListService.getRootsPage(query, user);
-  }
-
-  /**
-   * Дерево коментарів новини (без коментарів — порожній масив). Застаріле — замість нього `GET /comments` (M1.7.3).
-   * @throws {404} POST_NOT_FOUND — немає, ще не опублікована або видалена
-   */
-  @Get('post/:postId')
-  getByPost(@Param('postId') postId: string): Promise<CommentDto[]> {
-    return this.commentListService.getCommentsByPost(postId);
-  }
-
-  /**
-   * Дерево коментарів матчу. Застаріле — замість нього `GET /comments?matchId=`.
-   * @throws {404} MATCH_NOT_FOUND
-   */
-  @Get('match/:matchId')
-  getByMatch(@Param('matchId') matchId: string): Promise<CommentDto[]> {
-    return this.commentListService.getCommentsByMatch(matchId);
   }
 
   /**
@@ -106,6 +92,23 @@ export class CommentController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommentItemDto> {
     return this.commentService.createComment(dto, user);
+  }
+
+  /**
+   * Змінити текст свого коментаря — лише автор і лише 15 хв від публікації; лайки й відповіді лишаються.
+   * Той самий текст — успіх без `editedAt`. Пауза між коментарями на зміну не діє, бан на коментарі — діє.
+   * @throws {400} Невалідний текст — ті самі межі, що в нового
+   * @throws {403} COMMENT_EDIT_FORBIDDEN — чужий (і для ADMIN); COMMENT_EDIT_WINDOW_CLOSED — минуло 15 хв; COMMENT_THREAD_LOCKED, COMMENTS_SUSPENDED, ACCOUNT_LOCKED
+   * @throws {404} COMMENT_NOT_FOUND — немає або видалений
+   */
+  @Patch(':id')
+  @AuthRequired()
+  editComment(
+    @Param('id') id: string,
+    @Body() dto: UpdateCommentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CommentItemDto> {
+    return this.commentEditService.editComment(id, dto, user);
   }
 
   /**

@@ -16,6 +16,15 @@ export class CommentAntiAbuseService {
     );
   }
 
+  /** Зміна тексту свого коментаря (M1.7.4): бан на коментарі → 403; пауза між новими коментарями — ні. */
+  async assertNotSuspendedOrThrow(userId: string, isAdmin: boolean) {
+    if (isAdmin) return;
+    await this.abuseProtection.assertNotSuspended(
+      userId,
+      RateLimitAction.COMMENT,
+    );
+  }
+
   /**
    * Реєструє спробу коментаря (з неї ж рахується cooldown); burst → 24h бан, повторний strike за 30 днів → блок акаунта.
    */

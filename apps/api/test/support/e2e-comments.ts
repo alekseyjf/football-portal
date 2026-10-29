@@ -9,6 +9,7 @@ export interface CommentItemBody {
   content: string | null;
   author: { id: string; name: string } | null;
   isDeleted: boolean;
+  editedAt: string | null;
   likeCount: number;
   myReaction: 'LIKE' | 'DISLIKE' | null;
   replyCount: number;
@@ -21,6 +22,10 @@ export interface CommentItemBody {
 export interface CommentPageBody {
   items: CommentItemBody[];
   nextCursor: string | null;
+}
+
+export interface CommentRootsPageBody extends CommentPageBody {
+  commentCount: number;
 }
 
 /** Агент з сесією або гість (`request(server)`): обидва вміють `get` / `post`. */
@@ -41,13 +46,13 @@ export async function postComment(
 export async function getRootsPage(
   client: Client,
   query: Record<string, string | number>,
-): Promise<CommentPageBody> {
+): Promise<CommentRootsPageBody> {
   const response = await client
     .get(apiPath('/comments'))
     .query(query)
     .expect(200);
   expectMatchesContract(response, 'get', '/comments');
-  return response.body as CommentPageBody;
+  return response.body as CommentRootsPageBody;
 }
 
 export async function getRepliesPage(

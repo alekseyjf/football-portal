@@ -26,7 +26,7 @@ const OPENAPI_DOCUMENT_PATH = join(
 /** Схеми компонентів — під цим `$id`; `$ref` документа переписуємо на нього. */
 const COMPONENTS_SCHEMA_ID = 'openapi-components';
 
-export type HttpMethod = 'get' | 'post' | 'put' | 'delete';
+export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 
 type SchemaObject = Record<string, unknown>;
 

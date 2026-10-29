@@ -19,6 +19,7 @@ interface Route {
 const SIGNED_IN_ROUTES: Route[] = [
   { method: 'post', path: '/auth/logout-all' },
   { method: 'post', path: '/comments' },
+  { method: 'patch', path: '/comments/{id}' },
   { method: 'delete', path: '/comments/{id}' },
   { method: 'post', path: '/likes' },
   { method: 'delete', path: '/users/me' },

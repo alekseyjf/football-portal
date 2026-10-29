@@ -7,20 +7,6 @@ import type { CommentPageOrder, CommentPagePosition } from './comment-cursor';
 import { commentPageOrderBy, commentsAfterPositionWhere } from './comment-page';
 import { listedRootWhere, publicThreadWhere } from './comment-visibility';
 
-/** Вузол старого дерева (`GET /comments/post/{postId}` — до M1.7.3). */
-export const COMMENT_NODE_SELECT = {
-  id: true,
-  content: true,
-  pinnedAt: true,
-  createdAt: true,
-  parentId: true,
-  author: { select: PUBLIC_AUTHOR_SELECT },
-} satisfies Prisma.CommentSelect;
-
-export type CommentNodeRow = Prisma.CommentGetPayload<{
-  select: typeof COMMENT_NODE_SELECT;
-}>;
-
 /** Коментар порції (D27); заглушку (`deletedAt`) ховає `toCommentItem`. */
 const COMMENT_ITEM_SELECT = {
   id: true,
@@ -54,6 +40,30 @@ export type CommentModerationRow = Prisma.CommentGetPayload<{
   select: typeof MODERATION_SELECT;
 }>;
 
+const EDIT_SELECT = {
+  id: true,
+  authorId: true,
+  content: true,
+  createdAt: true,
+  deletedAt: true,
+  thread: { select: { isLocked: true } },
+} satisfies Prisma.CommentSelect;
+
+/** Стан коментаря для зміни тексту автором (M1.7.4). */
+export type CommentEditRow = Prisma.CommentGetPayload<{
+  select: typeof EDIT_SELECT;
+}>;
+
+/** Новий текст і умови, за яких його ще можна записати (`updateContentIfEditable`). */
+export type CommentContentEdit = {
+  commentId: string;
+  authorId: string;
+  content: string;
+  editedAt: Date;
+  /** Вікно зміни: коментар створено строго пізніше (`commentEditWindowStart`) */
+  createdAfter: Date;
+};
+
 /** Стан заблокованого рядка (`lockForWrite`). */
 export type LockedComment = { id: string; deletedAt: Date | null };
 
@@ -78,13 +88,6 @@ export type CommentPageQuery = {
 @Injectable()
 export class CommentRepository {
   constructor(private prisma: PrismaService) {}
-
-  findLiveInThread(threadId: string): Promise<CommentNodeRow[]> {
-    return this.prisma.comment.findMany({
-      where: { threadId, deletedAt: null },
-      select: COMMENT_NODE_SELECT,
-    });
-  }
 
   /** Корені треду, нові першими: живі й заглушки з відповідями (D27). */
   findRootsPage(
@@ -136,6 +139,45 @@ export class CommentRepository {
       where: { id },
       select: MODERATION_SELECT,
     });
+  }
+
+  findForEdit(id: string): Promise<CommentEditRow | null> {
+    return this.prisma.comment.findUnique({
+      where: { id },
+      select: EDIT_SELECT,
+    });
+  }
+
+  /** Коментар у формі порції, і видалений (`toCommentItem` зробить заглушку). */
+  findItem(
+    id: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<CommentItemRow | null> {
+    return tx.comment.findUnique({
+      where: { id },
+      select: COMMENT_ITEM_SELECT,
+    });
+  }
+
+  /**
+   * Один умовний UPDATE (Rule 10): автор, не видалений і вікно ще відкрите — перевірка й запис неподільні, тож правка
+   * на межі 15 хв чи паралельне видалення не проскочать між ними; видалення, закомічене першим, дає `false`.
+   * Лайки й відповіді не чіпаємо.
+   */
+  async updateContentIfEditable(
+    tx: Prisma.TransactionClient,
+    edit: CommentContentEdit,
+  ): Promise<boolean> {
+    const { count } = await tx.comment.updateMany({
+      where: {
+        id: edit.commentId,
+        authorId: edit.authorId,
+        deletedAt: null,
+        createdAt: { gt: edit.createdAfter },
+      },
+      data: { content: edit.content, editedAt: edit.editedAt },
+    });
+    return count === 1;
   }
 
   insert(

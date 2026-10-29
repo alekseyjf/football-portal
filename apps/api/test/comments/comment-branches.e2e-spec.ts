@@ -250,7 +250,7 @@ describe('Коментарі: гілка з одного рівня, видал�
       await admin.delete(apiPath(`/comments/${reply.id}`)).expect(200);
 
       const roots = await getRootsPage(guest(), { postId, sort: 'newest' });
-      expect(roots).toEqual({ items: [], nextCursor: null });
+      expect(roots).toEqual({ items: [], nextCursor: null, commentCount: 0 });
       const gone = await guest()
         .get(apiPath(`/comments/${root.id}/replies`))
         .expect(404);
@@ -260,6 +260,24 @@ describe('Коментарі: гілка з одного рівня, видал�
         replyCount: 0,
         commentCount: 0,
       });
+    });
+
+    it('чужий коментар — 403 COMMENT_DELETE_FORBIDDEN, коментар на місці; адмін — може', async () => {
+      const postId = await newPost();
+      const root = await postComment(bob, { content: 'Mine', postId });
+
+      const foreign = await alice
+        .delete(apiPath(`/comments/${root.id}`))
+        .expect(403);
+      expectMatchesContract(foreign, 'delete', '/comments/{id}');
+      expect(foreign.body).toMatchObject({
+        message: 'COMMENT_DELETE_FORBIDDEN',
+      });
+      expect(
+        (await getRootsPage(guest(), { postId, sort: 'newest' })).items,
+      ).toEqual([expect.objectContaining({ id: root.id, isDeleted: false })]);
+
+      await admin.delete(apiPath(`/comments/${root.id}`)).expect(200);
     });
 
     it('корінь без відповідей — зник; рядок лишився з deletedAt (soft delete)', async () => {
