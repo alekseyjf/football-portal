@@ -15,7 +15,9 @@ const leagueNotFound = failed(new ApiError(404, 'LEAGUE_NOT_FOUND', null));
 describe('Головна: коли вся сторінка — error.tsx, а коли — помилка в одному блоці (D55)', () => {
   it('API недоступне для всіх запитів (мережа, 5xx) — сторінка з помилкою', () => {
     expect(isHomeApiDown([networkError, serverError])).toBe(true);
-    expect(isHomeApiDown([networkError, networkError, networkError])).toBe(true);
+    expect(isHomeApiDown([networkError, networkError, networkError])).toBe(
+      true,
+    );
   });
 
   it('хоч один блок завантажився — сторінка, а помилки — у блоках', () => {

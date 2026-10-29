@@ -22,10 +22,15 @@ const ACTIVE_LEAGUES = [
   league('CL', true),
 ];
 
-function tabSlugs(selectedSlug: string | null, selectedLeague: League | null = null) {
-  return inPlayLeaguesWithSelected(ACTIVE_LEAGUES, selectedSlug, selectedLeague).map(
-    (tab) => tab.slug,
-  );
+function tabSlugs(
+  selectedSlug: string | null,
+  selectedLeague: League | null = null,
+) {
+  return inPlayLeaguesWithSelected(
+    ACTIVE_LEAGUES,
+    selectedSlug,
+    selectedLeague,
+  ).map((tab) => tab.slug);
 }
 
 describe('Турніри вкладок стрічки й перемикача головної (M1.6.1, M1.6.3)', () => {

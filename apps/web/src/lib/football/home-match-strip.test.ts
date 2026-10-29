@@ -81,7 +81,9 @@ describe('Стрічка матчів головної: порядок і меж
       match('pl-live', 'PL', 'LIVE', '2026-10-26T14:30:00.000Z'),
     ];
 
-    expect(homeStripMatches(matches, ORDERED_LEAGUES).map((item) => item.id)).toEqual([
+    expect(
+      homeStripMatches(matches, ORDERED_LEAGUES).map((item) => item.id),
+    ).toEqual([
       'pl-halftime',
       'pl-live',
       'pl-early',
@@ -100,16 +102,19 @@ describe('Стрічка матчів головної: порядок і меж
       match('euro', 'EC', 'SCHEDULED', '2026-10-26T11:00:00.000Z'),
       match('bundesliga', 'BL1', 'SCHEDULED', '2026-10-26T20:00:00.000Z'),
     ];
-    expect(homeStripMatches(matches, ORDERED_LEAGUES).map((item) => item.id)).toEqual([
-      'bundesliga',
-      'euro',
-      'fa-cup',
-    ]);
+    expect(
+      homeStripMatches(matches, ORDERED_LEAGUES).map((item) => item.id),
+    ).toEqual(['bundesliga', 'euro', 'fa-cup']);
   });
 
   it('у розмітці — не більше 40: першими лишаються турніри перемикача; масив API не змінюється', () => {
     const matches = Array.from({ length: 45 }, (_, index) =>
-      match(`m${String(index).padStart(2, '0')}`, index < 5 ? 'BL1' : 'PL', 'SCHEDULED', '2026-10-26T15:00:00.000Z'),
+      match(
+        `m${String(index).padStart(2, '0')}`,
+        index < 5 ? 'BL1' : 'PL',
+        'SCHEDULED',
+        '2026-10-26T15:00:00.000Z',
+      ),
     );
     const firstId = matches[0].id;
 
@@ -141,6 +146,8 @@ describe('День стрічки в поясі читача (🧭 п. 3)', () =
   it('найближчий матч о 05:30 за Києвом — для Нью-Йорка це ще той самий вечір', () => {
     const kickoffAt = new Date('2026-10-27T03:30:00.000Z');
     expect(matchStripDayOf(kickoffAt, 'Europe/Kyiv').dayKey).toBe('2026-10-27');
-    expect(matchStripDayOf(kickoffAt, 'America/New_York').dayKey).toBe('2026-10-26');
+    expect(matchStripDayOf(kickoffAt, 'America/New_York').dayKey).toBe(
+      '2026-10-26',
+    );
   });
 });

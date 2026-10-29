@@ -14,7 +14,9 @@ function readCookie(name: string): string | null {
   const cookiePart = document.cookie
     .split('; ')
     .find((part) => part.startsWith(prefix));
-  return cookiePart ? decodeURIComponent(cookiePart.slice(prefix.length)) : null;
+  return cookiePart
+    ? decodeURIComponent(cookiePart.slice(prefix.length))
+    : null;
 }
 
 /** `Europe/Kyiv` і `Europe/Kiev` — один пояс: Chrome / Node віддають `Kiev` з `resolvedOptions()`. */

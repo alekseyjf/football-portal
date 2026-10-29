@@ -6,7 +6,10 @@ export function localeToApiContentLang(locale: string): ApiContentLanguage {
 }
 
 /** Назва мови контенту мовою інтерфейсу: `en` при locale `uk` → «англійська». */
-export function contentLanguageName(languageCode: string, locale: string): string {
+export function contentLanguageName(
+  languageCode: string,
+  locale: string,
+): string {
   try {
     return (
       new Intl.DisplayNames([localeToBcp47(locale)], { type: 'language' }).of(

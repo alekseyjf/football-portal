@@ -86,7 +86,10 @@ export function FootballLeagueSwitcher({
   // Safari не фокусує посилання кліком, і закриття тут зняло б посилання до події `click`
   const closeOnFocusLeave = (event: FocusEvent<HTMLElement>) => {
     const nextFocused = event.relatedTarget;
-    if (nextFocused instanceof Node && !event.currentTarget.contains(nextFocused)) {
+    if (
+      nextFocused instanceof Node &&
+      !event.currentTarget.contains(nextFocused)
+    ) {
       setIsOpen(false);
     }
   };

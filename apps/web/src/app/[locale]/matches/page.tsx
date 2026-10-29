@@ -7,10 +7,7 @@ import {
   leaguesQueryOptions,
   matchesInRangeQueryOptions,
 } from '@/hooks/useFootball';
-import {
-  isLeagueSlug,
-  leagueSlugFromParam,
-} from '@/lib/football/league-param';
+import { isLeagueSlug, leagueSlugFromParam } from '@/lib/football/league-param';
 import {
   dayKeyInTimeZone,
   isDayKey,
@@ -57,9 +54,7 @@ export default async function MatchesPage({ params, searchParams }: Props) {
   const queryClient = makeQueryClient();
   await Promise.all([
     queryClient.prefetchQuery(leaguesQueryOptions()),
-    queryClient.prefetchQuery(
-      matchesInRangeQueryOptions(from, to, leagueSlug),
-    ),
+    queryClient.prefetchQuery(matchesInRangeQueryOptions(from, to, leagueSlug)),
   ]);
 
   return (

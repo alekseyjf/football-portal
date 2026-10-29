@@ -69,6 +69,9 @@ export function isMatchesRefetchDue(
   matches: readonly PolledMatch[],
   { fetchedAt, now, jitterMs }: PollingClock & { fetchedAt: Date },
 ): boolean {
-  const interval = matchesRefetchInterval(matches, { now: fetchedAt, jitterMs });
+  const interval = matchesRefetchInterval(matches, {
+    now: fetchedAt,
+    jitterMs,
+  });
   return interval !== false && fetchedAt.getTime() + interval <= now.getTime();
 }

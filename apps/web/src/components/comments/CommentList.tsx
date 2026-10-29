@@ -25,8 +25,11 @@ type Props = {
 /** Корені — нові першими, порціями по 20 («Показати ще», D27). До першої порції — скелетон. */
 export function CommentList({ postId, rootsQuery, viewer }: Props) {
   const t = useTranslations('comments');
-  const { comments: roots, loadMore, focusCommentId } =
-    useCommentPagesList(rootsQuery);
+  const {
+    comments: roots,
+    loadMore,
+    focusCommentId,
+  } = useCommentPagesList(rootsQuery);
 
   if (!rootsQuery.data) {
     return rootsQuery.isError ? (

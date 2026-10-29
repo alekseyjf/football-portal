@@ -32,7 +32,11 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
   const { roundLabel, groupLabel } = useFootballStageLabels();
   const timeZone = useTimeZone() ?? DEFAULT_TIME_ZONE;
 
-  const { data: match, isLoading, isError } = useQuery({
+  const {
+    data: match,
+    isLoading,
+    isError,
+  } = useQuery({
     ...matchDetailQueryOptions(matchId),
     refetchInterval: (query) => {
       const status = (query.state.data as MatchDetail | undefined)?.status;
@@ -61,15 +65,11 @@ export function MatchDetailView({ matchId }: { matchId: string }) {
   }, [match, matchId, qc]);
 
   if (isLoading) {
-    return (
-      <p className="text-neutral-400 text-center py-16">{t('loading')}</p>
-    );
+    return <p className="text-neutral-400 text-center py-16">{t('loading')}</p>;
   }
 
   if (isError || !match) {
-    return (
-      <p className="text-red-400/90 text-center py-16">{t('notFound')}</p>
-    );
+    return <p className="text-red-400/90 text-center py-16">{t('notFound')}</p>;
   }
 
   const live = isMatchInPlay(match.status);

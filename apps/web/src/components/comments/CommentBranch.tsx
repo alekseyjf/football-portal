@@ -77,7 +77,11 @@ export function CommentBranch({ postId, root, viewer, focusRef }: Props) {
 
   return (
     <li>
-      {root.isDeleted ? <DeletedCommentStub focusRef={focusRef} /> : card(root, focusRef)}
+      {root.isDeleted ? (
+        <DeletedCommentStub focusRef={focusRef} />
+      ) : (
+        card(root, focusRef)
+      )}
 
       {root.replyCount > 0 && (
         <div className="ml-6 sm:ml-12">

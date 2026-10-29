@@ -135,46 +135,44 @@ export function LikeButtons({
 
   return (
     <div className="flex flex-col gap-1">
-    <div
-      className={barClass}
-      role="group"
-      aria-label={t('ariaGroup')}
-    >
-      <div className="inline-flex items-center gap-0.5">
+      <div className={barClass} role="group" aria-label={t('ariaGroup')}>
+        <div className="inline-flex items-center gap-0.5">
+          <button
+            type="button"
+            disabled={controlsDisabled}
+            onClick={() => react('LIKE')}
+            className={`${btnBase} ${likePad} rounded-l-full ${likeActive ? activeLike : idle}`}
+            aria-pressed={likeActive}
+            aria-label={t('like')}
+          >
+            <ThumbUpIcon filled={likeActive} />
+          </button>
+          <span
+            className={`text-sm font-medium tabular-nums text-neutral-200 pr-1.5 leading-none ${isLoading ? 'opacity-50' : ''}`}
+          >
+            {formatCompactCount(likesCount, locale)}
+          </span>
+        </div>
+        <span className="w-4 shrink-0" aria-hidden />
         <button
           type="button"
           disabled={controlsDisabled}
-          onClick={() => react('LIKE')}
-          className={`${btnBase} ${likePad} rounded-l-full ${likeActive ? activeLike : idle}`}
-          aria-pressed={likeActive}
-          aria-label={t('like')}
+          onClick={() => react('DISLIKE')}
+          className={`${btnBase} ${dislikePad} rounded-r-full ${dislikeActive ? activeDislike : idle}`}
+          aria-pressed={dislikeActive}
+          aria-label={t('dislike')}
         >
-          <ThumbUpIcon filled={likeActive} />
+          <ThumbDownIcon filled={dislikeActive} />
         </button>
-        <span
-          className={`text-sm font-medium tabular-nums text-neutral-200 pr-1.5 leading-none ${isLoading ? 'opacity-50' : ''}`}
-        >
-          {formatCompactCount(likesCount, locale)}
-        </span>
       </div>
-      <span className="w-4 shrink-0" aria-hidden />
-      <button
-        type="button"
-        disabled={controlsDisabled}
-        onClick={() => react('DISLIKE')}
-        className={`${btnBase} ${dislikePad} rounded-r-full ${dislikeActive ? activeDislike : idle}`}
-        aria-pressed={dislikeActive}
-        aria-label={t('dislike')}
-      >
-        <ThumbDownIcon filled={dislikeActive} />
-      </button>
-    </div>
-    {blockCode === 'LIKES_SUSPENDED' && (
-      <p className="text-xs text-amber-400/95 max-w-xs">{t('likesSuspended')}</p>
-    )}
-    {blockCode === 'ACCOUNT_LOCKED' && (
-      <p className="text-xs text-red-400/95 max-w-xs">{t('accountLocked')}</p>
-    )}
+      {blockCode === 'LIKES_SUSPENDED' && (
+        <p className="text-xs text-amber-400/95 max-w-xs">
+          {t('likesSuspended')}
+        </p>
+      )}
+      {blockCode === 'ACCOUNT_LOCKED' && (
+        <p className="text-xs text-red-400/95 max-w-xs">{t('accountLocked')}</p>
+      )}
     </div>
   );
 }

@@ -3,7 +3,10 @@ import { parsePostPathSegment, postPathSegment } from './post-path';
 
 describe('URL новини `{slug}-{number}` (D24)', () => {
   it.each([
-    ['arsenal-beat-chelsea-1042', { slug: 'arsenal-beat-chelsea', number: 1042 }],
+    [
+      'arsenal-beat-chelsea-1042',
+      { slug: 'arsenal-beat-chelsea', number: 1042 },
+    ],
     // Slug із цифрами в кінці — номер лише після останнього дефіса
     ['top-10-42', { slug: 'top-10', number: 42 }],
     ['derby-2026-7', { slug: 'derby-2026', number: 7 }],
@@ -34,6 +37,9 @@ describe('URL новини `{slug}-{number}` (D24)', () => {
   it('розбір збирає назад той самий сегмент', () => {
     const segment = postPathSegment({ slug: 'top-10', number: 42 });
     expect(segment).toBe('top-10-42');
-    expect(parsePostPathSegment(segment)).toEqual({ slug: 'top-10', number: 42 });
+    expect(parsePostPathSegment(segment)).toEqual({
+      slug: 'top-10',
+      number: 42,
+    });
   });
 });

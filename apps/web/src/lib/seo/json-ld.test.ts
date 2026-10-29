@@ -19,8 +19,18 @@ describe('JSON-LD (D34)', () => {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Головна', item: 'https://example.com/uk' },
-        { '@type': 'ListItem', position: 2, name: 'Новини', item: 'https://example.com/uk/news' },
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Головна',
+          item: 'https://example.com/uk',
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Новини',
+          item: 'https://example.com/uk/news',
+        },
         { '@type': 'ListItem', position: 3, name: 'Арсенал виграв дербі' },
       ],
     });
@@ -38,7 +48,11 @@ describe('JSON-LD (D34)', () => {
       inLanguage: 'uk',
       sourceUrl: 'https://www.bbc.com/sport/football/articles/derby',
     };
-    const publisher = { '@type': 'Organization', name: 'Футбольний портал', url: 'https://example.com' };
+    const publisher = {
+      '@type': 'Organization',
+      name: 'Футбольний портал',
+      url: 'https://example.com',
+    };
 
     expect(newsArticleJsonLd(article)).toEqual({
       '@context': 'https://schema.org',
@@ -57,7 +71,12 @@ describe('JSON-LD (D34)', () => {
     });
 
     // Без фото й джерела — без цих полів; видалений автор — автором видання
-    const bare = newsArticleJsonLd({ ...article, imageUrl: null, sourceUrl: null, authorName: null });
+    const bare = newsArticleJsonLd({
+      ...article,
+      imageUrl: null,
+      sourceUrl: null,
+      authorName: null,
+    });
     expect(bare).not.toHaveProperty('image');
     expect(bare).not.toHaveProperty('isBasedOn');
     expect(bare.author).toEqual([publisher]);
@@ -67,14 +86,23 @@ describe('JSON-LD (D34)', () => {
     const publisher = { name: 'Футбольний портал', url: 'https://example.com' };
 
     expect(
-      webSiteJsonLd({ name: 'Футбольний портал', url: 'https://example.com/uk', inLanguage: 'uk', publisher }),
+      webSiteJsonLd({
+        name: 'Футбольний портал',
+        url: 'https://example.com/uk',
+        inLanguage: 'uk',
+        publisher,
+      }),
     ).toEqual({
       '@context': 'https://schema.org',
       '@type': 'WebSite',
       name: 'Футбольний портал',
       url: 'https://example.com/uk',
       inLanguage: 'uk',
-      publisher: { '@type': 'Organization', name: 'Футбольний портал', url: 'https://example.com' },
+      publisher: {
+        '@type': 'Organization',
+        name: 'Футбольний портал',
+        url: 'https://example.com',
+      },
     });
     expect(organizationJsonLd(publisher)).toEqual({
       '@context': 'https://schema.org',
@@ -85,7 +113,9 @@ describe('JSON-LD (D34)', () => {
   });
 
   it('текст з `</script>` і `<!--` не закриває тег: жодного `<`, а JSON — той самий', () => {
-    const data = { name: 'Title </script><script>alert(1)</script> <!-- & "quotes"' };
+    const data = {
+      name: 'Title </script><script>alert(1)</script> <!-- & "quotes"',
+    };
 
     const serialized = serializeJsonLd(data);
 

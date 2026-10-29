@@ -19,7 +19,10 @@ describe('proxy: старий сегмент української /ua/… (D22
   it.each([
     ['/ua', '/uk'],
     ['/ua/news/some-post', '/uk/news/some-post'],
-    ['/ua/matches?date=2026-10-10&league=CL', '/uk/matches?date=2026-10-10&league=CL'],
+    [
+      '/ua/matches?date=2026-10-10&league=CL',
+      '/uk/matches?date=2026-10-10&league=CL',
+    ],
     // next-intl приймає локаль у будь-якому регістрі (`/EN` → `/en`), тож `/UA/…` колись працювало
     ['/UA/news/some-post', '/uk/news/some-post'],
   ])('%s → 308 на %s', (path, target) => {
@@ -29,9 +32,12 @@ describe('proxy: старий сегмент української /ua/… (D22
   });
 
   // 308 віддає лише цей редирект; next-intl редиректить з 307
-  it.each(['/uaxyz', '/en/ua', '/uk/news/ua'])('%s — не старий сегмент', (path) => {
-    expect(proxy(requestTo(path)).status).not.toBe(308);
-  });
+  it.each(['/uaxyz', '/en/ua', '/uk/news/ua'])(
+    '%s — не старий сегмент',
+    (path) => {
+      expect(proxy(requestTo(path)).status).not.toBe(308);
+    },
+  );
 });
 
 describe('proxy: мова з браузера', () => {

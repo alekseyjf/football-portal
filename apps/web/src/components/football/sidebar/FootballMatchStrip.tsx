@@ -29,7 +29,9 @@ export function FootballMatchStrip({
       className={[
         'block px-3 py-2.5 border-b border-neutral-800/90 transition-colors',
         'hover:bg-neutral-900/80',
-        live ? 'bg-red-950/25 border-l-2 border-l-red-600' : 'border-l-2 border-l-transparent',
+        live
+          ? 'bg-red-950/25 border-l-2 border-l-red-600'
+          : 'border-l-2 border-l-transparent',
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-neutral-500">
@@ -41,9 +43,7 @@ export function FootballMatchStrip({
           {matchRow.groupName && ` · ${groupLabel(matchRow.groupName)}`}
         </span>
         <span
-          className={
-            live ? 'text-red-400 font-semibold' : 'text-neutral-500'
-          }
+          className={live ? 'text-red-400 font-semibold' : 'text-neutral-500'}
         >
           {matchRow.status === 'LIVE' && matchRow.minute != null
             ? `${matchRow.minute}′`

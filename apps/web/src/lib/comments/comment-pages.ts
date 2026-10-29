@@ -28,7 +28,9 @@ export function uniqueCommentsOfPages(pages: CommentPage[]): CommentItem[] {
 }
 
 /** Перший коментар, який додала остання порція; `null` — нових немає. */
-export function firstCommentOfLastPage(pages: CommentPage[]): CommentItem | null {
+export function firstCommentOfLastPage(
+  pages: CommentPage[],
+): CommentItem | null {
   const shownBefore = uniqueCommentsOfPages(pages.slice(0, -1)).length;
   return uniqueCommentsOfPages(pages)[shownBefore] ?? null;
 }
@@ -133,6 +135,13 @@ export function likeStatsOfComment(comment: CommentItem): LikeStats {
   return { likesCount: comment.likeCount, myReaction: comment.myReaction };
 }
 
-export function withLikeStats(comment: CommentItem, stats: LikeStats): CommentItem {
-  return { ...comment, likeCount: stats.likesCount, myReaction: stats.myReaction };
+export function withLikeStats(
+  comment: CommentItem,
+  stats: LikeStats,
+): CommentItem {
+  return {
+    ...comment,
+    likeCount: stats.likesCount,
+    myReaction: stats.myReaction,
+  };
 }

@@ -58,13 +58,20 @@ describe('Фільтри стрічки `/news` з адреси (D46)', () => {
     const longestClub = 'x'.repeat(CLUB_SLUG_MAX_LENGTH);
     expect(
       parseNewsFeedFilters({ tags: longestTag, club: longestClub }),
-    ).toMatchObject({ tags: [longestTag], clubs: [longestClub] });
+    ).toMatchObject({
+      tags: [longestTag],
+      clubs: [longestClub],
+    });
   });
 
   it('невідомий slug правильного формату лишається — API дасть порожню сторінку', () => {
     expect(
       parseNewsFeedFilters({ tags: 'no-such-tag', competition: 'XX' }),
-    ).toEqual({ tags: ['no-such-tag'], competition: 'XX', clubs: [] });
+    ).toEqual({
+      tags: ['no-such-tag'],
+      competition: 'XX',
+      clubs: [],
+    });
   });
 
   it('повтори — один раз, у порядку першої появи', () => {
@@ -80,8 +87,9 @@ describe('Фільтри стрічки `/news` з адреси (D46)', () => {
     );
     // Відкинуті значення місця не займають
     expect(
-      parseNewsFeedFilters({ tags: ['Bad', ...slugList(POSTS_FILTER_VALUES_MAX)].join(',') })
-        .tags,
+      parseNewsFeedFilters({
+        tags: ['Bad', ...slugList(POSTS_FILTER_VALUES_MAX)].join(','),
+      }).tags,
     ).toHaveLength(POSTS_FILTER_VALUES_MAX);
   });
 
@@ -92,7 +100,9 @@ describe('Фільтри стрічки `/news` з адреси (D46)', () => {
     expect(parseNewsFeedFilters({ competition: 'P L,CL' }).competition).toBe(
       'CL',
     );
-    expect(parseNewsFeedFilters({ competition: 'PL;CL' }).competition).toBeNull();
+    expect(
+      parseNewsFeedFilters({ competition: 'PL;CL' }).competition,
+    ).toBeNull();
   });
 
   it('повтор параметра — перше значення, як `URLSearchParams.get` у браузері', () => {

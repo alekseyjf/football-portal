@@ -74,7 +74,11 @@ export function NewsPostView({ postNumber, siteUrl }: Props) {
       <article>
         <NewsPostHeader post={post} />
         {/* Відео — головне медіа замість обкладинки (D54): обкладинка стає його прев'ю */}
-        {videoId ? <PostVideo videoId={videoId} post={post} /> : <PostCover post={post} />}
+        {videoId ? (
+          <PostVideo videoId={videoId} post={post} />
+        ) : (
+          <PostCover post={post} />
+        )}
 
         {/* Текст — мовою перекладу; підпис «відкривається в новій вкладці» — мовою сторінки */}
         <div lang={post.resolvedLanguage}>
@@ -85,7 +89,10 @@ export function NewsPostView({ postNumber, siteUrl }: Props) {
           />
         </div>
 
-        <PostSourceLine sourceUrl={post.sourceUrl} sourceName={post.sourceName} />
+        <PostSourceLine
+          sourceUrl={post.sourceUrl}
+          sourceName={post.sourceName}
+        />
         <PostTopics post={post} />
 
         <div className="mt-8 flex items-center">

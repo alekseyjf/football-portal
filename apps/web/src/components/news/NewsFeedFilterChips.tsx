@@ -31,7 +31,10 @@ export function NewsFeedFilterChips({ filters }: { filters: NewsFeedFilters }) {
               className="inline-flex items-center gap-2 rounded-full border border-gray-700 bg-gray-900 py-1 pl-3 pr-2.5 text-sm text-gray-200 transition-colors hover:border-gray-500 hover:text-white"
             >
               <LinkPendingLabel>{chip.label}</LinkPendingLabel>
-              <span aria-hidden="true" className="text-base leading-none text-gray-400">
+              <span
+                aria-hidden="true"
+                className="text-base leading-none text-gray-400"
+              >
                 ×
               </span>
             </Link>

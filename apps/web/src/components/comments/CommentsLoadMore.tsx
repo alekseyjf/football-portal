@@ -8,7 +8,12 @@ type Props = {
 };
 
 /** «Показати ще» — наступна порція за курсором (D27); не вдалося — пояснення й та сама кнопка. */
-export function CommentsLoadMore({ label, isLoading, hasError, onLoadMore }: Props) {
+export function CommentsLoadMore({
+  label,
+  isLoading,
+  hasError,
+  onLoadMore,
+}: Props) {
   const t = useTranslations('comments');
   return (
     <div className="mt-3">

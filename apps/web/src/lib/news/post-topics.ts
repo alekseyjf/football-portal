@@ -42,7 +42,9 @@ export function postTopicLinks(
     ...post.competitions.map((competition) =>
       topicLink('competition', competition, { competition: competition.slug }),
     ),
-    ...post.clubs.map((club) => topicLink('club', club, { clubs: [club.slug] })),
+    ...post.clubs.map((club) =>
+      topicLink('club', club, { clubs: [club.slug] }),
+    ),
     ...tagsByName.map((tag) => topicLink('tag', tag, { tags: [tag.slug] })),
   ];
 }

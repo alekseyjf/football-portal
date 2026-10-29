@@ -53,7 +53,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * хлібні крихти (`PostBreadcrumbs`). Адреси — повні (`SITE_URL`).
  */
 async function postJsonLd(locale: AppLocale, post: PostDetail) {
-  const tCrumbs = await getTranslations({ locale, namespace: 'news.breadcrumbs' });
+  const tCrumbs = await getTranslations({
+    locale,
+    namespace: 'news.breadcrumbs',
+  });
   const tMeta = await getTranslations({ locale, namespace: 'meta' });
   const pageUrl = absoluteSiteUrl(
     getPathname({ href: `/news/${postPathSegment(post)}`, locale }),
@@ -71,7 +74,10 @@ async function postJsonLd(locale: AppLocale, post: PostDetail) {
       sourceUrl: post.sourceUrl,
     }),
     breadcrumbListJsonLd([
-      { name: tCrumbs('home'), url: absoluteSiteUrl(getPathname({ href: '/', locale })) },
+      {
+        name: tCrumbs('home'),
+        url: absoluteSiteUrl(getPathname({ href: '/', locale })),
+      },
       {
         name: tCrumbs('news'),
         url: absoluteSiteUrl(getPathname({ href: '/news', locale })),

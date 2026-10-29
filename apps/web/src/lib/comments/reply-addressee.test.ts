@@ -25,7 +25,12 @@ describe('«@Ім’я» адресата відповіді (D27)', () => {
   it('видалений акаунт — «Видалений користувач», а не ім’я з БД', () => {
     expect(
       replyAddresseeName(
-        replyTo({ id: 'u1', name: 'Deleted user', avatarUrl: null, isDeleted: true }),
+        replyTo({
+          id: 'u1',
+          name: 'Deleted user',
+          avatarUrl: null,
+          isDeleted: true,
+        }),
         DELETED_USER,
       ),
     ).toBe(DELETED_USER);
@@ -37,7 +42,12 @@ describe('«@Ім’я» адресата відповіді (D27)', () => {
       replyAddresseeName(
         {
           commentId: null,
-          author: { id: 'u1', name: 'Olena', avatarUrl: null, isDeleted: false },
+          author: {
+            id: 'u1',
+            name: 'Olena',
+            avatarUrl: null,
+            isDeleted: false,
+          },
         },
         DELETED_USER,
       ),

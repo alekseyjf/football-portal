@@ -54,21 +54,29 @@ describe('zonedDayRange: межі дня в поясі користувача �
     'Australia/Lord_Howe',
     'Asia/Kolkata',
     'Pacific/Kiritimati',
-  ])('%s: 400 днів поспіль — дні стикуються без проміжків і накладань', (timeZone) => {
-    let dayKey = '2026-01-01';
-    let range = zonedDayRange(dayKey, timeZone);
-    for (let dayIndex = 0; dayIndex < 400; dayIndex += 1) {
-      const nextDayKey = shiftDayKey(dayKey, 1);
-      const nextRange = zonedDayRange(nextDayKey, timeZone);
-      expect({ dayKey, startsOn: dayKeyInTimeZone(new Date(range.from), timeZone) })
-        .toEqual({ dayKey, startsOn: dayKey });
-      expect({ dayKey, to: range.to }).toEqual({ dayKey, to: nextRange.from });
-      expect(rangeHours(range)).toBeGreaterThanOrEqual(23);
-      expect(rangeHours(range)).toBeLessThanOrEqual(25);
-      dayKey = nextDayKey;
-      range = nextRange;
-    }
-  });
+  ])(
+    '%s: 400 днів поспіль — дні стикуються без проміжків і накладань',
+    (timeZone) => {
+      let dayKey = '2026-01-01';
+      let range = zonedDayRange(dayKey, timeZone);
+      for (let dayIndex = 0; dayIndex < 400; dayIndex += 1) {
+        const nextDayKey = shiftDayKey(dayKey, 1);
+        const nextRange = zonedDayRange(nextDayKey, timeZone);
+        expect({
+          dayKey,
+          startsOn: dayKeyInTimeZone(new Date(range.from), timeZone),
+        }).toEqual({ dayKey, startsOn: dayKey });
+        expect({ dayKey, to: range.to }).toEqual({
+          dayKey,
+          to: nextRange.from,
+        });
+        expect(rangeHours(range)).toBeGreaterThanOrEqual(23);
+        expect(rangeHours(range)).toBeLessThanOrEqual(25);
+        dayKey = nextDayKey;
+        range = nextRange;
+      }
+    },
+  );
 });
 
 describe('dayKeyInTimeZone', () => {
@@ -89,12 +97,15 @@ describe('shiftDayKey і isDayKey', () => {
     expect(shiftDayKey(dayKey, days)).toBe(expected);
   });
 
-  it.each(['2026-02-30', '2026-13-01', '2026-1-1', '2026-10-10T00:00', 'today'])(
-    '%s — не день',
-    (value) => {
-      expect(isDayKey(value)).toBe(false);
-    },
-  );
+  it.each([
+    '2026-02-30',
+    '2026-13-01',
+    '2026-1-1',
+    '2026-10-10T00:00',
+    'today',
+  ])('%s — не день', (value) => {
+    expect(isDayKey(value)).toBe(false);
+  });
 
   it('справжня дата, зокрема 29 лютого високосного року', () => {
     expect(isDayKey('2026-10-10')).toBe(true);

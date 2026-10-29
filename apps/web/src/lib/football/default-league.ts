@@ -20,7 +20,5 @@ export function resolveDefaultLeagueSlug(
   );
   if (envLeague?.isInPlay) return envLeague.slug;
   const firstInPlay = activeLeagues.find((league) => league.isInPlay);
-  return (
-    firstInPlay?.slug ?? envLeague?.slug ?? activeLeagues[0]?.slug ?? null
-  );
+  return firstInPlay?.slug ?? envLeague?.slug ?? activeLeagues[0]?.slug ?? null;
 }

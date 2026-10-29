@@ -22,7 +22,9 @@ export function useCommentBranch(postId: string, root: CommentItem) {
 
   function openComposer(comment: CommentItem) {
     composerOpenerRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     setComposer({ afterCommentId: comment.id, parent: comment });
   }
 
@@ -51,7 +53,9 @@ export function useCommentBranch(postId: string, root: CommentItem) {
   function deleteWithConfirm(comment: CommentItem) {
     // Корінь з відповідями стає заглушкою — відповіді лишаються (D27)
     const hasReplies = comment.parentId === null && comment.replyCount > 0;
-    const question = t(hasReplies ? 'deleteConfirmWithReplies' : 'deleteConfirm');
+    const question = t(
+      hasReplies ? 'deleteConfirmWithReplies' : 'deleteConfirm',
+    );
     if (window.confirm(question)) deleteComment(comment);
   }
 

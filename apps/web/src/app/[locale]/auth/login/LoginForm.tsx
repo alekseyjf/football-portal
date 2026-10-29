@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -48,8 +48,10 @@ export function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="bg-gray-900 rounded-2xl p-8 space-y-5">
-
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="bg-gray-900 rounded-2xl p-8 space-y-5"
+    >
       {/* Server Error — показуємо помилку від API */}
       {serverError && (
         <div className="bg-red-500/10 border border-red-500/50 rounded-lg px-4 py-3">
@@ -59,16 +61,19 @@ export function LoginForm() {
 
       {/* Email */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">{t('email')}</label>
+        <label className="text-sm font-medium text-gray-300">
+          {t('email')}
+        </label>
         <input
           {...register('email')}
           type="email"
           placeholder="you@example.com"
           className={`w-full bg-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 
             outline-none transition-colors
-            ${errors.email
-              ? 'border border-red-500 focus:border-red-400'
-              : 'border border-gray-700 focus:border-green-500'
+            ${
+              errors.email
+                ? 'border border-red-500 focus:border-red-400'
+                : 'border border-gray-700 focus:border-green-500'
             }`}
         />
         {errors.email && (
@@ -78,16 +83,19 @@ export function LoginForm() {
 
       {/* Password */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">{t('password')}</label>
+        <label className="text-sm font-medium text-gray-300">
+          {t('password')}
+        </label>
         <input
           {...register('password')}
           type="password"
           placeholder="••••••••"
           className={`w-full bg-gray-800 rounded-lg px-4 py-3 text-white placeholder-gray-500 
             outline-none transition-colors
-            ${errors.password
-              ? 'border border-red-500 focus:border-red-400'
-              : 'border border-gray-700 focus:border-green-500'
+            ${
+              errors.password
+                ? 'border border-red-500 focus:border-red-400'
+                : 'border border-gray-700 focus:border-green-500'
             }`}
         />
         {errors.password && (
@@ -108,7 +116,10 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-gray-400">
         {t('noAccount')}{' '}
-        <Link href="/auth/register" className="text-green-400 hover:text-green-300">
+        <Link
+          href="/auth/register"
+          className="text-green-400 hover:text-green-300"
+        >
           {t('registerLink')}
         </Link>
       </p>

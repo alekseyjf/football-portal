@@ -9,5 +9,7 @@ import { useLinkStatus } from 'next/link';
  */
 export function LinkPendingLabel({ children }: { children: React.ReactNode }) {
   const { pending } = useLinkStatus();
-  return <span className={pending ? 'animate-pulse' : undefined}>{children}</span>;
+  return (
+    <span className={pending ? 'animate-pulse' : undefined}>{children}</span>
+  );
 }

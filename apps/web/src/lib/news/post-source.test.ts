@@ -25,7 +25,11 @@ describe('Джерело новини: назва або домен (D26)', () =
     expect(postSourceLink({ sourceUrl, sourceName: null })?.label).toBe(label);
   });
 
-  it.each(['javascript:alert(1)', 'ftp://files.example.com/derby.txt', 'not a url'])(
+  it.each([
+    'javascript:alert(1)',
+    'ftp://files.example.com/derby.txt',
+    'not a url',
+  ])(
     'адреса %s — без посилання: з назвою — лише назва, без назви — нічого',
     (sourceUrl) => {
       expect(postSourceLink({ sourceUrl, sourceName: 'BBC Sport' })).toEqual({

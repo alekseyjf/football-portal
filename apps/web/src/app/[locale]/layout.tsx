@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
+import {
+  getMessages,
+  getTranslations,
+  setRequestLocale,
+} from 'next-intl/server';
 import { Navbar } from '@/components/layout/Navbar';
 import { QueryProviders } from '@/providers/QueryProvider';
 import { TimeZoneSync } from '@/providers/TimeZoneSync';

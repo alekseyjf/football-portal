@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -58,8 +58,10 @@ export function RegisterForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="bg-gray-900 rounded-2xl p-8 space-y-5">
-
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="bg-gray-900 rounded-2xl p-8 space-y-5"
+    >
       {serverError && (
         <div className="bg-red-500/10 border border-red-500/50 rounded-lg px-4 py-3">
           <p className="text-red-400 text-sm">{serverError}</p>
@@ -73,33 +75,45 @@ export function RegisterForm() {
           placeholder="Your name"
           className={inputClass(!!errors.name)}
         />
-        {errors.name && <p className="text-red-400 text-xs">{errors.name.message}</p>}
+        {errors.name && (
+          <p className="text-red-400 text-xs">{errors.name.message}</p>
+        )}
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">{t('email')}</label>
+        <label className="text-sm font-medium text-gray-300">
+          {t('email')}
+        </label>
         <input
           {...register('email')}
           type="email"
           placeholder="you@example.com"
           className={inputClass(!!errors.email)}
         />
-        {errors.email && <p className="text-red-400 text-xs">{errors.email.message}</p>}
+        {errors.email && (
+          <p className="text-red-400 text-xs">{errors.email.message}</p>
+        )}
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">{t('password')}</label>
+        <label className="text-sm font-medium text-gray-300">
+          {t('password')}
+        </label>
         <input
           {...register('password')}
           type="password"
           placeholder="••••••••"
           className={inputClass(!!errors.password)}
         />
-        {errors.password && <p className="text-red-400 text-xs">{errors.password.message}</p>}
+        {errors.password && (
+          <p className="text-red-400 text-xs">{errors.password.message}</p>
+        )}
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-gray-300">{t('confirmPassword')}</label>
+        <label className="text-sm font-medium text-gray-300">
+          {t('confirmPassword')}
+        </label>
         <input
           {...register('confirmPassword')}
           type="password"
@@ -107,7 +121,9 @@ export function RegisterForm() {
           className={inputClass(!!errors.confirmPassword)}
         />
         {errors.confirmPassword && (
-          <p className="text-red-400 text-xs">{errors.confirmPassword.message}</p>
+          <p className="text-red-400 text-xs">
+            {errors.confirmPassword.message}
+          </p>
         )}
       </div>
 
@@ -122,7 +138,10 @@ export function RegisterForm() {
 
       <p className="text-center text-sm text-gray-400">
         {t('hasAccount')}{' '}
-        <Link href="/auth/login" className="text-green-400 hover:text-green-300">
+        <Link
+          href="/auth/login"
+          className="text-green-400 hover:text-green-300"
+        >
           {t('signInLink')}
         </Link>
       </p>

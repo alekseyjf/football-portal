@@ -16,8 +16,14 @@ function toSiteOrigin(value: string): string | null {
   try {
     const url = new URL(value);
     const isOriginOnly =
-      (url.pathname === '/' || url.pathname === '') && !url.search && !url.hash && !url.username && !url.password;
-    return SITE_URL_PROTOCOLS.has(url.protocol) && isOriginOnly ? url.origin : null;
+      (url.pathname === '/' || url.pathname === '') &&
+      !url.search &&
+      !url.hash &&
+      !url.username &&
+      !url.password;
+    return SITE_URL_PROTOCOLS.has(url.protocol) && isOriginOnly
+      ? url.origin
+      : null;
   } catch {
     return null;
   }
@@ -36,14 +42,24 @@ const serverEnvSchema = z
   .transform((env, ctx) => {
     if (!env.SITE_URL) {
       if (env.NODE_ENV === 'production') {
-        ctx.addIssue({ code: 'custom', path: ['SITE_URL'], message: 'is required in production: site origin, e.g. https://example.com' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SITE_URL'],
+          message:
+            'is required in production: site origin, e.g. https://example.com',
+        });
         return z.NEVER;
       }
       return { NODE_ENV: env.NODE_ENV, SITE_URL: DEV_SITE_URL };
     }
     const siteOrigin = toSiteOrigin(env.SITE_URL);
     if (!siteOrigin) {
-      ctx.addIssue({ code: 'custom', path: ['SITE_URL'], message: 'must be an http(s) origin without a path, e.g. https://example.com' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SITE_URL'],
+        message:
+          'must be an http(s) origin without a path, e.g. https://example.com',
+      });
       return z.NEVER;
     }
     return { NODE_ENV: env.NODE_ENV, SITE_URL: siteOrigin };
@@ -55,7 +71,9 @@ type EnvSource = Record<string, string | undefined>;
 
 /** `SITE_URL: is required in production…` — назва змінної й що не так, без значення. */
 function problemsOf(error: z.ZodError): string[] {
-  return error.issues.map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`);
+  return error.issues.map(
+    (issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`,
+  );
 }
 
 /**

@@ -40,7 +40,11 @@ export function isApiError(error: unknown): error is ApiError {
 }
 
 /** Throttler API ставить `Retry-After-<ліміт>` (`ip`, `account`), секунди. */
-const RETRY_AFTER_HEADERS = ['Retry-After-ip', 'Retry-After-account', 'Retry-After'];
+const RETRY_AFTER_HEADERS = [
+  'Retry-After-ip',
+  'Retry-After-account',
+  'Retry-After',
+];
 
 function readRetryAfterSeconds(response: Response): number | null {
   const waitSeconds = RETRY_AFTER_HEADERS.map((headerName) =>
@@ -52,7 +56,9 @@ function readRetryAfterSeconds(response: Response): number | null {
 async function toApiError(response: Response): Promise<ApiError> {
   const errorBody: unknown = await response.json().catch(() => null);
   const bodyMessage =
-    typeof errorBody === 'object' && errorBody !== null && 'message' in errorBody
+    typeof errorBody === 'object' &&
+    errorBody !== null &&
+    'message' in errorBody
       ? (errorBody as { message: unknown }).message
       : undefined;
   // ValidationPipe віддає масив повідомлень
@@ -124,7 +130,10 @@ function canRefreshSessionFor(endpoint: string): boolean {
 
 function refreshSession(): Promise<RefreshOutcome> {
   if (refreshThrottleError && Date.now() < refreshThrottledUntil) {
-    return Promise.resolve({ kind: 'unavailable', error: refreshThrottleError });
+    return Promise.resolve({
+      kind: 'unavailable',
+      error: refreshThrottleError,
+    });
   }
   refreshInFlight ??= performRefresh().finally(() => {
     refreshInFlight = null;
@@ -195,7 +204,9 @@ async function request<T>(endpoint: string, init: NextFetchInit): Promise<T> {
   }
   if (outcome.kind === 'expired') {
     // 403 від refresh несе причину (`ACCOUNT_LOCKED`), 401 — нічого нового
-    throw outcome.error.status === 403 ? outcome.error : await toApiError(response);
+    throw outcome.error.status === 403
+      ? outcome.error
+      : await toApiError(response);
   }
   throw outcome.error;
 }
@@ -239,7 +250,10 @@ export async function apiPatch<T>(endpoint: string, body: unknown): Promise<T> {
 }
 
 /** `body` — для підтвердження паролем (`DELETE /users/me`). */
-export async function apiDelete<T>(endpoint: string, body?: unknown): Promise<T> {
+export async function apiDelete<T>(
+  endpoint: string,
+  body?: unknown,
+): Promise<T> {
   return request<T>(endpoint, {
     method: 'DELETE',
     ...(body === undefined

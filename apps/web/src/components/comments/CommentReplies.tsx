@@ -41,8 +41,11 @@ export function CommentReplies({
 }: Props) {
   const t = useTranslations('comments');
   const repliesQuery = useCommentReplies(postId, rootId);
-  const { comments: replies, loadMore, focusCommentId } =
-    useCommentPagesList(repliesQuery);
+  const {
+    comments: replies,
+    loadMore,
+    focusCommentId,
+  } = useCommentPagesList(repliesQuery);
   const pendingCount = Math.min(
     Math.max(replyCount - replies.length, 1),
     COMMENT_REPLIES_PAGE_SIZE,
@@ -65,7 +68,8 @@ export function CommentReplies({
     <>
       <ul className="space-y-3">
         {replies.map((reply) => {
-          const shouldFocus = reply.id === focusReplyId || reply.id === focusCommentId;
+          const shouldFocus =
+            reply.id === focusReplyId || reply.id === focusCommentId;
           return (
             <li key={reply.id}>
               {renderReply(reply, shouldFocus ? focusOnAttach : undefined)}

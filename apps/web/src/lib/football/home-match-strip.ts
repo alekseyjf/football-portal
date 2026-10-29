@@ -17,7 +17,10 @@ export type MatchStripDay = { dayKey: string; from: string; to: string };
  * День, на який припадає миттєвість у поясі читача: сьогодні — `now`, «Найближчі матчі» — час початку найближчого
  * матчу. Та сама мить біля півночі — різні дні й межі в Києві й Нью-Йорку (🧭 п. 3).
  */
-export function matchStripDayOf(instant: Date, timeZone: string): MatchStripDay {
+export function matchStripDayOf(
+  instant: Date,
+  timeZone: string,
+): MatchStripDay {
   const dayKey = dayKeyInTimeZone(instant, timeZone);
   return { dayKey, ...zonedDayRange(dayKey, timeZone) };
 }

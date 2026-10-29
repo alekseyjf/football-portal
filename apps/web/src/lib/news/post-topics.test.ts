@@ -23,9 +23,17 @@ describe('Теми новини внизу статті (M1.6.2)', () => {
           competition('PL', 'Premier League'),
           competition('CL', 'UEFA Champions League'),
         ],
-        clubs: [club('arsenal-fc', 'Arsenal FC'), club('chelsea-fc', 'Chelsea FC')],
+        clubs: [
+          club('arsenal-fc', 'Arsenal FC'),
+          club('chelsea-fc', 'Chelsea FC'),
+        ],
         // За slug-ом чи кодами Unicode «Ґ» і «І» стали б не на свої місця
-        tags: [tag('injuries', 'Травми'), tag('ivory', 'Інтерв’ю'), tag('goal', 'Ґол'), tag('hat', 'Гол')],
+        tags: [
+          tag('injuries', 'Травми'),
+          tag('ivory', 'Інтерв’ю'),
+          tag('goal', 'Ґол'),
+          tag('hat', 'Гол'),
+        ],
       },
       ukrainianCollator,
     );
@@ -53,8 +61,16 @@ describe('Теми новини внизу статті (M1.6.2)', () => {
     );
 
     expect(topics).toEqual([
-      { key: 'competition:PL', name: 'Premier League', href: '/news?competition=PL' },
-      { key: 'club:arsenal-fc', name: 'Arsenal FC', href: '/news?club=arsenal-fc' },
+      {
+        key: 'competition:PL',
+        name: 'Premier League',
+        href: '/news?competition=PL',
+      },
+      {
+        key: 'club:arsenal-fc',
+        name: 'Arsenal FC',
+        href: '/news?club=arsenal-fc',
+      },
       { key: 'tag:transfers', name: 'Трансфери', href: '/news?tags=transfers' },
     ]);
   });
@@ -62,7 +78,12 @@ describe('Теми новини внизу статті (M1.6.2)', () => {
   it('без зв’язків — без тем; теги новини не переставляє', () => {
     const tags = [tag('transfers', 'Трансфери'), tag('analysis', 'Аналітика')];
 
-    expect(postTopicLinks({ competitions: [], clubs: [], tags: [] }, ukrainianCollator)).toEqual([]);
+    expect(
+      postTopicLinks(
+        { competitions: [], clubs: [], tags: [] },
+        ukrainianCollator,
+      ),
+    ).toEqual([]);
     postTopicLinks({ competitions: [], clubs: [], tags }, ukrainianCollator);
     expect(tags.map((topic) => topic.slug)).toEqual(['transfers', 'analysis']);
   });

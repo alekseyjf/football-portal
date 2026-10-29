@@ -38,14 +38,24 @@ function ids(posts: PostSummary[]): string[] {
 describe('«Завантажити ще» без дублів за id (D38)', () => {
   it('сторінки без перетину — одним списком у порядку стрічки', () => {
     expect(
-      ids(uniquePostsOfPages([page(1, ['a', 'b', 'c']), page(2, ['d', 'e', 'f'])])),
+      ids(
+        uniquePostsOfPages([
+          page(1, ['a', 'b', 'c']),
+          page(2, ['d', 'e', 'f']),
+        ]),
+      ),
     ).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
   });
 
   it('нова новина зсунула сторінки: повтор — один раз, на першому місці', () => {
     // Між завантаженнями вийшла новина «new»: друга сторінка тепер починається з «c»
     expect(
-      ids(uniquePostsOfPages([page(1, ['a', 'b', 'c']), page(2, ['c', 'd', 'e'])])),
+      ids(
+        uniquePostsOfPages([
+          page(1, ['a', 'b', 'c']),
+          page(2, ['c', 'd', 'e']),
+        ]),
+      ),
     ).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 

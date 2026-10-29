@@ -18,7 +18,9 @@ export function uniquePostsOfPages(pages: PaginatedPosts[]): PostSummary[] {
 }
 
 /** Перша новина, яку додала остання завантажена сторінка; `null` — нових немає (усі вже показані). */
-export function firstPostOfLastPage(pages: PaginatedPosts[]): PostSummary | null {
+export function firstPostOfLastPage(
+  pages: PaginatedPosts[],
+): PostSummary | null {
   const shownBefore = uniquePostsOfPages(pages.slice(0, -1)).length;
   return uniquePostsOfPages(pages)[shownBefore] ?? null;
 }

@@ -39,7 +39,8 @@ export function NewsFeedLeagueTabs({ filters }: { filters: NewsFeedFilters }) {
     const tabList = selectedTab?.closest('ul');
     if (!selectedTab || !tabList) return;
     tabList.scrollLeft =
-      selectedTab.offsetLeft - (tabList.clientWidth - selectedTab.offsetWidth) / 2;
+      selectedTab.offsetLeft -
+      (tabList.clientWidth - selectedTab.offsetWidth) / 2;
   }, [filters.competition, tabs.length]);
 
   return (

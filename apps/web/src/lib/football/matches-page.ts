@@ -1,15 +1,14 @@
-import type {
-  League,
-  MatchLeague,
-  MatchListItem,
-} from '@/lib/api/types';
+import type { League, MatchLeague, MatchListItem } from '@/lib/api/types';
 import { LEAGUE_QUERY_PARAM } from './league-param';
 
 /** День сторінки матчів у query: `/uk/matches?date=2026-10-10`; без нього — сьогодні. */
 export const MATCHES_DATE_QUERY_PARAM = 'date';
 
 /** Посилання на сторінку матчів: день (`null` — сьогодні) і ліга (`null` — усі активні). */
-export function matchesPageHref(dayKey: string | null, leagueSlug: string | null) {
+export function matchesPageHref(
+  dayKey: string | null,
+  leagueSlug: string | null,
+) {
   const query: Record<string, string> = {};
   if (dayKey) query[MATCHES_DATE_QUERY_PARAM] = dayKey;
   if (leagueSlug) query[LEAGUE_QUERY_PARAM] = leagueSlug;

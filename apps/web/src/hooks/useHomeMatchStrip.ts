@@ -91,7 +91,8 @@ export function useHomeMatchStrip(today: MatchStripDay): HomeMatchStripState {
   if (!nextDay) return { status: 'none' };
   const nextDayStep = pendingStep(nextDayQuery);
   const nextDayMatches = nextDayQuery.data?.matches;
-  if (nextDayStep || !nextDayMatches) return nextDayStep ?? { status: 'loading' };
+  if (nextDayStep || !nextDayMatches)
+    return nextDayStep ?? { status: 'loading' };
   return nextDayMatches.length === 0
     ? { status: 'none' }
     : {

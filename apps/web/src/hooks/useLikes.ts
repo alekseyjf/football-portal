@@ -73,8 +73,7 @@ export function applyOptimisticLikeToggle(
 export function useToggleLike() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: ToggleLikeRequest) =>
-      apiPost<LikeStats>('/likes', body),
+    mutationFn: (body: ToggleLikeRequest) => apiPost<LikeStats>('/likes', body),
     onMutate: async (body) => {
       const queryKey = likeStatsQueryKey(body.targetType, body.targetId);
       await queryClient.cancelQueries({ queryKey });

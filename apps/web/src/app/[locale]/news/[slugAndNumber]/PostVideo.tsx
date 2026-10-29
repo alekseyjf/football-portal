@@ -45,7 +45,13 @@ function PlayIcon() {
  * всюди, без оптимізатора (довільний хост, D44); прев'ю YouTube віддає наш сервер (`next/image`), тож до кліку браузер
  * читача до Google не звертається. `alt=""`: що це, каже підпис кнопки.
  */
-function VideoPoster({ videoId, coverImageUrl }: { videoId: string; coverImageUrl: string | null }) {
+function VideoPoster({
+  videoId,
+  coverImageUrl,
+}: {
+  videoId: string;
+  coverImageUrl: string | null;
+}) {
   return (
     <Image
       src={coverImageUrl ?? youtubeThumbnailUrl(videoId)}

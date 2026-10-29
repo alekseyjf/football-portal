@@ -11,7 +11,8 @@ export function NavbarClient() {
   const tAuth = useTranslations('auth');
   const user = useAuthStore((state) => state.user);
   const isAuthLoading = useAuthStore((state) => state.isLoading);
-  const { mutateAsync: logoutApi, isPending: isLoggingOut } = useLogoutMutation();
+  const { mutateAsync: logoutApi, isPending: isLoggingOut } =
+    useLogoutMutation();
 
   const handleLogout = async () => {
     try {

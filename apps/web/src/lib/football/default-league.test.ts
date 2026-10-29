@@ -22,7 +22,11 @@ describe('Ліга сайдбару головної без ?league= (P5b-2, D55
   });
 
   it('ліга з env не в грі (ЧС після турніру) — перша «у грі», а не вона й не перша за порядком', () => {
-    const leagues = [league('WC', false), league('PL', true), league('CL', true)];
+    const leagues = [
+      league('WC', false),
+      league('PL', true),
+      league('CL', true),
+    ];
     expect(resolveDefaultLeagueSlug(leagues, 'WC')).toBe('PL');
     expect(resolveDefaultLeagueSlug(leagues, null)).toBe('PL');
   });

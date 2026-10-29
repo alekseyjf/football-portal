@@ -6,10 +6,7 @@ import { getTranslations } from 'next-intl/server';
 import { isAppLocale } from '@/i18n/routing';
 import { isApiError } from '@/lib/api/http';
 import { makeQueryClient } from '@/lib/query/queryClient';
-import {
-  fetchMatchDetail,
-  matchDetailQueryOptions,
-} from '@/hooks/useFootball';
+import { fetchMatchDetail, matchDetailQueryOptions } from '@/hooks/useFootball';
 import { MatchDetailView } from './MatchDetailView';
 
 type Props = { params: Promise<{ locale: string; id: string }> };
@@ -28,7 +25,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   } catch (error) {
     // 404 — сторінка покаже загальну `app/not-found.tsx`; заголовок вкладки — той самий
     if (isApiError(error) && error.status === 404) {
-      const tNotFound = await getTranslations({ locale, namespace: 'notFound' });
+      const tNotFound = await getTranslations({
+        locale,
+        namespace: 'notFound',
+      });
       return { title: tNotFound('title') };
     }
     return {};

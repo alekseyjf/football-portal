@@ -151,7 +151,9 @@ export function newsFeedHrefWithPage(
   for (const [name, value] of Object.entries(searchParams)) {
     if (name === PAGE_PARAM || value === undefined) continue;
     for (const singleValue of Array.isArray(value) ? value : [value]) {
-      entries.push(`${encodeURIComponent(name)}=${encodeQueryValue(singleValue)}`);
+      entries.push(
+        `${encodeURIComponent(name)}=${encodeQueryValue(singleValue)}`,
+      );
     }
   }
   if (page > 1) entries.push(`${PAGE_PARAM}=${page}`);

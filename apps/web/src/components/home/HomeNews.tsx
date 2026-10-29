@@ -35,7 +35,10 @@ export function HomeNews() {
   const latest = newsQuery.data?.latest ?? [];
 
   return (
-    <section aria-labelledby={HOME_NEWS_HEADING_ID} className="min-w-0 space-y-5">
+    <section
+      aria-labelledby={HOME_NEWS_HEADING_ID}
+      className="min-w-0 space-y-5"
+    >
       {/* `tabIndex={-1}` — фокус після «Пропустити матчі»: далі Tab — перша новина */}
       <h2
         id={HOME_NEWS_HEADING_ID}

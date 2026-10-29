@@ -16,7 +16,8 @@ export const footballKeys = {
   league: (slug: string) => ['football', 'league', slug] as const,
   club: (slug: string) => ['football', 'club', slug] as const,
   /** Рекомендовано для сайдбару — один round-trip. */
-  leagueDashboard: (slug: string) => ['football', 'league-dashboard', slug] as const,
+  leagueDashboard: (slug: string) =>
+    ['football', 'league-dashboard', slug] as const,
   match: (id: string) => ['football', 'match', id] as const,
   /** `leagueSlug: null` — усі активні турніри */
   matchesInRange: (from: string, to: string, leagueSlug: string | null) =>
@@ -81,8 +82,7 @@ export function matchesInRangeQueryOptions(
   if (leagueSlug) searchParams.set('league', leagueSlug);
   return queryOptions({
     queryKey: footballKeys.matchesInRange(from, to, leagueSlug),
-    queryFn: () =>
-      apiGet<MatchesInRange>(`/football/matches?${searchParams}`),
+    queryFn: () => apiGet<MatchesInRange>(`/football/matches?${searchParams}`),
     staleTime: 60_000,
   });
 }

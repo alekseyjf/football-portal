@@ -24,10 +24,7 @@ function tag(slug: string, name: string) {
 const ukrainianCollator = new Intl.Collator('uk-UA');
 
 function kickerOf(post: Partial<KickerSource>) {
-  return postKicker(
-    { competitions: [], tags: [], ...post },
-    ukrainianCollator,
-  );
+  return postKicker({ competitions: [], tags: [], ...post }, ukrainianCollator);
 }
 
 describe('Рубрика картки новини (M1.6.1)', () => {

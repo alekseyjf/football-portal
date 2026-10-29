@@ -18,7 +18,9 @@ function NewsCardPlaceholder({ layout }: { layout: NewsCardLayout }) {
     <div
       className={`flex h-full overflow-hidden rounded-xl bg-gray-900 ${classes.article}`}
     >
-      <div className={`aspect-video animate-pulse bg-gray-800 ${classes.cover}`} />
+      <div
+        className={`aspect-video animate-pulse bg-gray-800 ${classes.cover}`}
+      />
       <div className={`flex flex-1 flex-col gap-2 ${classes.body}`}>
         <div className={`h-3 w-20 ${PLACEHOLDER_CLASS}`} />
         <div className={`h-4 w-full ${PLACEHOLDER_CLASS}`} />

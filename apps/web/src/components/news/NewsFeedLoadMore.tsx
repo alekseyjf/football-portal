@@ -16,7 +16,12 @@ type Props = {
  * натискає кнопок, але йде за посиланнями. `onNavigate` спрацьовує лише на звичайний клік — Cmd/Ctrl-клік і середня
  * кнопка відкривають сторінку в новій вкладці, як будь-яке посилання.
  */
-export function NewsFeedLoadMore({ href, isLoading, hasError, onLoadMore }: Props) {
+export function NewsFeedLoadMore({
+  href,
+  isLoading,
+  hasError,
+  onLoadMore,
+}: Props) {
   const t = useTranslations('newsFeed');
 
   return (

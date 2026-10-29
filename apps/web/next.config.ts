@@ -21,13 +21,22 @@ const nextConfig: NextConfig = {
   images: {
     // Прев'ю відео YouTube (D54) віддає наш сервер: браузер читача до Google до кліку не звертається. Оптимізатор
     // завантажить лише `i.ytimg.com/vi/…` — чужий хост через нього не підставити. Обкладинки — `unoptimized` (D44)
-    remotePatterns: [{ protocol: 'https', hostname: 'i.ytimg.com', pathname: '/vi/**', search: '' }],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'i.ytimg.com',
+        pathname: '/vi/**',
+        search: '',
+      },
+    ],
   },
   async headers() {
     return [
       {
         source: '/:path*',
-        headers: [{ key: 'Content-Security-Policy', value: CONTENT_SECURITY_POLICY }],
+        headers: [
+          { key: 'Content-Security-Policy', value: CONTENT_SECURITY_POLICY },
+        ],
       },
     ];
   },

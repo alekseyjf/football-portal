@@ -9,7 +9,10 @@ import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { CommentComposer } from './CommentComposer';
 import { CommentLikeBar } from './CommentLikeBar';
 
-const COMMENT_DATE_FORMAT = { dateStyle: 'medium', timeStyle: 'short' } as const;
+const COMMENT_DATE_FORMAT = {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+} as const;
 
 type Props = {
   postId: string;
@@ -50,7 +53,10 @@ export function CommentCard({
     ? authorDisplayName(comment.author)
     : tUsers('deletedUser');
   const isAuthorDeleted = !comment.author || comment.author.isDeleted;
-  const addresseeName = replyAddresseeName(comment.replyTo, tUsers('deletedUser'));
+  const addresseeName = replyAddresseeName(
+    comment.replyTo,
+    tUsers('deletedUser'),
+  );
 
   return (
     <article
@@ -74,7 +80,10 @@ export function CommentCard({
             >
               {authorName}
             </span>
-            <time dateTime={comment.createdAt} className="text-xs text-gray-500">
+            <time
+              dateTime={comment.createdAt}
+              className="text-xs text-gray-500"
+            >
               {formatDate(comment.createdAt, COMMENT_DATE_FORMAT)}
             </time>
             {/* Як на YouTube: позначка біля дати, час зміни — у підказці */}
@@ -118,7 +127,9 @@ export function CommentCard({
         <>
           <p className="whitespace-pre-line wrap-break-word text-sm leading-relaxed text-gray-300">
             {addresseeName && (
-              <span className="font-medium text-sky-400">@{addresseeName} </span>
+              <span className="font-medium text-sky-400">
+                @{addresseeName}{' '}
+              </span>
             )}
             {comment.content}
           </p>

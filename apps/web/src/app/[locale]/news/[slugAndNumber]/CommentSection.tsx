@@ -60,7 +60,10 @@ export function CommentSection({ postId }: Props) {
           <p className="text-sm text-gray-400">
             {t.rich('signInCta', {
               auth: (chunks) => (
-                <Link href="/auth/login" className="text-green-400 hover:text-green-300">
+                <Link
+                  href="/auth/login"
+                  className="text-green-400 hover:text-green-300"
+                >
                   {chunks}
                 </Link>
               ),

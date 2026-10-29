@@ -69,7 +69,8 @@ export function CommentComposer({
       reset();
     } catch (error) {
       setSubmitError(
-        commentErrorMessage(error) ?? t(isEditing ? 'editError' : 'genericError'),
+        commentErrorMessage(error) ??
+          t(isEditing ? 'editError' : 'genericError'),
       );
     }
   });
@@ -84,7 +85,9 @@ export function CommentComposer({
     <form onSubmit={submit} noValidate>
       {addressee && (
         <p className="mb-2 inline-flex max-w-full items-center gap-1 rounded-full bg-gray-800 py-1 pl-3 pr-1 text-xs text-gray-300">
-          <span className="truncate">{t('replyingTo', { name: addressee.name })}</span>
+          <span className="truncate">
+            {t('replyingTo', { name: addressee.name })}
+          </span>
           {addressee.onRemove && (
             <button
               type="button"

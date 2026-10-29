@@ -52,7 +52,8 @@ export const NEWS_CARD_LAYOUT_CLASSES: Record<
     footer: 'pt-2',
   },
   rowBelowDesktop: {
-    article: 'flex-row items-start gap-3 p-3 lg:flex-col lg:items-stretch lg:gap-0 lg:p-0',
+    article:
+      'flex-row items-start gap-3 p-3 lg:flex-col lg:items-stretch lg:gap-0 lg:p-0',
     cover: 'w-28 shrink-0 overflow-hidden rounded-lg lg:w-full lg:rounded-none',
     body: 'min-w-0 lg:p-5',
     title: 'mb-1 text-base lg:mb-2 lg:text-lg',

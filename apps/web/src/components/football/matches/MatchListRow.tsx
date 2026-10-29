@@ -52,10 +52,15 @@ export function MatchListRow({ match }: { match: MatchListItem }) {
   const timeAndStatus = (
     <div className="text-xs tabular-nums leading-tight">
       <time dateTime={match.kickoffAt} className="text-neutral-400">
-        {formatDateTime(match.kickoffAt, { hour: '2-digit', minute: '2-digit' })}
+        {formatDateTime(match.kickoffAt, {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}
       </time>
       {statusText && (
-        <div className={live ? 'text-red-400 font-semibold' : 'text-neutral-500'}>
+        <div
+          className={live ? 'text-red-400 font-semibold' : 'text-neutral-500'}
+        >
           {statusText}
         </div>
       )}

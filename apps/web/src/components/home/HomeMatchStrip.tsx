@@ -42,11 +42,16 @@ export function HomeMatchStrip({ today }: { today: MatchStripDay }) {
   const title =
     strip.status === 'ready' && !strip.isToday
       ? t('upcomingMatches', {
-          date: formatDateTime(dayKeyToUtcNoon(strip.day.dayKey), locale, 'UTC', {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'long',
-          }),
+          date: formatDateTime(
+            dayKeyToUtcNoon(strip.day.dayKey),
+            locale,
+            'UTC',
+            {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'long',
+            },
+          ),
         })
       : t('matchesToday');
 
