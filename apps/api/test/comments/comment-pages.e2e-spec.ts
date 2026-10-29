@@ -114,6 +114,41 @@ describe('Коментарі: порції з курсором і лайками
       ]);
     });
 
+    it('лічильник — у кожній порції коренів: живі корені й відповіді, відповіді під заглушкою — так, сама заглушка — ні', async () => {
+      const postId = (await publishPost(admin)).id;
+      const [stubRoot, liveRoot, goneRoot] = await createComments(
+        { postId },
+        3,
+      );
+      await createComments({ postId, parentId: stubRoot }, 2);
+      const [goneReply] = await createComments(
+        { postId, parentId: liveRoot },
+        2,
+      );
+      for (const id of [stubRoot, goneRoot, goneReply]) {
+        await admin.delete(apiPath(`/comments/${id}`)).expect(200);
+      }
+
+      // Корінь-заглушка з двома відповідями, живий корінь з однією відповіддю
+      const first = await getRootsPage(guest(), {
+        postId,
+        sort: NEWEST,
+        limit: 1,
+      });
+      const second = await getRootsPage(guest(), {
+        postId,
+        sort: NEWEST,
+        limit: 1,
+        cursor: first.nextCursor as string,
+      });
+      expect([first.commentCount, second.commentCount]).toEqual([4, 4]);
+      const thread = await e2e.prisma.commentThread.findUniqueOrThrow({
+        where: { postId },
+        select: { commentCount: true },
+      });
+      expect(thread.commentCount).toBe(4);
+    });
+
     it('однаковий час — порядок за id: курсор не губить і не повторює коментарі однієї мілісекунди', async () => {
       const postId = (await publishPost(admin)).id;
       const rootIds = await createComments({ postId }, 5);
@@ -265,7 +300,7 @@ describe('Коментарі: порції з курсором і лайками
       const emptyPostId = (await publishPost(admin)).id;
       expect(
         await getRootsPage(guest(), { postId: emptyPostId, sort: NEWEST }),
-      ).toEqual({ items: [], nextCursor: null });
+      ).toEqual({ items: [], nextCursor: null, commentCount: 0 });
 
       // Зняли з публікації й видалили вже після коментарів
       const draftPostId = (await publishPost(admin)).id;
@@ -377,7 +412,7 @@ describe('Коментарі: порції з курсором і лайками
       }
     });
 
-    it('ціль — рівно одна; ліміт 1…50', async () => {
+    it('ціль — рівно одна, і в читанні, і в записі; ліміт 1…50', async () => {
       for (const query of [
         { sort: NEWEST },
         { postId, matchId: 'some-match', sort: NEWEST },
@@ -390,6 +425,14 @@ describe('Коментарі: порції з курсором і лайками
           message: 'COMMENT_TARGET_INVALID',
         });
       }
+      const twoTargets = await alice
+        .post(apiPath('/comments'))
+        .send({ content: 'Both targets', postId, matchId: 'some-match' })
+        .expect(400);
+      expectMatchesContract(twoTargets, 'post', '/comments');
+      expect(twoTargets.body).toMatchObject({
+        message: 'COMMENT_TARGET_INVALID',
+      });
       for (const limit of ['0', '51', 'abc']) {
         await guest()
           .get(apiPath('/comments'))

@@ -1,28 +1,16 @@
 import type { LikeType } from '@prisma/client';
 import { toPublicAuthor } from '../users/public-author';
-import type { PublicCommentFlat } from './comment-thread.util';
-import type { CommentItemRow, CommentNodeRow } from './comment.repository';
+import type { CommentItemRow } from './comment.repository';
 import type {
   CommentItemDto,
   CommentReplyToDto,
 } from './dto/comment-response.dto';
 
 /**
+ * Коментар порції (D27): видалений корінь у списку — заглушка без тексту й автора.
  * Поля — явно, не spread рядка: нове поле в select не потрапить у відповідь непомітно (Rule 5).
  * Автор — через `toPublicAuthor` (P2-13): видалений акаунт → `isDeleted`, без email / дат.
  */
-export function toPublicComment(commentRow: CommentNodeRow): PublicCommentFlat {
-  return {
-    id: commentRow.id,
-    content: commentRow.content,
-    pinnedAt: commentRow.pinnedAt,
-    createdAt: commentRow.createdAt,
-    parentId: commentRow.parentId,
-    author: toPublicAuthor(commentRow.author),
-  };
-}
-
-/** Коментар порції (D27): видалений корінь у списку — заглушка без тексту й автора. */
 export function toCommentItem(
   commentRow: CommentItemRow,
   myReaction: LikeType | null,

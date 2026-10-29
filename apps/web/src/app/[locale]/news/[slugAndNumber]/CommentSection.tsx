@@ -1,102 +1,63 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  commentFormSchema,
-  type CommentFormValues,
-} from '@football-portal/validation/forms';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { useAuthStore } from '@/store/auth.store';
-import { useComments, useCreateComment } from '@/hooks/useComments';
-import { useCommentErrorMessage } from '@/hooks/useCommentErrorMessage';
-import {
-  CommentThreadNode,
-  countCommentsInTree,
-} from '@/components/comments/CommentThreadNode';
+import { useCommentRoots, useCreateComment } from '@/hooks/useComments';
+import { useNearViewport } from '@/hooks/useNearViewport';
+import { commentCountOfPages } from '@/lib/comments/comment-pages';
+import { CommentComposer } from '@/components/comments/CommentComposer';
+import { CommentList } from '@/components/comments/CommentList';
+
+/** Коментарі вантажимо, коли до них лишилось менше екрана прокрутки, — не в SSR (D27). */
+const COMMENTS_PRELOAD_MARGIN = '0px 0px 600px 0px';
+
+/**
+ * Висота поля нового коментаря (3 рядки й кнопка, 137 px): місце, поки сесія відновлюється, і запрошення гостю —
+ * не нижчі, тож коментарі під ними не стрибають, коли стане ясно, хто читає.
+ */
+const COMPOSER_SLOT_CLASS = 'mb-8 min-h-[8.5625rem]';
 
 interface Props {
   postId: string;
 }
 
+/** Коментарі новини як на YouTube (D27): «N коментарів», поле нового коментаря, корені порціями. */
 export function CommentSection({ postId }: Props) {
   const user = useAuthStore((state) => state.user);
   const isAuthLoading = useAuthStore((state) => state.isLoading);
   const t = useTranslations('comments');
-  const { data: comments = [], isLoading } = useComments(postId);
-  const { mutate: createComment, isPending } = useCreateComment(postId);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CommentFormValues>({
-    resolver: zodResolver(commentFormSchema),
-  });
-
-  const totalCommentCount = countCommentsInTree(comments);
-
-  const mapCommentApiError = useCommentErrorMessage();
-
-  const onSubmit = (data: CommentFormValues) => {
-    setSubmitError(null);
-    createComment(
-      { content: data.content, postId },
-      {
-        onSuccess: () => {
-          reset();
-          setSubmitError(null);
-        },
-        onError: (error) => {
-          const mapped = mapCommentApiError(error);
-          if (mapped) setSubmitError(mapped);
-        },
-      },
-    );
-  };
+  const { ref, isNearViewport } = useNearViewport<HTMLElement>(
+    COMMENTS_PRELOAD_MARGIN,
+  );
+  const rootsQuery = useCommentRoots(postId, isNearViewport);
+  const { mutateAsync: createComment } = useCreateComment(postId);
+  const commentCount = commentCountOfPages(rootsQuery.data?.pages ?? []);
 
   return (
-    <section>
-      <h2 className="text-xl font-bold mb-6">
-        {t('sectionTitle')}{' '}
-        <span className="text-gray-500 font-normal text-base">
-          ({totalCommentCount})
-        </span>
+    <section ref={ref} aria-labelledby="comments-title">
+      <h2 id="comments-title" className="mb-6 text-xl font-bold">
+        {commentCount === null
+          ? t('sectionTitle')
+          : t('commentCount', { count: commentCount })}
       </h2>
 
       {isAuthLoading ? (
         // Сесія ще відновлюється (`GET /auth/me`) — не блимати запрошенням «увійдіть»
-        <div className="mb-8 h-14" aria-hidden />
+        <div className={COMPOSER_SLOT_CLASS} aria-hidden />
       ) : user ? (
-        <form onSubmit={handleSubmit(onSubmit)} className="mb-8">
-          <textarea
-            {...register('content')}
-            rows={3}
+        <div className={COMPOSER_SLOT_CLASS}>
+          <CommentComposer
             placeholder={t('commentPlaceholder')}
-            className={`w-full bg-gray-900 rounded-xl px-4 py-3 text-white 
-              placeholder-gray-500 outline-none border transition-colors resize-none
-              ${errors.content ? 'border-red-500' : 'border-gray-700 focus:border-green-500'}`}
+            submitLabel={t('postComment')}
+            onSubmit={(content) => createComment({ content, postId })}
           />
-          {errors.content && (
-            <p className="text-red-400 text-xs mt-1">{errors.content.message}</p>
-          )}
-          {submitError && (
-            <p className="text-amber-400/95 text-xs mt-2">{submitError}</p>
-          )}
-          <div className="flex justify-end mt-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="bg-green-600 hover:bg-green-500 disabled:bg-green-800 
-                disabled:cursor-not-allowed px-5 py-2 rounded-lg text-sm 
-                font-medium transition-colors"
-            >
-              {isPending ? t('posting') : t('postComment')}
-            </button>
-          </div>
-        </form>
+        </div>
       ) : (
-        <div className="bg-gray-900 rounded-xl px-5 py-4 mb-8 text-center">
-          <p className="text-gray-400 text-sm">
+        <div
+          className={`${COMPOSER_SLOT_CLASS} flex items-center justify-center rounded-xl bg-gray-900 px-5 py-4 text-center`}
+        >
+          <p className="text-sm text-gray-400">
             {t.rich('signInCta', {
               auth: (chunks) => (
                 <Link href="/auth/login" className="text-green-400 hover:text-green-300">
@@ -108,41 +69,7 @@ export function CommentSection({ postId }: Props) {
         </div>
       )}
 
-      {isLoading && (
-        <div className="space-y-3">
-          {[1, 2, 3].map((index) => (
-            <div key={index} className="bg-gray-900 rounded-xl px-5 py-4 animate-pulse">
-              <div className="flex gap-2 mb-2">
-                <div className="w-8 h-8 rounded-full bg-gray-700" />
-                <div className="h-4 bg-gray-700 rounded w-32" />
-              </div>
-              <div className="h-3 bg-gray-700 rounded w-full mb-1" />
-              <div className="h-3 bg-gray-700 rounded w-2/3" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!isLoading && comments.length === 0 && (
-        <p className="text-gray-500 text-center py-8">
-          {t('none')}
-        </p>
-      )}
-
-      {!isLoading && comments.length > 0 && (
-        <div className="space-y-4">
-          {comments.map((comment) => (
-            <CommentThreadNode
-              key={comment.id}
-              comment={comment}
-              postId={postId}
-              depth={0}
-              userId={user?.id}
-              userRole={user?.role}
-            />
-          ))}
-        </div>
-      )}
+      <CommentList postId={postId} rootsQuery={rootsQuery} viewer={user} />
     </section>
   );
 }

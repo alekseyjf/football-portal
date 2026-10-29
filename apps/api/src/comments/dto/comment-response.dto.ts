@@ -2,22 +2,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { LikeType } from '@prisma/client';
 import { PublicAuthorDto } from '../../users/dto/public-author-response.dto';
 
-/**
- * Коментар з відповідями (старе дерево `GET /comments/post/{postId}`, до M1.7.3). Корені — закріплені першими,
- * далі новіші; відповіді — хронологічно. Відповіді видаленого кореня — серед коренів.
- */
-export class CommentDto {
-  id!: string;
-  content!: string;
-  /** Коли закріплено; `null` — не закріплено */
-  pinnedAt!: Date | null;
-  createdAt!: Date;
-  /** `null` — коментар верхнього рівня */
-  parentId!: string | null;
-  author!: PublicAuthorDto;
-  replies!: CommentDto[];
-}
-
 /** Кому відповіли: відповідь на відповідь (як «@Ім'я» на YouTube). */
 export class CommentReplyToDto {
   /** Відповідь, на яку відповіли; `null` — її фізично видалив адмін */
@@ -55,11 +39,17 @@ export class CommentItemDto {
   replyTo!: CommentReplyToDto | null;
 }
 
-/** Порція коментарів: корені `GET /comments` або відповіді гілки `GET /comments/{id}/replies`. */
+/** Порція відповідей гілки `GET /comments/{id}/replies` (і основа порції коренів). */
 export class CommentPageDto {
   items!: CommentItemDto[];
   /** Курсор наступної порції — як є в `?cursor=`; `null` — порцій більше немає */
   nextCursor!: string | null;
+}
+
+/** Порція коренів `GET /comments` — з лічильником новини чи матчу. */
+export class CommentRootsPageDto extends CommentPageDto {
+  /** «N коментарів»: живі корені й відповіді, разом із відповідями під заглушкою; сама заглушка — ні */
+  commentCount!: number;
 }
 
 /** `DELETE /comments/{id}`: коментар сховано (корінь з відповідями — заглушка). */

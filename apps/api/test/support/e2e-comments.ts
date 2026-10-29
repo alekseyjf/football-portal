@@ -23,6 +23,10 @@ export interface CommentPageBody {
   nextCursor: string | null;
 }
 
+export interface CommentRootsPageBody extends CommentPageBody {
+  commentCount: number;
+}
+
 /** Агент з сесією або гість (`request(server)`): обидва вміють `get` / `post`. */
 type Client = request.Agent | ReturnType<typeof request>;
 
@@ -41,13 +45,13 @@ export async function postComment(
 export async function getRootsPage(
   client: Client,
   query: Record<string, string | number>,
-): Promise<CommentPageBody> {
+): Promise<CommentRootsPageBody> {
   const response = await client
     .get(apiPath('/comments'))
     .query(query)
     .expect(200);
   expectMatchesContract(response, 'get', '/comments');
-  return response.body as CommentPageBody;
+  return response.body as CommentRootsPageBody;
 }
 
 export async function getRepliesPage(

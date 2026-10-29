@@ -43,7 +43,7 @@ export class PostSummaryDto {
   competitions!: PostCompetitionDto[];
 }
 
-/** Новина з текстом. Коментарі — окремо: `GET /comments/post/{postId}`. */
+/** Новина з текстом. Коментарі — окремо, порціями: `GET /comments?postId=`. */
 export class PostDetailDto extends PostSummaryDto {
   /**
    * Текст новини — Markdown (D25), як його зберегла редакція. Рендерить клієнт:

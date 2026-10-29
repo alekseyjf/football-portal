@@ -7,20 +7,6 @@ import type { CommentPageOrder, CommentPagePosition } from './comment-cursor';
 import { commentPageOrderBy, commentsAfterPositionWhere } from './comment-page';
 import { listedRootWhere, publicThreadWhere } from './comment-visibility';
 
-/** Вузол старого дерева (`GET /comments/post/{postId}` — до M1.7.3). */
-export const COMMENT_NODE_SELECT = {
-  id: true,
-  content: true,
-  pinnedAt: true,
-  createdAt: true,
-  parentId: true,
-  author: { select: PUBLIC_AUTHOR_SELECT },
-} satisfies Prisma.CommentSelect;
-
-export type CommentNodeRow = Prisma.CommentGetPayload<{
-  select: typeof COMMENT_NODE_SELECT;
-}>;
-
 /** Коментар порції (D27); заглушку (`deletedAt`) ховає `toCommentItem`. */
 const COMMENT_ITEM_SELECT = {
   id: true,
@@ -78,13 +64,6 @@ export type CommentPageQuery = {
 @Injectable()
 export class CommentRepository {
   constructor(private prisma: PrismaService) {}
-
-  findLiveInThread(threadId: string): Promise<CommentNodeRow[]> {
-    return this.prisma.comment.findMany({
-      where: { threadId, deletedAt: null },
-      select: COMMENT_NODE_SELECT,
-    });
-  }
 
   /** Корені треду, нові першими: живі й заглушки з відповідями (D27). */
   findRootsPage(
