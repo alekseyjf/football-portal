@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import { useTranslations } from 'next-intl';
+import { isCommentEditWindowOpen } from '@football-portal/validation';
 import type { CommentItem, UserAccount } from '@/lib/api/types';
 import { useAuthorDisplayName } from '@/hooks/useAuthorDisplayName';
 import { useCommentBranch } from '@/hooks/useCommentBranch';
@@ -52,22 +53,27 @@ export function CommentBranch({ postId, root, viewer, focusRef }: Props) {
       </div>
     );
 
-  const card = (comment: CommentItem, cardFocusRef?: typeof focusOnAttach) => (
-    <>
-      <CommentCard
-        postId={postId}
-        comment={comment}
-        canDelete={
-          viewer !== null &&
-          (viewer.id === comment.author?.id || viewer.role === 'ADMIN')
-        }
-        onReply={viewer ? () => branch.openComposer(comment) : null}
-        onDelete={() => branch.deleteWithConfirm(comment)}
-        focusRef={cardFocusRef}
-      />
-      {composerAfter(comment.id)}
-    </>
-  );
+  const card = (comment: CommentItem, cardFocusRef?: typeof focusOnAttach) => {
+    const isOwn = viewer !== null && viewer.id === comment.author?.id;
+    return (
+      <>
+        <CommentCard
+          postId={postId}
+          comment={comment}
+          canDelete={isOwn || viewer?.role === 'ADMIN'}
+          // Адмін чужий не змінює — лише видаляє (D27). Годинник браузера, без таймера: після 15 хв відмовить API
+          canEdit={
+            isOwn &&
+            isCommentEditWindowOpen(new Date(comment.createdAt), new Date())
+          }
+          onReply={viewer ? () => branch.openComposer(comment) : null}
+          onDelete={() => branch.deleteWithConfirm(comment)}
+          focusRef={cardFocusRef}
+        />
+        {composerAfter(comment.id)}
+      </>
+    );
+  };
 
   return (
     <li>

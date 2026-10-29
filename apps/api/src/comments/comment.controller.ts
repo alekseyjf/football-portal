@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import {
   AuthRequired,
 } from '../auth/guards/access.decorators';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
+import { CommentEditService } from './comment-edit.service';
 import { CommentListService } from './comment-list.service';
 import { CommentPurgeService } from './comment-purge.service';
 import { CommentService } from './comment.service';
@@ -33,6 +35,7 @@ import {
   ListCommentRepliesQueryDto,
   ListCommentsQueryDto,
 } from './dto/list-comments-query.dto';
+import { UpdateCommentDto } from './dto/update-comment.dto';
 
 @ApiTags('comments')
 @Controller('comments')
@@ -40,6 +43,7 @@ export class CommentController {
   constructor(
     private commentListService: CommentListService,
     private commentService: CommentService,
+    private commentEditService: CommentEditService,
     private commentPurgeService: CommentPurgeService,
   ) {}
 
@@ -88,6 +92,23 @@ export class CommentController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommentItemDto> {
     return this.commentService.createComment(dto, user);
+  }
+
+  /**
+   * Змінити текст свого коментаря — лише автор і лише 15 хв від публікації; лайки й відповіді лишаються.
+   * Той самий текст — успіх без `editedAt`. Пауза між коментарями на зміну не діє, бан на коментарі — діє.
+   * @throws {400} Невалідний текст — ті самі межі, що в нового
+   * @throws {403} COMMENT_EDIT_FORBIDDEN — чужий (і для ADMIN); COMMENT_EDIT_WINDOW_CLOSED — минуло 15 хв; COMMENT_THREAD_LOCKED, COMMENTS_SUSPENDED, ACCOUNT_LOCKED
+   * @throws {404} COMMENT_NOT_FOUND — немає або видалений
+   */
+  @Patch(':id')
+  @AuthRequired()
+  editComment(
+    @Param('id') id: string,
+    @Body() dto: UpdateCommentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CommentItemDto> {
+    return this.commentEditService.editComment(id, dto, user);
   }
 
   /**

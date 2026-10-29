@@ -18,19 +18,22 @@ type Props = {
   submitLabel: string;
   addressee?: ComposerAddressee | null;
   rows?: number;
-  /** Поле відповіді — фокус одразу, «Скасувати» закриває */
+  /** Є — зміна свого коментаря (M1.7.4): поле з його текстом; очікування й помилка — про збереження */
+  initialContent?: string;
+  /** Поле відповіді чи зміни — фокус одразу (курсор у кінці тексту), «Скасувати» закриває */
   autoFocus?: boolean;
   onCancel?: () => void;
   /** Відхилений проміс — помилка API під полем; текст лишається */
   onSubmit: (content: string) => Promise<unknown>;
 };
 
-/** Новий коментар чи відповідь: «@Ім'я» адресата — чипом, у текст не потрапляє (D27). */
+/** Новий коментар, відповідь чи зміна свого: «@Ім'я» адресата — чипом, у текст не потрапляє (D27). */
 export function CommentComposer({
   placeholder,
   submitLabel,
   addressee,
   rows = 3,
+  initialContent,
   autoFocus,
   onCancel,
   onSubmit,
@@ -39,16 +42,24 @@ export function CommentComposer({
   const commentErrorMessage = useCommentErrorMessage();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const isEditing = initialContent !== undefined;
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CommentFormValues>({ resolver: zodResolver(commentFormSchema) });
+  } = useForm<CommentFormValues>({
+    resolver: zodResolver(commentFormSchema),
+    defaultValues: { content: initialContent ?? '' },
+  });
   const { ref: registerContentRef, ...contentField } = register('content');
 
   useEffect(() => {
-    if (autoFocus) textareaRef.current?.focus();
+    const textarea = textareaRef.current;
+    if (!autoFocus || !textarea) return;
+    textarea.focus();
+    // Зміна коментаря — дописують у кінці, як на YouTube
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }, [autoFocus]);
 
   const submit = handleSubmit(async ({ content }) => {
@@ -57,7 +68,9 @@ export function CommentComposer({
       await onSubmit(content);
       reset();
     } catch (error) {
-      setSubmitError(commentErrorMessage(error) ?? t('genericError'));
+      setSubmitError(
+        commentErrorMessage(error) ?? t(isEditing ? 'editError' : 'genericError'),
+      );
     }
   });
 
@@ -120,7 +133,7 @@ export function CommentComposer({
           disabled={isSubmitting}
           className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:bg-green-800"
         >
-          {isSubmitting ? t('posting') : submitLabel}
+          {isSubmitting ? t(isEditing ? 'saving' : 'posting') : submitLabel}
         </button>
       </div>
     </form>

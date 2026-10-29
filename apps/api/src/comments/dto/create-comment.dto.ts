@@ -1,28 +1,10 @@
-import {
-  COMMENT_MAX_LENGTH,
-  COMMENT_MIN_LENGTH,
-} from '@football-portal/validation';
-import {
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
-import { TrimString } from '../../common/validation/trim-string.transform';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { CommentContentDto } from './comment-content.dto';
 
 /** cuid — 25 символів; межа лише від сміття в запиті, існування перевіряє сервіс. */
 export const COMMENT_REF_MAX_LENGTH = 64;
 
-export class CreateCommentDto {
-  /** Текст коментаря; пробіли по краях обрізаються */
-  // Межі — з `@football-portal/validation` (ті самі, що у формі коментаря на web)
-  @TrimString()
-  @IsString()
-  @MinLength(COMMENT_MIN_LENGTH)
-  @MaxLength(COMMENT_MAX_LENGTH)
-  content!: string;
-
+export class CreateCommentDto extends CommentContentDto {
   /** Новина, яку коментують; рівно одне з `postId` / `matchId` */
   // Рівно одне — перевіряє сервіс (P4-1, `COMMENT_TARGET_INVALID`).
   // `null` = не передано: `@IsOptional` пропускає null без решти валідаторів

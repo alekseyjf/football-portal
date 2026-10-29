@@ -5,7 +5,7 @@ import {
   type QueryClient,
   type QueryKey,
 } from '@tanstack/react-query';
-import { apiDelete, apiGet, apiPost } from '@/lib/api/http';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api/http';
 import type {
   CommentItem,
   CommentPage,
@@ -13,11 +13,13 @@ import type {
   CommentSort,
   CreateCommentRequest,
   SoftDeletedComment,
+  UpdateCommentRequest,
 } from '@/lib/api/types';
 import {
   appendOwnReply,
   countOwnReply,
   prependOwnRoot,
+  updateCommentInPages,
   type CommentPages,
 } from '@/lib/comments/comment-pages';
 
@@ -84,13 +86,13 @@ export function useCommentReplies(postId: string, rootId: string) {
 }
 
 /**
- * Свій коментар — у кеш порцій без перезапиту (D27). Запит порцій, що вже летить, міг початись до запису й затер би
- * вставку — його скасовуємо; порцій ще немає (перша не прийшла чи її скасовано) — перечитуємо.
+ * Свій коментар — новий чи змінений — у кеш порцій без перезапиту (D27). Запит порцій, що вже летить, міг початись
+ * до запису й затер би його — скасовуємо; порцій ще немає (перша не прийшла чи її скасовано) — перечитуємо.
  */
-async function insertIntoPages<Page extends CommentPage>(
+async function writeIntoPages<Page extends CommentPage>(
   queryClient: QueryClient,
   queryKey: QueryKey,
-  insert: (data: CommentPages<Page>) => CommentPages<Page>,
+  write: (data: CommentPages<Page>) => CommentPages<Page>,
 ): Promise<void> {
   await queryClient.cancelQueries({ queryKey, exact: true });
   if (queryClient.getQueryData(queryKey) === undefined) {
@@ -99,7 +101,7 @@ async function insertIntoPages<Page extends CommentPage>(
   }
   queryClient.setQueryData<CommentPages<Page>>(
     queryKey,
-    (data) => data && insert(data),
+    (data) => data && write(data),
   );
 }
 
@@ -113,23 +115,48 @@ export function useCreateComment(postId: string) {
     onSuccess: async (comment) => {
       const rootsKey = commentRootsQueryKey(postId);
       if (comment.parentId === null) {
-        await insertIntoPages<CommentRootsPage>(queryClient, rootsKey, (data) =>
+        await writeIntoPages<CommentRootsPage>(queryClient, rootsKey, (data) =>
           prependOwnRoot(data, comment),
         );
         return;
       }
       const rootId = comment.parentId;
       await Promise.all([
-        insertIntoPages<CommentRootsPage>(queryClient, rootsKey, (data) =>
+        writeIntoPages<CommentRootsPage>(queryClient, rootsKey, (data) =>
           countOwnReply(data, rootId),
         ),
-        insertIntoPages(
+        writeIntoPages(
           queryClient,
           commentRepliesQueryKey(postId, rootId),
           (data) => appendOwnReply(data, comment),
         ),
       ]);
     },
+  });
+}
+
+type CommentEdit = { comment: CommentItem; content: string };
+
+/**
+ * Новий текст свого коментаря (M1.7.4): відповідь API — з `editedAt` — замінює коментар у порції, де він є
+ * (корінь — у порціях коренів, відповідь — у своїй гілці), без перезапиту.
+ */
+export function useEditComment(postId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ comment, content }: CommentEdit) =>
+      apiPatch<CommentItem>(`/comments/${encodeURIComponent(comment.id)}`, {
+        content,
+      } satisfies UpdateCommentRequest),
+    onSuccess: (edited) =>
+      writeIntoPages(
+        queryClient,
+        edited.parentId === null
+          ? commentRootsQueryKey(postId)
+          : commentRepliesQueryKey(postId, edited.parentId),
+        (data) => updateCommentInPages(data, edited.id, () => edited),
+      ),
   });
 }
 

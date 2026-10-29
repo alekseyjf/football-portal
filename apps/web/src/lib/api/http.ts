@@ -230,6 +230,14 @@ export async function apiPut<T>(endpoint: string, body: unknown): Promise<T> {
   });
 }
 
+export async function apiPatch<T>(endpoint: string, body: unknown): Promise<T> {
+  return request<T>(endpoint, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 /** `body` — для підтвердження паролем (`DELETE /users/me`). */
 export async function apiDelete<T>(endpoint: string, body?: unknown): Promise<T> {
   return request<T>(endpoint, {

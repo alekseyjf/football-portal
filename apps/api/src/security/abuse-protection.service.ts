@@ -50,14 +50,7 @@ export class AbuseProtectionService {
     const policy = getRateLimitPolicy(action, this.commentCooldownMs);
     const now = new Date();
 
-    const isSuspended = await this.sanctionRepository.hasActive(
-      userId,
-      policy.sanctionType,
-      now,
-    );
-    if (isSuspended) {
-      throw new HttpException(policy.suspendedCode, HttpStatus.FORBIDDEN);
-    }
+    await this.assertNotSuspendedFor(userId, policy, now);
 
     if (policy.cooldown && policy.cooldown.ms > 0) {
       const lastEventAt = await this.rateLimitRepository.findLastEventAt(
@@ -74,6 +67,18 @@ export class AbuseProtectionService {
         );
       }
     }
+  }
+
+  /**
+   * Лише активна санкція → 403, без cooldown: дія, що не створює нового (зміна тексту свого коментаря, M1.7.4),
+   * забанена разом з дією, але паузу між новими не чекає.
+   */
+  async assertNotSuspended(
+    userId: string,
+    action: RateLimitAction,
+  ): Promise<void> {
+    const policy = getRateLimitPolicy(action, this.commentCooldownMs);
+    await this.assertNotSuspendedFor(userId, policy, new Date());
   }
 
   /**
@@ -108,6 +113,21 @@ export class AbuseProtectionService {
       throw new HttpException(ACCOUNT_LOCKED_CODE, HttpStatus.FORBIDDEN);
     }
     throw new HttpException(policy.suspendedCode, HttpStatus.FORBIDDEN);
+  }
+
+  private async assertNotSuspendedFor(
+    userId: string,
+    policy: RateLimitPolicy,
+    now: Date,
+  ): Promise<void> {
+    const isSuspended = await this.sanctionRepository.hasActive(
+      userId,
+      policy.sanctionType,
+      now,
+    );
+    if (isSuspended) {
+      throw new HttpException(policy.suspendedCode, HttpStatus.FORBIDDEN);
+    }
   }
 
   /** P2-10: під advisory lock, щоб паралельні запити одного burst-у дали одну санкцію. */

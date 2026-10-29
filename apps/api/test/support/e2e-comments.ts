@@ -9,6 +9,7 @@ export interface CommentItemBody {
   content: string | null;
   author: { id: string; name: string } | null;
   isDeleted: boolean;
+  editedAt: string | null;
   likeCount: number;
   myReaction: 'LIKE' | 'DISLIKE' | null;
   replyCount: number;

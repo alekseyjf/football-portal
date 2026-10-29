@@ -8,6 +8,7 @@ import { slugify } from './slug';
 export { SLUG_PATTERN, slugify } from './slug';
 export { publicTagPath } from './public-paths';
 export { normalizeYouTubeUrl, parseYouTubeVideoId } from './youtube';
+export { commentEditWindowStart, isCommentEditWindowOpen } from './comment-edit';
 
 /** RFC 5321: довша адреса не доставляється. */
 export const EMAIL_MAX_LENGTH = 254;

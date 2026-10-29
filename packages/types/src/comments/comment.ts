@@ -18,5 +18,8 @@ export type CommentSort = ApiSchemas['CommentSort'];
 /** Тіло `POST /comments`: рівно одне з `postId` / `matchId`; `parentId` — відповідь. Відповідь — `CommentItem`. */
 export type CreateCommentRequest = ApiSchemas['CreateCommentDto'];
 
+/** Тіло `PATCH /comments/{id}`: новий текст свого коментаря (15 хв від публікації). Відповідь — `CommentItem`. */
+export type UpdateCommentRequest = ApiSchemas['UpdateCommentDto'];
+
 /** `DELETE /comments/{id}` — сховано (корінь з відповідями — заглушка). */
 export type SoftDeletedComment = ApiSchemas['SoftDeletedCommentDto'];

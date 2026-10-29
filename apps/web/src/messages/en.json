@@ -195,7 +195,16 @@
     "deletedComment": "Comment deleted",
     "replyingTo": "Replying to @{name}",
     "removeAddressee": "Remove @{name} and reply to the thread",
-    "genericError": "Could not post the comment. Please try again."
+    "genericError": "Could not post the comment. Please try again.",
+    "edit": "Edit",
+    "save": "Save",
+    "saving": "Saving…",
+    "editPlaceholder": "Edit your comment…",
+    "edited": "(edited)",
+    "editedAt": "Edited {date}",
+    "editWindowClosed": "The time to edit this comment has run out.",
+    "commentGone": "This comment has been deleted.",
+    "editError": "Could not save the changes. Please try again."
   },
   "auth": {
     "email": "Email",
