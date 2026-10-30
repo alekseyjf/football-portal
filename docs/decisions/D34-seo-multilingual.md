@@ -34,7 +34,9 @@ SEO — пріоритет (👤 11.1): для новинного сайту Goo
 - 👤 Індексацію вмикає серверна змінна web `SITE_INDEXING` (за замовчуванням `false`) — *чому:* `NODE_ENV=production` і на тесті, і на проді; забута змінна закриває сайт, а не відкриває тест-сервер. Вона ж замінює для web `APP_ENV=test` з [D31](D31-test-environment.md) (API — свій прапорець, M1.11.4).
 - 👤 `robots.ts` і `sitemap.ts` — динамічні (`force-dynamic`), змінна — лише серверна; вимкнено — `Disallow: /` і `X-Robots-Tag: noindex, nofollow` з `proxy.ts`, увімкнено — sitemap у `robots.txt` і глобально `max-image-preview:large`.
 - 👤 sitemap index з нарізкою за місяцями (`generateSitemaps`), маршрут API з `?month=`; кеш + `revalidateTag` при публікації; `hreflang` у sitemap — лише наявні переклади. **Slug один на всі мови** ([D24](D24-news-url-slug-number.md)) — адреси новини різняться лише мовою.
-- 👤 Матчі в sitemap — разом із `SportsEvent` (M2.2). ⭐ Google News sitemap (48 год, ≤ 1000) — у M3.7, з Search Console: закритий тест-сервер Google News не читає.
+- 👤 Матчі в sitemap — разом із `SportsEvent` (M2.2).
+- 👤 Відповіді на ❓ брифу (2026-10-30): API — `GET /posts/sitemap` (місяці), `GET /posts/sitemap/:month`, `GET /posts/sitemap/news` (48 год, ≤ 1000 — **Google News sitemap у цьому етапі**, а не в M3.7); групування — за місяцем `publishedAt` в UTC; «жива новина» = `status = PUBLISHED` — один предикат зі стрічкою.
+- 👤 Сповіщення web — **вебхук + TTL як страховка**: запланована новина виходить не сама за датою (P3-1), а воркером раз на хвилину (`SCHEDULED` → `PUBLISHED`, `SKIP LOCKED`, порції по 100); і воркер, і ручна публікація шлють ту саму подію `post.published`, вебхук web (`POST /api/revalidate` → `revalidateTag`) — її підписник. Правила статусів: `SCHEDULED` — лише з датою в майбутньому, `PUBLISHED → SCHEDULED` заборонено, дата після публікації незмінна. Рішення про публікацію — окремим D57 (у етапі). Outbox подій і IndexNow — [`backlog.md`](../backlog.md).
 
 ### M1.8.3 Структуровані дані й замір
 - 👤 Типи JSON-LD — `schema-dts`. `VideoObject` — ні, поки немає дати завантаження відео (YouTube Data API — [`backlog.md`](../backlog.md)).
