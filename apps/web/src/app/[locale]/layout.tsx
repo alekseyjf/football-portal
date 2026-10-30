@@ -10,6 +10,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { QueryProviders } from '@/providers/QueryProvider';
 import { TimeZoneSync } from '@/providers/TimeZoneSync';
 import { isAppLocale, routing } from '@/i18n/routing';
+import { siteUrl } from '@/lib/site-url';
 import { geist } from '../fonts';
 import '../globals.css';
 
@@ -24,14 +25,18 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
+  // Адреси метаданих сторінок (canonical, hreflang, Open Graph) — шляхи; повні з них робить `SITE_URL` (D34)
+  const metadataBase = new URL(siteUrl());
   if (!isAppLocale(locale)) {
     return {
+      metadataBase,
       title: 'Football Portal',
       description: 'Football news, matches and clubs',
     };
   }
   const t = await getTranslations({ locale, namespace: 'meta' });
   return {
+    metadataBase,
     title: {
       default: t('title'),
       template: `%s | ${t('title')}`,

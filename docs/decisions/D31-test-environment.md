@@ -11,7 +11,7 @@
 - 👤 Закритий доступ: HTTP Basic Auth (спільний логін / пароль) на web, admin і Swagger. ⭐ `/health` — без пароля, для моніторингу.
 - 👤 Без індексації: `X-Robots-Tag: noindex, nofollow` на всіх відповідях web / admin / API + `robots.txt` `Disallow: /`.
 - ⭐ API через rewrites Next: браузер ходить лише на домен web, Next проксіює `/api/v1/*` на API. Безкоштовні домени хостингів (`*.vercel.app`, `*.onrender.com` …) для браузера — різні «сайти», тож cookies `SameSite=Lax` на окремий домен API не підуть. Admin — так само, на своєму домені.
-- ⭐ `APP_ENV=test` (окремо від `NODE_ENV=production`) вмикає `noindex`, Basic Auth і Swagger.
+- ⭐ `APP_ENV=test` (окремо від `NODE_ENV=production`) вмикає `noindex`, Basic Auth і Swagger. 👤 2026-10-30 (бриф M1.8): індексацію web вмикає своя серверна `SITE_INDEXING` (за замовчуванням `false` — закрито; `robots.txt` і `X-Robots-Tag` з `proxy.ts`, M1.8.2, [D34](D34-seo-multilingual.md)); чи потрібен `APP_ENV` для API — у M1.11.4.
 - ⭐ Окремі секрети для тесту (`JWT_SECRET`, `EMAIL_HASH_SECRET`), не з dev.
 - 👤 БД — поточна Supabase; для проду — нова чиста. ⭐ ❓ Розділити dev і test (OQ-8): поточна БД стає тестовою, для локальної розробки — новий безкоштовний проєкт або локальний Postgres.
 - 👤 Синк: на тесті автосинк ввімкнено, локально — вимкнено ([D36](D36-sync-operations.md)). ⭐ LIVE-cron на тесті вимкнено (квота).

@@ -70,7 +70,7 @@
   "newsFeed": {
     "title": "News",
     "titleWithPage": "News — page {page}",
-    "description": "Football news: transfers, match reports, interviews. Filter by competition, tag and club.",
+    "description": "Football news: transfers, match reports and interviews — by competition, club and topic.",
     "leaguesLabel": "Competitions",
     "allLeagues": "All",
     "activeFiltersLabel": "Selected filters",
@@ -96,6 +96,7 @@
     "accountLocked": "This account is locked. Contact support if you think this is a mistake."
   },
   "match": {
+    "metaDescription": "{home} – {away} ({league}, {date}): score, match status and details.",
     "loading": "Loading match…",
     "notFound": "Match not found or network error.",
     "backHome": "← Back to home",
@@ -232,6 +233,7 @@
   },
   "matches": {
     "title": "Matches",
+    "metaDescription": "Football matches of the day: live scores, results and kick-off times in the top leagues and cups.",
     "today": "Today",
     "yesterday": "Yesterday",
     "tomorrow": "Tomorrow",

@@ -30,7 +30,7 @@
 - ⭐ **JSON-LD — без `dangerouslySetInnerHTML`** (`components/seo/JsonLd`): React 19 пише текст `<script>` як є, без HTML-екранування (перевірено), а `<` у JSON заміняє `\u003c` (`serializeJsonLd`, unit) — заголовок з `</script>` не закриває тег і не стає розміткою (перевірено наживо: нічого не виконалось, JSON розбирається в той самий заголовок). Для блоку даних (`application/ld+json`) React не попереджає про `<script>` у компоненті. Next.js радить `dangerouslySetInnerHTML` з тією самою заміною — у проєкті він заборонений, і тут не потрібен.
 
 ### Метадані
-- 👤 Опис — анонс; Open Graph — заголовок, анонс, `type: article`, `publishedTime`, обкладинка з описом фото (`og:image:alt`); без обкладинки — без картинки, а не логотип (`postMetadata`, unit). Теги X Next будує з Open Graph сам: з картинкою — велика картка. canonical, hreflang, `og:locale` — M1.8.
+- 👤 Опис — анонс; Open Graph — заголовок, анонс, `type: article`, `publishedTime`, обкладинка з описом фото (`og:image:alt`); без обкладинки — без картинки, а не логотип (`postMetadata`, unit). Теги X Next будує з Open Graph сам: з картинкою — велика картка. canonical, hreflang, `og:locale` — M1.8. 👤 2026-10-30 (M1.8.1, [D34](D34-seo-multilingual.md)): без обкладинки — згенерована картка з рубрикою й заголовком, картка X — завжди велика; `og:type=article` — ще й рубрика й теги.
 
 ### 404, помилка, скелетон
 - 👤 Відповідь 404 — для будь-якої новини, якої публіка не бачить: чернетка, запланована, знята з публікації, архівна, видалена, неіснуюча (API — `publicPostWhere`, сторінка — `fetchQuery` + `notFound()` з M1.4.1). e2e (`posts/post-url.e2e-spec.ts`) розширено знятою з публікації, архівною й неіснуючою; наживо — статуси сторінки сайту.

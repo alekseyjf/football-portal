@@ -1,7 +1,7 @@
 # ⚽ 12Yards — план розвитку
 
 > **Версія:** 5.0 · 2026-10-08 — перший план після переходу на схему v5. Попередні: [`archive/football-plan-v4.7.md`](archive/football-plan-v4.7.md), [`archive/football-plan-intermediate.md`](archive/football-plan-intermediate.md).
-> **Зараз:** M1 «Тестовий реліз» → **M1.7 Коментарі як на YouTube** ([D27](decisions/D27-youtube-style-comments.md)): M1.7.1 Strike-и за 30 днів ✅ → M1.7.2 API коментарів ✅ (міграція 0012 на dev-БД) → M1.7.3 сайт ✅ → M1.7.4 редагування ✅ — далі **M1.8 SEO-база** · M1.6 Новини — web ✅ (M1.6.1–M1.6.4, [D52](decisions/D52-news-feed.md)–[D56](decisions/D56-pinned-lead-post.md)) · M1.5 Новини — адмінка ✅ (M1.5.1–M1.5.3, [D49](decisions/D49-shared-ui-package.md)–[D51](decisions/D51-admin-tags.md)) · M1.4 Новини — API ✅ (M1.4.1–M1.4.9) · M1.1 — власник перечитує `rules/`.
+> **Зараз:** M1 «Тестовий реліз» → **M1.8 SEO-база** ([D34](decisions/D34-seo-multilingual.md)): M1.8.1 метадані сторінок ✅ → **M1.8.2 sitemap і robots** → M1.8.3 структуровані дані й замір · M1.7 Коментарі як на YouTube ✅ (M1.7.1–M1.7.4, [D27](decisions/D27-youtube-style-comments.md)) · M1.6 Новини — web ✅ (M1.6.1–M1.6.4, [D52](decisions/D52-news-feed.md)–[D56](decisions/D56-pinned-lead-post.md)) · M1.5 Новини — адмінка ✅ (M1.5.1–M1.5.3, [D49](decisions/D49-shared-ui-package.md)–[D51](decisions/D51-admin-tags.md)) · M1.4 Новини — API ✅ (M1.4.1–M1.4.9) · M1.1 — власник перечитує `rules/`.
 > **Карта документації:** [`docs/README.md`](README.md) · рішення — [`decisions/`](decisions/README.md) · відкладене — [`backlog.md`](backlog.md) · ідеї — [`ideas.md`](ideas.md) · питання — [`open-questions.md`](open-questions.md).
 
 ## Як читати план
@@ -590,34 +590,51 @@
 
 ### M1.8 SEO-база
 
-**Мета:** SEO в пріоритеті (👤 11.1) — база до тестового релізу ([D34](decisions/D34-seo-multilingual.md)). ⭐ Три під-етапи, кожен — гілка й PR, по черзі: спершу метадані (на них спираються sitemap і замір), далі sitemap / robots, наостанок замір на зібраному сайті.
+**Мета:** SEO в пріоритеті (👤 11.1) — база до тестового релізу ([D34](decisions/D34-seo-multilingual.md)). ⭐ Три під-етапи, кожен — гілка й PR, по черзі: спершу метадані (на них спираються sitemap і замір), далі sitemap / robots, наостанок замір на зібраному сайті. 👤 Відповіді брифу (2026-10-30) — у пунктах нижче й у D34, «Уточнення — бриф M1.8».
 
 - [x] 👤 `<html lang="en">` / `<html lang="uk">` (зроблено в M1.2).
 
-**M1.8.1 Метадані сторінок** — один хелпер (frontend Rule 14), усі сторінки.
-- [ ] 👤 `metadataBase` (`SITE_URL` — серверна, з M1.6.2), `generateMetadata` на всіх сторінках: головна, `/news`, новина, `/matches`, матч (сторінка тегу — M2.13).
-- [ ] 👤 Свій `canonical` для кожної мови + `hreflang` (`en`, `uk`) + `x-default` → EN.
-  - ⭐ Новина без UK-перекладу: `canonical` → EN-версія, у `hreflang` — лише наявні мови — *чому:* інакше Google бачить дві сторінки з однаковим англійським текстом (дубль).
-- [ ] 👤 `/news` з фільтрами (`?tags=`, `?competition=`, `?club=`) — `noindex, follow` + canonical на `/news` (OQ-1); 👤 2026-10-24: фільтр за тегом лишається `noindex` і після M1.8 — до сторінки тегу (M2.13, [D51](decisions/D51-admin-tags.md)).
-- [ ] 👤 2026-10-24 ([D52](decisions/D52-news-feed.md)): сторінки стрічки `?page=N` (без фільтрів) індексуються, canonical — на себе, а не на першу — *чому:* canonical на першу сказав би Google, що старих новин на `?page=N` немає, і вони випали б з індексу. Сторінка поза стрічкою — уже 404 (M1.6.1).
-  - ⭐ Сторінки входу й реєстрації — `noindex` — *чому:* там нічого шукати, а місце в індексі обмежене.
-- [ ] ⭐ Базові Open Graph і Twitter-теги з обкладинки (`og:title`, `og:description`, `og:image`, `og:locale` `en_US` / `uk_UA`) — майже без роботи разом із metadata (на новині — уже з M1.6.2, `postMetadata`; лишились `og:locale` і решта сторінок); 👤 згенеровані OG-картинки — M2.9.
-  - ❓ Хелпер: ⭐ чиста функція `pageMetadata({ locale, pathname, title, description, languages, robots })` у `lib/seo/` (canonical, `alternates.languages` з `x-default`, `og:locale`, `og:url`), `postMetadata` — поверх неї; unit на canonical / hreflang з перекладом і без — *чому:* правило в одному місці, а не в кожному `generateMetadata`.
-  - ❓ Twitter-картка: ⭐ `summary_large_image`, якщо є обкладинка, інакше `summary` — *чому:* велика картка без картинки показує порожнє місце.
+**M1.8.1 Метадані сторінок** ✅ — один хелпер (frontend Rule 14), усі сторінки.
+- [x] 👤 `pageMetadata` (`lib/seo/page-metadata.ts`, unit) — чиста функція на всі сторінки: canonical, `hreflang` (`en`, `uk`, `x-default` → EN), `noindex`, Open Graph (`og:url` = canonical, `og:locale` `en_US` / `uk_UA` + `og:locale:alternate`, `og:site_name`) і картка X; `postMetadata` — поверх неї. `metadataBase` — `SITE_URL` (`[locale]/layout.tsx`): у метаданих лише шляхи. Сторінки: головна, `/news`, новина, `/matches`, матч, вхід, реєстрація (сторінка тегу — M2.13).
+  - 👤 Canonical нормалізований: його будує сторінка з уже розібраних параметрів, а не з адреси запиту — `utm_*`, `fbclid` і чужі параметри не потрапляють, фільтри — у сталому порядку (`newsFeedHref`, `matchesPageHref`), шляхи — малими літерами (slug — з API, інший запис → 308; `/en/news/` → 308). Unit — на `utm` і `?page`.
+  - ⭐ `alternateLinks: false` (`i18n/routing.ts`) — *чому:* next-intl за замовчуванням шле HTTP-заголовок `Link` з `hreflang` на кожну сторінку — з `uk` і для новини без перекладу, ще й `x-default` на адресу без мови (перевірено); мовні версії знає лише сторінка.
+  - ⭐ `hreflang` — лише в сторінок для індексу — *чому:* мовні версії сторінки з `noindex` пошуку не потрібні.
+- [x] 👤 Новина без UK-перекладу: на `/uk/…` canonical → EN, у `hreflang` немає `uk`, **без `noindex`**, `og:locale` — `en_US` (мова тексту); текст — з `lang="en"` (з M1.6.2); у sitemap — ні (M1.8.2). Мови — `availableLanguages` (переклади лише увімкненими мовами).
+- [x] 👤 `/news` з фільтрами (`?tags=`, `?competition=`, `?club=`) — `noindex, follow` і canonical **на себе** (👤 2026-10-30 — замість canonical на `/news`, [D52](decisions/D52-news-feed.md)) — *чому:* `noindex` разом з canonical на іншу адресу — суперечливі сигнали для Google. Фільтр за тегом — так і до сторінки тегу (M2.13, [D51](decisions/D51-admin-tags.md)). Сторінки `?page=N` без фільтрів — в індексі, canonical на себе (D52). Правило — `newsFeedSearchPage` (unit).
+- [x] 👤 `/matches` з `?date=` чи `?league=` — `noindex, follow` і canonical на себе; без них — в індексі; невалідні параметри — як без них (`matchesSearchPage`, unit) — *чому:* інакше кожен день кожної ліги — окрема сторінка майже без тексту. 👤 Сторінки-хаби `/matches/YYYY-MM-DD` і ліг з текстом — M2 ([`backlog.md`](backlog.md)).
+- [x] 👤 Головна з `?league=` — canonical завжди на головну мови: параметр лише перемикає таблицю сайдбару.
+- [x] 👤 Вхід і реєстрація — `noindex, follow`, назви мовою сторінки; у sitemap — ні.
+- [x] 👤 Назви й описи EN і UK (власник править у PR): головна — з M1.6.3; опис `/news` переписано; `/matches` і матч — нові `metaDescription` (матч — клуби, турнір і дата початку в поясі читача). Шаблон назви — `%s | Назва сайту` (з M1.6); назва — поки «Football Portal» / «Футбольний портал» (OQ-24). 👤 Окремі SEO-назва й опис новини (`seoTitle` / `seoDescription`) — [`backlog.md`](backlog.md).
+- [x] 👤 Новина — `og:type=article`: `article:published_time`, `article:modified_time` (= дата публікації, поки немає «Оновлено» — OQ-26), `article:section` (рубрика картки), `article:tag` (теги мовою сторінки). ⭐ `article:author` — ні — *чому:* Open Graph чекає адресу профілю автора, а сторінок авторів немає; ім'я автора — у `NewsArticle`.
+- [x] 👤 Картка X — завжди `summary_large_image`; без обкладинки — згенерована картка `next/og` (рубрика, заголовок до 4 рядків, назва сайту; 1200 × 630; `og:image:alt` — назва сторінки): `lib/seo/og-card.tsx`, маршрути `/{locale}/og/page/{home|news|matches}`, `/og/post/{number}` (за номером — зміна slug-а адресу картки не змінює), `/og/match/{id}` (без рахунку — картку соцмережі тримають у себе, а рахунок змінюється). Шрифт — Geist Bold з кирилицею (`apps/web/assets/fonts`, OFL; файл збирач копіює разом з кодом маршруту). ⭐ `Cache-Control` — доба, а не рік (`immutable` за замовчуванням) — *чому:* заголовок новини можуть виправити. Новини чи матчу немає — 404. Картки «на повну» (рахунок, емблеми, бренд) — M2.9.
+- [x] Уже було (перевірено наживо): `NewsArticle` і `BreadcrumbList` (M1.6.2), 308 зі старого slug-а, 404 для чернетки й видаленої новини. ⭐ 410 — ні — *чому:* сторінка App Router віддає лише 404 (`notFound()`), а Google обробляє 404 і 410 майже однаково; 410 через `proxy.ts` — запит до API на кожен перехід.
+- *Тести M1.8.1:* unit web 157 → 176: `lib/seo/page-metadata.test.ts` (8: обидві мови; без перекладу — canonical на EN без `uk` і без `noindex`; `?page=N` — на себе; `noindex` — на себе без `hreflang`; порожній query — без `?` у кінці; картка й обкладинка; шаблон назви), `post-metadata.test.ts` (2 → 5: стаття з рубрикою й тегами, картка за номером, `/uk` з перекладом і без, рубрика з кількох турнірів), `news-feed-filters.test.ts` (+4: `utm_*`, `?page=N`, фільтри — `noindex` і сталий порядок, невалідний фільтр), `lib/football/matches-page.test.ts` (4).
+- *Перевірка M1.8.1:* `pnpm lint` (+ кінці рядків), `pnpm typecheck` (7 пакетів), unit web 176, `next build` — без попереджень. Наживо (API з джерел на схемі `e2e`: новина EN + UK без обкладинки, новина лише EN з обкладинкою, чернетка, видалена, турнір з матчами; `next start`, HTML `<head>` і заголовки відповідей): усе вище збіглося на обох мовах — canonical, `hreflang`, `noindex`, Open Graph, `article:*`, картка X; `utm_source` / `fbclid` — не в canonical; заголовка `Link` з `hreflang` немає; картки — 7 адрес → PNG 1200 × 630, 5 → 404 (чернетка, видалена, `abc`, невідома сторінка й матч); кирилиця й « » — на місці, заголовок у 200 символів — 4 рядки з «…». Знайдено й виправлено (спершу тест): canonical `/matches` без параметрів мав `?` у кінці — `getPathname` дописує його на порожній `query`.
 
-**M1.8.2 sitemap і robots** — що індексувати і що ні.
-- [ ] ⭐ `sitemap.ts`: новини (`lastmod` — з `PostTranslation.updatedAt`: `Post.updatedAt` змінюється від лайків), статичні сторінки; теги — разом зі сторінкою тегу (M2.13).
-- [ ] 👤 `robots.ts` за середовищем: тест — `Disallow: /`, прод — дозволено + sitemap.
-  - ❓ Як web знає «тест чи прод»: ⭐ серверна `SITE_INDEXING` (`true` | `false`, zod — `server-env-schema.ts`, за замовчуванням `false`) — *чому:* `NODE_ENV=production` і на тесті, і на проді; забута змінна закриває сайт від індексації, а не відкриває тест-сервер.
-  - ❓ Звідки новини для sitemap: ⭐ новий публічний `GET /posts/sitemap` — живі новини (`publicPostWhere`): `number`, `slug`, мови з датою зміни перекладу, до 50 000 рядків (межа одного файла sitemap); `sitemap.ts` — `alternates.languages` для перекладів — *чому:* стрічка порціями по 50 — сотні запитів; sitemap index — коли новин стане близько 50 000.
-  - ❓ Матчі в sitemap: ⭐ поки ні — сторінки матчів індексуються, але в sitemap — разом із `SportsEvent` (M2.2) — *чому:* тисячі сторінок без розмітки події розмивають sitemap новинного сайту.
+**M1.8.2 sitemap і robots** — що індексувати і що ні. 👤 Рішення брифу (2026-10-30):
+- [ ] 👤 Індексацію вмикає серверна змінна web `SITE_INDEXING` (`true` | `false`, за замовчуванням `false`; zod — `server-env-schema.ts`, `.env.example`) — *чому:* `NODE_ENV=production` і на тесті, і на проді; забута змінна закриває сайт від індексації, а не відкриває тест-сервер. Лише серверна (не `NEXT_PUBLIC_*`): одна збірка для тесту й проду.
+  - 👤 `robots.ts` і `sitemap.ts` — динамічні (`force-dynamic`) — *чому:* інакше Next збере їх статично зі значенням змінної на момент збірки.
+  - 👤 Вимкнено — `robots.txt` `Disallow: /` і `X-Robots-Tag: noindex, nofollow` на кожну відповідь (`proxy.ts`); увімкнено — дозволено + посилання на sitemap, і глобально `max-image-preview:large` (`robots` у `[locale]/layout.tsx`; сторінки з `noindex` його замінюють).
+  - ⭐ У web `SITE_INDEXING` замінює `APP_ENV=test` з [D31](decisions/D31-test-environment.md) (M1.11.4) — *чому:* одна змінна на одне рішення; Basic Auth і Swagger — справа сервера й API.
+- [ ] 👤 Новини — новий публічний маршрут API (`publicPostWhere`): `number`, `slug` (👤 на питання брифу: **slug один на всі мови**, [D24](decisions/D24-news-url-slug-number.md) — адреси новини різняться лише мовою), мови перекладів з датою зміни перекладу (`PostTranslation.updatedAt`: `Post.updatedAt` змінюють лайки).
+  - 👤 sitemap index з нарізкою за місяцями публікації (`generateSitemaps`), маршрут API з `?month=`. ❓ Форма API: ⭐ `GET /posts/sitemap` → місяці з кількістю й найсвіжішою датою зміни, `GET /posts/sitemap?month=2026-10` → новини місяця (≤ 50 000 — межа файла) — *чому:* `generateSitemaps` спершу питає список файлів, потім — кожен файл.
+  - 👤 `hreflang` у sitemap (`alternates.languages`) — лише наявні переклади; `/uk/…` без перекладу — поза sitemap.
+  - 👤 Кеш + `revalidateTag` при публікації. ❓ Як API скаже web: ⭐ захищений маршрут web (`POST /api/revalidate`, секрет у заголовку — нова серверна змінна і web, і API) і виклик з API після запису новини — порт і адаптер (clean-code Rule 3), збій виклику публікацію не ламає; плюс запасний `revalidate` (⭐ 15 хв) — *чому:* SCHEDULED виходить сам, без cron і без події, тож «при публікації» його не побачить. Альтернатива — лише `revalidate` за часом (без нового зв'язку API → web, але нова новина в sitemap — до 15 хв).
+  - 👤 Статичні сторінки (головна, `/news`, `/matches`) — обома мовами; вхід, реєстрація й сторінки з `noindex` — ні; теги — разом зі сторінкою тегу (M2.13).
+- [ ] 👤 Матчі — поки ні: сторінки матчів індексуються, але в sitemap — разом із `SportsEvent` (M2.2) — *чому:* тисячі сторінок без розмітки події розмивають sitemap новинного сайту.
+- [ ] ⭐ Google News sitemap (новини за 48 год, ≤ 1000) — у M3.7, разом із Search Console — *чому:* тест-сервер закритий, Google News його не читає; маршрут — той самий API.
 
-**M1.8.3 Структуровані дані й замір** — на зібраному сайті.
-- [ ] ⭐ JSON-LD: `NewsArticle` і `BreadcrumbList` — ✅ на сторінці новини з M1.6.2 ([D53](decisions/D53-news-page.md): headline, опис, обкладинка, дати — `dateModified` = дата публікації, поки немає «Оновлено» ([OQ-26](open-questions.md)), автор, видання, `inLanguage`, `isBasedOn`). Лишилось: логотип видання в `publisher` (разом з брендом, OQ-24), ⭐ `VideoObject` для новин з відео — Google вимагає `uploadDate`, а дати завантаження в нас немає (YouTube Data API чи поле редактора — вирішити тут), перевірка Rich Results Test на тест-сервері — *чому:* умова для розширених результатів Google (Top stories) у новинних сайтів.
-- [ ] ⭐ Базовий замір Lighthouse (SEO і Best Practices ≥ 90, LCP < 2,5 с) — *чому:* Core Web Vitals — фактор ранжування; замір зараз — точка відліку для регресій.
+**M1.8.3 Структуровані дані й замір** — на зібраному сайті. 👤 Рішення брифу (2026-10-30):
+- [x] JSON-LD `NewsArticle` і `BreadcrumbList` — з M1.6.2 ([D53](decisions/D53-news-page.md): headline, опис, обкладинка, дати — `dateModified` = дата публікації ([OQ-26](open-questions.md)), автор, видання, `inLanguage`, `isBasedOn`).
+- [ ] 👤 Типи JSON-LD — `schema-dts` (devDependency, лише типи): функції `lib/seo/json-ld.ts` повертають `WithContext<NewsArticle>` тощо — *чому:* помилку в полі ловить `tsc`, а не Rich Results Test.
+- [ ] 👤 `VideoObject` — ні: Google вимагає `uploadDate`, а дати завантаження відео в нас немає; YouTube Data API (ключ і запит при збереженні новини) — [`backlog.md`](backlog.md). Рекомендацію Google без цієї розмітки не втрачаємо.
+- [ ] 👤 Rich Results Test — у режимі «Код» на HTML локальної збірки (тест-сервер за Basic Auth, Google його не відкриє); повторно — на тест-сервері (M1.11).
+- [ ] 👤 Lighthouse — локально `next build && next start`, мобільний профіль: головна, стрічка, новина. Пороги: **SEO = 100**, Best Practices ≥ 90; LCP < 2,5 с і CLS < 0,1 — ціль, не умова (локальний сервер ≠ реальний): гірше — причина в [`backlog.md`](backlog.md), не виправлення в етапі. Цифри — точка відліку, повторний замір — на тест-сервері (M1.11).
+  - 👤 Lighthouse CI: конфіг з тими самими порогами — тут, job у GitHub Actions — M1.10.1.
+- [ ] 👤 Логотип видання в `publisher` — разом з брендом (OQ-24, M3.6).
 
-**Тести:** unit — побудова canonical / hreflang (з перекладом і без); перевірка HTML `/en/news/…` і `/uk/news/…`; `robots.txt` на тесті — `Disallow`.
-**Готово, коли:** Lighthouse SEO ≥ 90 на головній, у списку й на новині; Rich Results Test приймає `NewsArticle`.
+**Тести:** unit — canonical / hreflang з перекладом і без, `utm` і `?page` (✅ M1.8.1); `SITE_INDEXING` за замовчуванням — закрито (zod); `robots.txt` і `X-Robots-Tag` — обидва значення; sitemap — без неперекладених `/uk/…`; e2e API — маршрут sitemap (живі новини, без чернеток і видалених, межа місяця).
+**Готово, коли:** Lighthouse SEO = 100 на головній, у стрічці й на новині, Best Practices ≥ 90; Rich Results Test приймає `NewsArticle` і `BreadcrumbList`; без `SITE_INDEXING=true` сайт закритий від індексації.
 
 ### M1.9 UI-мінімум
 
@@ -626,6 +643,7 @@
 - [ ] ⭐ `error.tsx` для сторінок з даними: зрозуміле повідомлення й «Спробувати ще», коли API недоступне.
 - [ ] 👤 Пройти Definition of Done (розділ 8) для всіх наявних сторінок.
 - [ ] 👤 Логотип і бренд — пізніше (👤 У23, M3.6); поки — текстовий «12Yards».
+- [ ] ⭐ Знайдено в M1.8.1: шрифт сайту — лише латиниця (`Geist({ subsets: ['latin'] })`, `app/fonts.ts`), тож українські літери малює запасний шрифт — додати `cyrillic` (Geist його має) і поміряти вагу й LCP; сторінки входу й реєстрації — заголовок «⚽ Football Portal» і підпис англійською в обох мовах (тексти — у `messages`).
 
 **Готово, коли:** усі публічні сторінки доступні з меню на ширині 320 px; немає посилань на 404.
 
@@ -640,6 +658,7 @@
 - [ ] ⭐ Перевірка контракту: згенеровані типи API актуальні. *З M1.3.5:* типи не в git — CI генерує їх з коду (`pnpm install` → `prepare`), розходження API ↔ web ловлять `pnpm typecheck` і контрактні e2e (`expectMatchesContract`); окремий `git diff`-крок не потрібен.
 - [ ] ⭐ Захист `master`: злиття лише через PR із зеленим CI — *чому:* правило «не мержити без CI» має виконувати GitHub, а не пам'ять.
 - [ ] ⭐ Dependabot (раз на тиждень, згруповано) + CodeQL і secret scanning (безкоштовно для публічних репо) — *чому:* вразливості в залежностях — найчастіше джерело інцидентів у Node-проєктах.
+- [ ] 👤 2026-10-30 (бриф M1.8): Lighthouse CI — job з конфігом і порогами M1.8.3 (SEO = 100, Best Practices ≥ 90; LCP і CLS — попередження). ❓ Стенд для нього (web + API з даними) — той самий, що для E2E у браузері (M1.10.2): вирішити разом.
 
 **M1.10.2 E2E у браузері** (👤 3.7; 👤 2026-10-26 — з M2.10, до тестового релізу)
 - [ ] ⭐ Playwright: пояс браузера — `timezoneId` контексту; стенд — API зі збірки на схемі `e2e` + `next start` web і admin (рецепт — `apps/api/test/CLAUDE.md`, «Жива перевірка в браузері»); збій API — перемикачем стенду, бо SSR ходить в API повз браузер і `page.route` його не бачить. У CI — на PR або щоночі: ❓ вирішити на старті за часом прогону.
@@ -667,7 +686,7 @@
 - [ ] ⭐ `TRUST_PROXY` — перевірити наживо: два різні клієнти мають різні `req.ip` — *чому:* інакше всі користувачі отримають один IP, і ліміт логіну (10 / хв) стане спільним для всіх.
 
 **M1.11.4 Середовища й секрети**
-- [ ] ⭐ `APP_ENV=test` (окремо від `NODE_ENV=production`) вмикає `noindex`, Basic Auth і Swagger.
+- [ ] ⭐ `APP_ENV=test` (окремо від `NODE_ENV=production`) вмикає `noindex`, Basic Auth і Swagger. 👤 2026-10-30: індексацію web вмикає своя `SITE_INDEXING` (M1.8.2; на тесті — не задавати або `false`); тут — лише API й admin.
   - Перелік змінних для хостингу — `apps/{api,web,admin}/.env.example`; `APP_ENV` — нове поле схеми `env.schema.ts` і рядок у `.env.example` ([Rule 13](rules/backend.md)).
 - [ ] ⭐ Нові секрети для тесту (`JWT_SECRET`, `EMAIL_HASH_SECRET`), не з dev — *чому:* секрет, що «гуляв» локально, не має відчиняти сервер.
 
@@ -679,7 +698,7 @@
 
 **M1.11.6 Закритий доступ і без індексації** (👤 У21)
 - [ ] 👤 Спільний логін / пароль (HTTP Basic Auth) на web і admin; Swagger — за тим самим паролем (👤 У17).
-- [ ] 👤 `X-Robots-Tag: noindex, nofollow` на web, admin і API + `robots.txt` `Disallow: /`.
+- [ ] 👤 `X-Robots-Tag: noindex, nofollow` на web, admin і API + `robots.txt` `Disallow: /`. *З M1.8.2:* у web обидва вже дає `SITE_INDEXING=false` — лишаються admin і API.
 - [ ] ⭐ `/health` — без пароля (для моніторингу); перевірити `curl -I`, що без пароля сторінку не відкрити.
 
 **M1.11.7 Синк на тесті** ([D36](decisions/D36-sync-operations.md))
@@ -759,7 +778,7 @@
 - [ ] ❓ Сповіщення «вам відповіли» — у застосунку чи на пошту (OQ-20).
 
 ### M2.9 OG-картинки й аналітика
-- [ ] 👤 Згенеровані OG-картинки (`next/og`) для новин і матчів (👤 11.3).
+- [ ] 👤 Згенеровані OG-картинки (`next/og`) для новин і матчів (👤 11.3). *З M1.8.1:* картка без обкладинки вже є (рубрика, заголовок, назва сайту — `lib/seo/og-card.tsx`); тут — «на повну»: матч з рахунком і емблемами, бренд (OQ-24).
 - [ ] ❓ Аналітика (👤 11.2, OQ-16): ⭐ Plausible або Umami — без cookies, тож без банера згоди.
 
 ### M2.10 E2E у браузері → M1.10.2
@@ -840,6 +859,7 @@
 
 ### M3.7 SEO перед продом
 - [ ] ⭐ Google Search Console, Google News sitemap (новини за останні 2 дні), Core Web Vitals у нормі.
+- [ ] 👤 2026-10-30 (бриф M1.8): Bing Webmaster Tools, IndexNow (сповіщення пошуковиків про нову новину), RSS — при запуску прод-домену ([`backlog.md`](backlog.md)).
 - [ ] ❓ Дублі сторінок без перекладу, коли додамо нову мову (👤 4.1, OQ-21).
 
 ### M3.8 Реліз

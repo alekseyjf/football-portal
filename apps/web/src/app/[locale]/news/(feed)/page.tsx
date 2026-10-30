@@ -13,12 +13,15 @@ import { tagQueryOptions } from '@/hooks/useTags';
 import { localeToApiContentLang } from '@/lib/i18n/content-lang';
 import {
   newsFeedHrefWithPage,
+  newsFeedSearchPage,
   parseNewsFeedFilters,
   resolveNewsFeedPage,
   type NewsFeedSearchParams,
 } from '@/lib/news/news-feed-filters';
 import { newsFeedQueryOptions } from '@/lib/news/news-feed-query';
 import { makeQueryClient } from '@/lib/query/queryClient';
+import { pageMetadata } from '@/lib/seo/page-metadata';
+import { pageShareCardHref } from '@/lib/seo/share-card';
 import { NewsFeedView } from './NewsFeedView';
 
 type Props = {
@@ -33,13 +36,21 @@ export async function generateMetadata({
   const { locale } = await params;
   if (!isAppLocale(locale)) return {};
   const t = await getTranslations({ locale, namespace: 'newsFeed' });
-  const pageRequest = resolveNewsFeedPage((await searchParams).page);
+  const tMeta = await getTranslations({ locale, namespace: 'meta' });
+  const query = await searchParams;
+  const pageRequest = resolveNewsFeedPage(query.page);
   const page = pageRequest.kind === 'page' ? pageRequest.page : 1;
-  // Сторінки `?page=N` індексуються (M1.8) — у кожної своя назва
-  return {
+  // Сторінки `?page=N` індексуються (D52) — у кожної своя назва; з фільтрами — `noindex`
+  const { href, isIndexable } = newsFeedSearchPage(query, page);
+  return pageMetadata({
+    locale,
+    href,
+    isIndexable,
     title: page > 1 ? t('titleWithPage', { page: String(page) }) : t('title'),
     description: t('description'),
-  };
+    siteName: tMeta('title'),
+    shareCardHref: pageShareCardHref('news'),
+  });
 }
 
 /**
