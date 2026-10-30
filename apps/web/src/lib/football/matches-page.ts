@@ -1,5 +1,10 @@
 import type { League, MatchLeague, MatchListItem } from '@/lib/api/types';
-import { LEAGUE_QUERY_PARAM } from './league-param';
+import { isDayKey } from '@/lib/i18n/zoned-date';
+import {
+  isLeagueSlug,
+  LEAGUE_QUERY_PARAM,
+  leagueSlugFromParam,
+} from './league-param';
 
 /** День сторінки матчів у query: `/uk/matches?date=2026-10-10`; без нього — сьогодні. */
 export const MATCHES_DATE_QUERY_PARAM = 'date';
@@ -13,6 +18,38 @@ export function matchesPageHref(
   if (dayKey) query[MATCHES_DATE_QUERY_PARAM] = dayKey;
   if (leagueSlug) query[LEAGUE_QUERY_PARAM] = leagueSlug;
   return { pathname: '/matches', query };
+}
+
+type SearchParamValue = string | string[] | undefined;
+/** Параметри адреси, як їх віддає Next (`searchParams`); чужі (`utm_*`) — теж тут. */
+export type MatchesPageSearchParams = Partial<Record<string, SearchParamValue>>;
+
+/** День і ліга з адреси `/matches`; немає чи невалідні — `null` (сьогодні / усі турніри), без 404. */
+export function parseMatchesPageParams(searchParams: MatchesPageSearchParams): {
+  dayKey: string | null;
+  leagueSlug: string | null;
+} {
+  // Повтор параметра — перше значення, як і для ліги (`leagueSlugFromParam`)
+  const dateParam = (
+    Array.isArray(searchParams.date) ? searchParams.date[0] : searchParams.date
+  )?.trim();
+  const leagueParam = leagueSlugFromParam(searchParams.league);
+  return {
+    dayKey: dateParam && isDayKey(dateParam) ? dateParam : null,
+    leagueSlug: leagueParam && isLeagueSlug(leagueParam) ? leagueParam : null,
+  };
+}
+
+/**
+ * `/matches` для пошуку (M1.8.1): без параметрів — в індексі; з днем чи лігою — `noindex, follow` і canonical на себе
+ * (лише розібрані параметри, без `utm_*`) — інакше кожен день кожної ліги став би окремою сторінкою майже без тексту.
+ */
+export function matchesSearchPage(searchParams: MatchesPageSearchParams) {
+  const { dayKey, leagueSlug } = parseMatchesPageParams(searchParams);
+  return {
+    href: matchesPageHref(dayKey, leagueSlug),
+    isIndexable: !dayKey && !leagueSlug,
+  };
 }
 
 export type LeagueMatchGroup = {

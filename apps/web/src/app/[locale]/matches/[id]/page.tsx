@@ -2,10 +2,14 @@ import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
-import { getTranslations } from 'next-intl/server';
+import { getTimeZone, getTranslations } from 'next-intl/server';
 import { isAppLocale } from '@/i18n/routing';
 import { isApiError } from '@/lib/api/http';
+import { matchTitle } from '@/lib/football/match-title';
+import { formatDateTime } from '@/lib/i18n/date-time';
 import { makeQueryClient } from '@/lib/query/queryClient';
+import { pageMetadata } from '@/lib/seo/page-metadata';
+import { matchShareCardHref } from '@/lib/seo/share-card';
 import { fetchMatchDetail, matchDetailQueryOptions } from '@/hooks/useFootball';
 import { MatchDetailView } from './MatchDetailView';
 
@@ -19,9 +23,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!isAppLocale(locale)) return {};
   try {
     const match = await getMatchDetail(id);
-    return {
-      title: `${match.homeClub.name} – ${match.awayClub.name} · ${match.league.name}`,
-    };
+    const t = await getTranslations({ locale, namespace: 'match' });
+    const tMeta = await getTranslations({ locale, namespace: 'meta' });
+    // Дата початку — у поясі читача (cookie `tz`), як на сторінці; пошуковик бачить пояс за замовчуванням
+    const kickoffDate = formatDateTime(
+      match.kickoffAt,
+      locale,
+      await getTimeZone(),
+      { dateStyle: 'long' },
+    );
+    return pageMetadata({
+      locale,
+      href: `/matches/${match.id}`,
+      title: `${matchTitle(match)} · ${match.league.name}`,
+      description: t('metaDescription', {
+        home: match.homeClub.name,
+        away: match.awayClub.name,
+        league: match.league.name,
+        date: kickoffDate,
+      }),
+      siteName: tMeta('title'),
+      shareCardHref: matchShareCardHref(match.id),
+    });
   } catch (error) {
     // 404 — сторінка покаже загальну `app/not-found.tsx`; заголовок вкладки — той самий
     if (isApiError(error) && error.status === 404) {

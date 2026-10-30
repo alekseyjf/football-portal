@@ -178,6 +178,20 @@ export function newsFeedApiPath(
   return `/posts?${searchParams}`;
 }
 
+/**
+ * Стрічка для пошуку (M1.8.1, D52): адреса — лише розібрані фільтри й сторінка в сталому порядку (`utm_*` і чужі
+ * параметри відкинуто); з будь-яким фільтром — не для індексу (`noindex, follow`, canonical на себе), сторінки `?page=N`
+ * без фільтрів — індексуються.
+ */
+export function newsFeedSearchPage(
+  searchParams: NewsFeedSearchParams,
+  page: number,
+): { href: string; isIndexable: boolean } {
+  const filters = parseNewsFeedFilters(searchParams);
+  const isFiltered = filters.competition !== null || hasChipFilters(filters);
+  return { href: newsFeedHref(filters, page), isIndexable: !isFiltered };
+}
+
 /** Є фільтри, які прибирають чипи з «×» — теги й клуби (ліга — вкладками). */
 export function hasChipFilters(filters: NewsFeedFilters): boolean {
   return filters.tags.length > 0 || filters.clubs.length > 0;

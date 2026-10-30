@@ -29,6 +29,8 @@ import { isHomeApiDown } from '@/lib/home/home-blocks';
 import { localeToApiContentLang } from '@/lib/i18n/content-lang';
 import { makeQueryClient } from '@/lib/query/queryClient';
 import { organizationJsonLd, webSiteJsonLd } from '@/lib/seo/json-ld';
+import { pageMetadata } from '@/lib/seo/page-metadata';
+import { pageShareCardHref } from '@/lib/seo/share-card';
 import { absoluteSiteUrl, siteUrl } from '@/lib/site-url';
 
 type Props = {
@@ -41,19 +43,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!isAppLocale(locale)) return {};
   const t = await getTranslations({ locale, namespace: 'home' });
   const tMeta = await getTranslations({ locale, namespace: 'meta' });
-  const title = t('metaTitle');
-  const description = t('metaDescription');
-  // canonical, hreflang і `og:locale` — M1.8 (спільний хелпер, frontend Rule 14)
-  return {
-    title: { absolute: title },
-    description,
-    openGraph: {
-      type: 'website',
-      siteName: tMeta('title'),
-      title,
-      description,
-    },
-  };
+  // `?league=` лише перемикає таблицю сайдбару — це та сама сторінка: canonical завжди на головну
+  return pageMetadata({
+    locale,
+    href: '/',
+    title: t('metaTitle'),
+    isTitleAbsolute: true,
+    description: t('metaDescription'),
+    siteName: tMeta('title'),
+    shareCardHref: pageShareCardHref('home'),
+  });
 }
 
 /** `WebSite` і `Organization` (D55): назва сайту для результатів пошуку й видання; адреси — повні (`SITE_URL`). */

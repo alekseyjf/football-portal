@@ -10,6 +10,7 @@ import {
   newsFeedApiPath,
   newsFeedHref,
   newsFeedHrefWithPage,
+  newsFeedSearchPage,
   parseNewsFeedFilters,
   resolveNewsFeedPage,
   withoutClub,
@@ -215,6 +216,54 @@ describe('Адреса стрічки з фільтрів', () => {
       tags: 'transfers,injuries',
       competition: 'PL',
       club: 'arsenal',
+    });
+  });
+});
+
+describe('Стрічка для пошуку (M1.8.1, D52)', () => {
+  it('`utm_*` і чужі параметри — не в canonical: стрічка без фільтрів лишається в індексі', () => {
+    expect(
+      newsFeedSearchPage(
+        { utm_source: 'telegram', utm_campaign: 'derby', fbclid: 'x' },
+        1,
+      ),
+    ).toEqual({ href: '/news', isIndexable: true });
+  });
+
+  it('`?page=N` без фільтрів — в індексі, canonical на себе (з `utm_*` — без них)', () => {
+    expect(
+      newsFeedSearchPage({ page: '3', utm_source: 'telegram' }, 3),
+    ).toEqual({
+      href: '/news?page=3',
+      isIndexable: true,
+    });
+  });
+
+  it('будь-який фільтр — `noindex`, canonical на себе: фільтри в сталому порядку, без `utm_*`', () => {
+    expect(
+      newsFeedSearchPage(
+        {
+          utm_medium: 'social',
+          club: 'arsenal',
+          competition: 'PL',
+          tags: 'transfers',
+        },
+        2,
+      ),
+    ).toEqual({
+      href: '/news?tags=transfers&competition=PL&club=arsenal&page=2',
+      isIndexable: false,
+    });
+    expect(newsFeedSearchPage({ competition: 'PL' }, 1)).toEqual({
+      href: '/news?competition=PL',
+      isIndexable: false,
+    });
+  });
+
+  it('фільтр не того формату відкинуто — це стрічка без фільтрів, вона в індексі', () => {
+    expect(newsFeedSearchPage({ club: 'Arsenal FC', tags: '' }, 1)).toEqual({
+      href: '/news',
+      isIndexable: true,
     });
   });
 });

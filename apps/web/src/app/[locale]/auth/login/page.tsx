@@ -1,7 +1,28 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
+import { isAppLocale } from '@/i18n/routing';
+import { pageMetadata } from '@/lib/seo/page-metadata';
+import { pageShareCardHref } from '@/lib/seo/share-card';
 import { LoginForm } from './LoginForm';
 
-export const metadata: Metadata = { title: 'Login' };
+type Props = { params: Promise<{ locale: string }> };
+
+/** Шукати тут нічого: `noindex, follow` і поза sitemap (D34). */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  if (!isAppLocale(locale)) return {};
+  const tNav = await getTranslations({ locale, namespace: 'nav' });
+  const tMeta = await getTranslations({ locale, namespace: 'meta' });
+  return pageMetadata({
+    locale,
+    href: '/auth/login',
+    isIndexable: false,
+    title: tNav('signIn'),
+    description: tMeta('description'),
+    siteName: tMeta('title'),
+    shareCardHref: pageShareCardHref('home'),
+  });
+}
 
 export default function LoginPage() {
   return (

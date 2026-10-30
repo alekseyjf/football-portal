@@ -97,6 +97,14 @@
 > // Адреси в JSON-LD — повні: absoluteSiteUrl(pathname) з lib/site-url.ts (серверна SITE_URL)
 > ```
 >
+> ⭐ **Доповнення до Rule 14** (2026-10-30, M1.8.1, [D34](../decisions/D34-seo-multilingual.md)): та функція — `pageMetadata` (`lib/seo/page-metadata.ts`); `generateMetadata` сторінки лише збирає дані й тексти:
+> ```typescript
+> // ✅ return pageMetadata({ locale, href: newsFeedHref(filters, page), isIndexable: !isFiltered, title, description, siteName, shareCardHref })
+> //    href — з РОЗІБРАНИХ параметрів (сталий порядок, без utm_*), не з адреси запиту
+> // ✅ Сторінка з параметрами, що не для пошуку, — isIndexable: false: noindex, follow + canonical на себе (не на сторінку без них)
+> // ❌ alternates / openGraph / robots вручну в generateMetadata; canonical з request URL
+> ```
+>
 > ⭐ **Змінні середовища web** (2026-10-25, [D53](../decisions/D53-news-page.md)): `NEXT_PUBLIC_*` — лише те, що потрібно браузеру (вбудовується при збірці); решта — серверні, через zod-схему `lib/env/server-env-schema.ts` (перевірка при старті — `instrumentation-node.ts`: Next збирає `instrumentation.ts` і для Edge, тож Node-код — лише в окремому файлі) і `serverEnv()` з `server-only`. Клієнтському компоненту серверне значення передає сторінка пропом:
 > ```typescript
 > // ✅ <NewsPostView siteUrl={siteUrl()} />  — у page.tsx (RSC)

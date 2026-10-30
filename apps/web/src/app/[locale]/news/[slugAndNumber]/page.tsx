@@ -6,7 +6,7 @@ import { getTranslations } from 'next-intl/server';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { isApiError } from '@/lib/api/http';
 import type { PostDetail } from '@/lib/api/types';
-import { localeToApiContentLang } from '@/lib/i18n/content-lang';
+import { localeToApiContentLang, localeToBcp47 } from '@/lib/i18n/content-lang';
 import { postMetadata } from '@/lib/news/post-metadata';
 import { parsePostPathSegment, postPathSegment } from '@/lib/news/post-path';
 import { makeQueryClient } from '@/lib/query/queryClient';
@@ -37,7 +37,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       postRef.number,
       localeToApiContentLang(locale),
     );
-    return postMetadata(post);
+    const tMeta = await getTranslations({ locale, namespace: 'meta' });
+    return postMetadata(post, {
+      locale,
+      siteName: tMeta('title'),
+      collator: new Intl.Collator(localeToBcp47(locale)),
+    });
   } catch (error) {
     // 404 — сторінка покаже загальну `app/not-found.tsx`; заголовок вкладки — той самий
     if (isApiError(error) && error.status === 404) {
