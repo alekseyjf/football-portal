@@ -7,8 +7,8 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
   Archived: 'bg-gray-800 text-gray-500',
 };
 
-/** Статус новини, як його бачить редактор: запланована, чий час настав, — уже Published. */
-export function PostStatusBadge({ post }: { post: Pick<AdminPost, 'isLive' | 'status'> }) {
+/** Статус новини — як у БД (D57). */
+export function PostStatusBadge({ post }: { post: Pick<AdminPost, 'status'> }) {
   const statusLabel = adminPostStatusLabel(post);
   return (
     <span className={`rounded-full px-2 py-1 text-xs ${STATUS_BADGE_CLASS[statusLabel]}`}>{statusLabel}</span>

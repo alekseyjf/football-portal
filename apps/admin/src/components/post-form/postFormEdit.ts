@@ -13,10 +13,6 @@ import { isSameRelationSet, toRelationIds } from './postRelations';
 /** Опис обкладинки кожною мовою — поле форми (D44). */
 const COVER_IMAGE_ALT_FIELD_NAMES = { en: 'coverImageAltEn', uk: 'coverImageAltUk' } as const;
 
-/** Статус, яким новину бачить редактор: запланована, чий час настав, уже на сайті — «Published» (D47). */
-export function editorPublication(post: Pick<AdminPostDetail, 'status' | 'isLive'>): PostPublication {
-  return post.isLive ? 'PUBLISHED' : post.status;
-}
 
 /**
  * Поле slug (D24): поки в новини немає дати, а slug — із заголовка, поле порожнє — адреса й далі йде за
@@ -41,7 +37,8 @@ export function toPostFormValues(post: AdminPostDetail, timeZone: string): PostF
     post.translations.find((translation) => translation.languageCode === language);
   const english = translationOf('en');
   const ukrainian = translationOf('uk');
-  const publication = editorPublication(post);
+  // Статус — як у БД: запланована, чия дата настала, за хвилину стає PUBLISHED сама (D57)
+  const publication: PostPublication = post.status;
 
   return {
     titleEn: savedText(english?.title),

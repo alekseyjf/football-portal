@@ -96,7 +96,7 @@ export type PostFormValues = z.infer<typeof formFieldsSchema>;
 export type PostPublication = PostFormValues['publication'];
 type FormRefinementCtx = z.RefinementCtx<PostFormValues>;
 
-/** Новина на сайті або вийде сама — для неї діють правила публікації (D23, D44), як `isLivePostStatus` в API. */
+/** Новина на сайті або вийде сама — для неї діють правила публікації (D23, D44), як `isPublishingStatus` в API. */
 export function isLivePublication(publication: PostPublication): boolean {
   return publication === 'PUBLISHED' || publication === 'SCHEDULED';
 }
@@ -107,10 +107,7 @@ export interface PostFormContext {
   timeZone: string;
   /** Значення збереженої новини (`toPostFormValues`); без них — нова новина */
   savedValues?: PostFormValues;
-  /**
-   * Збережена новина зараз на сайті — `isLive` з API, а не статус: у запланованої, чий час настав, статус лишається
-   * SCHEDULED (D47)
-   */
+  /** Збережена новина зараз на сайті — `isLive` з API (PUBLISHED, D57) */
   isLive?: boolean;
 }
 

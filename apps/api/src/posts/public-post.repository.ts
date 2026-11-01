@@ -96,7 +96,7 @@ export interface PublicPostPageQuery {
   pagination: { skip: number; take: number };
 }
 
-/** Публічні читання: лише живі новини з перекладом default-мови (`publicPostWhere`, P3-1, P3-5). */
+/** Публічні читання: лише живі новини з перекладом default-мови (`publicPostWhere`, D57, P3-5). */
 @Injectable()
 export class PublicPostRepository {
   constructor(private readonly prisma: PrismaService) {}

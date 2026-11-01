@@ -18,7 +18,6 @@ export class AdminPostService {
     const now = new Date();
     const { posts, total } = await this.adminPostRepository.findAdminPage({
       filters: query,
-      now,
       pagination: { skip: (query.page - 1) * query.limit, take: query.limit },
     });
     return {

@@ -19,13 +19,18 @@ interface PublicationOptionsContext {
 
 const DRAFT: PublicationOption = { value: 'DRAFT', label: 'Draft', hint: 'Not visible on the site' };
 const PUBLISH_NOW: PublicationOption = { value: 'PUBLISHED', label: 'Publish now', hint: 'Visible immediately' };
-const SCHEDULE: PublicationOption = { value: 'SCHEDULED', label: 'Schedule', hint: 'Goes live at the chosen time' };
+const SCHEDULE: PublicationOption = {
+  value: 'SCHEDULED',
+  label: 'Schedule',
+  hint: 'Goes live within a minute of the chosen time',
+};
 
 /**
  * Варіанти статусу у формі (👤 M1.5.2, D50) — за тим, що з новиною зараз:
- * - нова, чернетка чи запланована, що чекає, — Draft / Publish now / Schedule;
+ * - нова, чернетка чи запланована (і та, чий час настав, — воркер випустить її протягом хвилини, D57) — Draft /
+ *   Publish now / Schedule;
  * - на сайті — лише Published або зняти з публікації (Archived, D43), без Draft: він стирає дату, і повторна
- *   публікація підняла б стару новину як свіжу;
+ *   публікація підняла б стару новину як свіжу; без Schedule — дата опублікованої незмінна (D57);
  * - архівна — назад на сайт зі своєю датою або в чернетки (дата стирається).
  */
 export function publicationOptionsFor(

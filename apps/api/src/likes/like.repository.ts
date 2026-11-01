@@ -99,7 +99,7 @@ export class LikeRepository {
     return this.findUserMatchReaction(userId, targetId);
   }
 
-  /** Лише живий пост (P3-1): чернетку / запланований наперед не лайкнути за id. */
+  /** Лише живий пост (D57): чернетку / запланований не лайкнути за id. */
   async assertPostExists(postId: string): Promise<boolean> {
     const post = await this.prisma.post.findFirst({
       where: { id: postId, ...livePostWhere(new Date()) },
@@ -108,7 +108,7 @@ export class LikeRepository {
     return Boolean(post);
   }
 
-  /** Коментар під чернеткою / знятим постом не лайкнути (P4-8, як P3-1 для постів). */
+  /** Коментар під чернеткою / знятим постом не лайкнути (P4-8, як D57 для постів). */
   async assertCommentExists(commentId: string): Promise<boolean> {
     const comment = await this.prisma.comment.findFirst({
       where: { id: commentId, ...visibleCommentWhere(new Date()) },

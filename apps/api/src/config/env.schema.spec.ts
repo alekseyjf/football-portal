@@ -144,6 +144,58 @@ describe('parseEnv — схема змінних середовища (Rule 13)'
     ).toContain('FOOTBALL_API_URL: must be an https URL');
   });
 
+  it('вебхук сайту (D57): обидві змінні або жодна; секрет — свій, ≥ 32 символи; на проді — https або приватний хост', () => {
+    const webhookSecret = 'revalidate-secret-revalidate-secret';
+    expect(
+      parseEnv({
+        ...REQUIRED_ENV,
+        WEB_REVALIDATE_URL: 'http://localhost:3000/api/revalidate',
+        REVALIDATE_SECRET: webhookSecret,
+      }),
+    ).toMatchObject({
+      WEB_REVALIDATE_URL: 'http://localhost:3000/api/revalidate',
+      REVALIDATE_SECRET: webhookSecret,
+    });
+    expect(
+      startupError({
+        ...REQUIRED_ENV,
+        WEB_REVALIDATE_URL: 'http://localhost:3000/api/revalidate',
+      }),
+    ).toContain('REVALIDATE_SECRET: is required with WEB_REVALIDATE_URL');
+    expect(
+      startupError({ ...REQUIRED_ENV, REVALIDATE_SECRET: webhookSecret }),
+    ).toContain('WEB_REVALIDATE_URL: is required with REVALIDATE_SECRET');
+    expect(
+      startupError({
+        ...REQUIRED_ENV,
+        WEB_REVALIDATE_URL: 'http://localhost:3000/api/revalidate',
+        REVALIDATE_SECRET: REQUIRED_ENV.JWT_SECRET,
+      }),
+    ).toContain('REVALIDATE_SECRET: must differ from JWT_SECRET');
+    const productionEnv = {
+      ...REQUIRED_ENV,
+      NODE_ENV: 'production',
+      TRUST_PROXY: '1',
+      CORS_ORIGINS: 'https://example.com',
+      REVALIDATE_SECRET: webhookSecret,
+    };
+    expect(
+      startupError({
+        ...productionEnv,
+        WEB_REVALIDATE_URL: 'http://example.com/api/revalidate',
+      }),
+    ).toContain('WEB_REVALIDATE_URL: must use https in production');
+    // Контейнери однієї мережі Docker: http до сервісу `web` — секрет не йде, лише підпис
+    for (const privateUrl of [
+      'http://web:3000/api/revalidate',
+      'http://10.0.0.5:3000/api/revalidate',
+    ]) {
+      expect(
+        startupError({ ...productionEnv, WEB_REVALIDATE_URL: privateUrl }),
+      ).toBe('');
+    }
+  });
+
   it('.env.example описує кожну змінну схеми', () => {
     const envExample = readFileSync(
       join(__dirname, '../../.env.example'),

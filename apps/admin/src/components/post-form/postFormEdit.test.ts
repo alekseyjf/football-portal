@@ -87,12 +87,9 @@ describe('toPostFormValues: збережена новина → поля фор�
     expect(toPostFormValues(savedPost(PUBLISHED), TIME_ZONE).slug).toBe('arsenal-beat-chelsea');
   });
 
-  it('статус — як бачить редактор: запланована, чий час настав, — Published; та, що чекає, — з датою в поясі', () => {
-    const wentLive = toPostFormValues(
-      savedPost({ status: 'SCHEDULED', publishedAt: '2026-10-20T10:00:00.000Z', isLive: true }),
-      TIME_ZONE,
-    );
-    expect(wentLive).toMatchObject({ publication: 'PUBLISHED', scheduledAt: '' });
+  it('статус — як у БД (D57): запланована — з датою в поясі, і та, чий час настав, поки її не випустив воркер', () => {
+    const due = toPostFormValues(savedPost({ status: 'SCHEDULED', publishedAt: '2026-10-20T10:00:00.000Z' }), TIME_ZONE);
+    expect(due).toMatchObject({ publication: 'SCHEDULED', scheduledAt: '2026-10-20T13:00' });
 
     const waiting = toPostFormValues(
       savedPost({ status: 'SCHEDULED', publishedAt: '2026-10-26T08:00:00.000Z' }),
@@ -278,18 +275,15 @@ describe('toUpdatePostRequest: у PUT — лише змінене', () => {
     expect(updateFor(post, { sourceName: 'BBC News' })).toEqual({ sourceName: 'BBC News' });
   });
 
-  it('запланована, чий час настав (API: status SCHEDULED, isLive true), — у формі жива: Published / Unpublish, адреса не порожня', () => {
-    const wentLive = savedPost({ status: 'SCHEDULED', publishedAt: '2026-10-20T10:00:00.000Z', isLive: true });
-    const saved = toPostFormValues(wentLive, TIME_ZONE);
-    expect(saved).toMatchObject({ publication: 'PUBLISHED', slug: 'arsenal-beat-chelsea' });
-    const options = publicationOptionsFor(wentLive, { now: new Date('2026-10-23T09:00:00.000Z'), timeZone: TIME_ZONE });
-    expect(options.map((option) => option.value)).toEqual(['PUBLISHED', 'ARCHIVED']);
-    // Очищене поле адреси до PUT не дійде — схема покаже помилку біля поля (D50)
-    const context = { timeZone: TIME_ZONE, savedValues: saved, isLive: wentLive.isLive };
-    const result = postFormSchemaFor(context).safeParse({ ...saved, slug: '' });
-    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['slug']);
-    // Залишив «Published» — статус у PUT не йде: у БД лишається SCHEDULED з минулою датою, новина й далі на сайті
-    expect(updateFor(wentLive, { titleEn: 'Arsenal edge Chelsea' })).not.toHaveProperty('status');
+  it('запланована, чий час настав, а воркер ще не пройшов (D57): правка тексту проходить і статусу в PUT не шле', () => {
+    const due = savedPost({ status: 'SCHEDULED', publishedAt: '2026-10-20T10:00:00.000Z' });
+    const saved = toPostFormValues(due, TIME_ZONE);
+    const options = publicationOptionsFor(due, { now: new Date('2026-10-23T09:00:00.000Z'), timeZone: TIME_ZONE });
+    expect(options.map((option) => option.value)).toEqual(['DRAFT', 'PUBLISHED', 'SCHEDULED']);
+    // Збережений час розкладу вже минув — але його не змінювали, тож «час у минулому» форма не показує
+    const context = { timeZone: TIME_ZONE, savedValues: saved, isLive: due.isLive };
+    expect(postFormSchemaFor(context).safeParse({ ...saved, titleEn: 'Arsenal edge Chelsea' }).success).toBe(true);
+    expect(updateFor(due, { titleEn: 'Arsenal edge Chelsea' })).not.toHaveProperty('status');
   });
 
   it('slug: чернетка без явного йде за заголовком; явний не губиться при новому заголовку; змінене поле — нова адреса', () => {

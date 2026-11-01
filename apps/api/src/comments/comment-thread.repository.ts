@@ -24,7 +24,7 @@ export type CommentTargetState = { thread: ThreadState | null };
 export class CommentThreadRepository {
   constructor(private prisma: PrismaService) {}
 
-  /** Ціль нового коментаря; `null` — поста немає або він не живий (P3-1). */
+  /** Ціль нового коментаря; `null` — поста немає або він не живий (D57). */
   async findLivePostTarget(
     postId: string,
     now: Date,

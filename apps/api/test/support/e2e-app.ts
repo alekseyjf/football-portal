@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test } from '@nestjs/testing';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
@@ -57,6 +58,8 @@ function buildE2eEnv(envOverrides: Record<string, string> = {}): AppEnv {
 /**
  * Застосунок як у `main.ts` (`configureHttpApp`: префікс, валідація, cookies, helmet), але з env
  * тестів і клієнтом Prisma на схему `e2e`. Дані не скидає — це робить `resetE2eData` у тесті.
+ * Cron-и зупинено: воркер розкладу (раз на хвилину, D57) опублікував би заплановані посеред тесту — тест кличе
+ * `ScheduledPostPublisher.publishDue` сам; стенду, якому cron потрібен, — `getCronJobs()` → `start()`.
  */
 export async function createE2eApp(
   options: E2eAppOptions = {},
@@ -80,6 +83,9 @@ export async function createE2eApp(
     });
     configureHttpApp(app);
     await app.init();
+    for (const cronJob of app.get(SchedulerRegistry).getCronJobs().values()) {
+      void cronJob.stop();
+    }
     return {
       app,
       prisma,

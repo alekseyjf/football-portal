@@ -31,10 +31,17 @@ import {
   PaginatedPostsDto,
   PostDetailDto,
 } from './dto/post-response.dto';
+import {
+  NewsSitemapDto,
+  PostSitemapDto,
+  PostSitemapIndexDto,
+} from './dto/post-sitemap-response.dto';
+import { SitemapMonthParamDto } from './dto/sitemap-month-param.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { AdminPostService } from './admin-post.service';
 import { PostEditorService } from './post-editor.service';
 import { PostPinService } from './post-pin.service';
+import { PostSitemapService } from './post-sitemap.service';
 import { PublicPostService } from './public-post.service';
 
 @ApiTags('posts')
@@ -45,6 +52,7 @@ export class PostController {
     private adminPostService: AdminPostService,
     private postEditorService: PostEditorService,
     private postPinService: PostPinService,
+    private postSitemapService: PostSitemapService,
   ) {}
 
   /**
@@ -68,9 +76,40 @@ export class PostController {
   }
 
   /**
+   * Місяці з опублікованими новинами (`publishedAt` в UTC) — для sitemap index сайту: файл на місяць.
+   * @remarks Новини — ті самі, що в стрічці. `lastModifiedAt` — пізніша з дати публікації й правки перекладу.
+   */
+  // Маршрути sitemap — раніше за `:number`
+  @Get('sitemap')
+  getSitemapIndex(): Promise<PostSitemapIndexDto> {
+    return this.postSitemapService.getSitemapIndex();
+  }
+
+  /**
+   * Новини за останні 48 год — для Google News sitemap: заголовок кожною мовою перекладу.
+   * @remarks Не більше 1000 адрес: новин — 1000, поділена на кількість мов сайту.
+   */
+  // Раніше за `sitemap/:month`
+  @Get('sitemap/news')
+  getNewsSitemap(): Promise<NewsSitemapDto> {
+    return this.postSitemapService.getNewsSitemap();
+  }
+
+  /**
+   * Новини місяця для файла sitemap: адреса кожною мовою перекладу з датою її зміни.
+   * @remarks Не більше 50 000 адрес: новин — 50 000, поділена на кількість мов сайту. Місяць без новин — порожній список.
+   * @throws {400} Місяць — не `YYYY-MM`
+   */
+  @Get('sitemap/:month')
+  getMonthSitemap(
+    @Param() params: SitemapMonthParamDto,
+  ): Promise<PostSitemapDto> {
+    return this.postSitemapService.getMonthSitemap(params.month);
+  }
+
+  /**
    * Список новин для адмінки — сторінками, нові першими: будь-який статус, крім видалених, заголовки всіма мовами.
-   * @remarks `status` — як показує адмінка: запланована новина, чия дата настала, — серед PUBLISHED.
-   * `search` — частина заголовка будь-якою мовою, без урахування регістру. Фільтри разом — «і».
+   * @remarks `search` — частина заголовка будь-якою мовою, без урахування регістру. Фільтри разом — «і».
    */
   // Раніше за `admin/:id`: інакше `all` дістався б йому як id
   @Get('admin/all')
@@ -131,8 +170,8 @@ export class PostController {
 
   /**
    * Змінити новину: переклади — upsert за мовою, передані зв'язки замінюють наявні. Новина зникла з сайту (чернетка,
-   * архів, дата в майбутньому) — закріплення знімається.
-   * @throws {400} Невалідні поля; DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE, PUBLISHED_AT_NOT_ALLOWED, PUBLISHED_AT_REQUIRED, PUBLISHED_AT_IN_FUTURE, SCHEDULED_AT_IN_PAST, COVER_IMAGE_ALT_REQUIRED, COVER_IMAGE_CREDIT_REQUIRED, SOURCE_URL_REQUIRED, UNKNOWN_TAG, UNKNOWN_CLUB, UNKNOWN_COMPETITION
+   * архів) — закріплення знімається. Дата опублікованої незмінна: інша дата чи SCHEDULED — `PUBLISHED_AT_LOCKED`.
+   * @throws {400} Невалідні поля; DUPLICATE_TRANSLATION_LANGUAGE, UNSUPPORTED_LANGUAGE, PUBLISHED_AT_NOT_ALLOWED, PUBLISHED_AT_REQUIRED, PUBLISHED_AT_IN_FUTURE, PUBLISHED_AT_LOCKED, SCHEDULED_AT_IN_PAST, COVER_IMAGE_ALT_REQUIRED, COVER_IMAGE_CREDIT_REQUIRED, SOURCE_URL_REQUIRED, UNKNOWN_TAG, UNKNOWN_CLUB, UNKNOWN_COMPETITION
    * @throws {404} POST_NOT_FOUND
    */
   // Лише ADMIN (P3-7): зі `status` в тілі автор без ролі міг би публікувати
@@ -149,7 +188,7 @@ export class PostController {
    * Закріпити новину головною на сайті замість `replacesPostId` (попередню закріплену відкріплює). Вже закріплена —
    * без змін.
    * @throws {404} POST_NOT_FOUND — немає або видалена
-   * @throws {409} POST_NOT_LIVE — не на сайті: чернетка, ще не випущена запланована, архівна
+   * @throws {409} POST_NOT_LIVE — не на сайті: чернетка, запланована, архівна
    * @throws {409} PINNED_POST_CHANGED — закріплена вже не `replacesPostId` (інша вкладка, інший редактор)
    */
   @Post(':id/pin')

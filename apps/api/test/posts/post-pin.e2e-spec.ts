@@ -299,7 +299,7 @@ describe('Головна новина: закріплення редакторо
       () => createPost({ translations: [englishTranslation('Draft news')] }),
     ],
     [
-      'ще не випущена запланована',
+      'запланована',
       () =>
         createPost({
           status: 'SCHEDULED',
@@ -329,14 +329,6 @@ describe('Головна новина: закріплення редакторо
   it.each<[string, (postId: string) => Promise<unknown>]>([
     ['зняли з публікації', (postId) => updatePost(postId, { status: 'DRAFT' })],
     ['в архів', (postId) => updatePost(postId, { status: 'ARCHIVED' })],
-    [
-      'перенесли в майбутнє',
-      (postId) =>
-        updatePost(postId, {
-          status: 'SCHEDULED',
-          publishedAt: new Date(Date.now() + DAY_MS).toISOString(),
-        }),
-    ],
     [
       'видалили',
       (postId) => admin.delete(apiPath(`/posts/${postId}`)).expect(200),
