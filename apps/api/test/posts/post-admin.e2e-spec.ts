@@ -68,7 +68,7 @@ function englishTranslation(title: string) {
 
 /**
  * Новини для адмінки (M1.4.8): пост для форми редагування — будь-якого статусу, з усім, що редагує форма;
- * список — сторінками, статус «як бачить редактор», пошук за заголовком будь-якою мовою.
+ * список — сторінками, статус — як у БД (D57), пошук за заголовком будь-якою мовою.
  */
 describe('Адмінка: список новин і новина для форми', () => {
   let e2e: E2eApp;
@@ -186,7 +186,7 @@ describe('Адмінка: список новин і новина для фор�
       publishedAt: futureIso,
       translations: [englishTranslation(SIGNING)],
     });
-    // Запланована, чия дата настала: у БД — SCHEDULED, на сайті — уже видно
+    // Запланована, чия дата настала, а воркер ще не пройшов: SCHEDULED, на сайті ще немає (D57)
     const preview = await createPost({
       status: 'SCHEDULED',
       publishedAt: futureIso,
@@ -323,19 +323,21 @@ describe('Адмінка: список новин і новина для фор�
     });
   });
 
-  it('статус — як бачить редактор: запланована, чия дата настала, — серед PUBLISHED; кожна новина — в одному статусі', async () => {
+  it('статус — як у БД: запланована, чия дата настала, до проходу воркера — серед SCHEDULED (D57)', async () => {
     expect(await listTitles({ status: 'PUBLISHED' })).toEqual([
-      PREVIEW,
       FANS,
       FULL_FITNESS,
     ]);
-    expect(await listTitles({ status: 'SCHEDULED' })).toEqual([SIGNING]);
+    expect(await listTitles({ status: 'SCHEDULED' })).toEqual([
+      PREVIEW,
+      SIGNING,
+    ]);
     expect(await listTitles({ status: 'DRAFT' })).toEqual([
       DETAIL_TRANSLATION_EN.title,
     ]);
     expect(await listTitles({ status: 'ARCHIVED' })).toEqual([RUMOUR]);
     expect(await listPage({ status: 'PUBLISHED' })).toMatchObject({
-      total: 3,
+      total: 2,
       totalPages: 1,
     });
   });

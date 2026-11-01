@@ -12,7 +12,7 @@ const LINK_CLASS = 'text-sm text-green-400 transition-colors hover:text-green-30
 /** Дата публікації (для запланованих — коли вийде), для чернеток — створення; у поясі редактора. */
 function postDateLine(post: AdminPost, timeZone: string): string {
   const format = (isoDate: string) => formatEditorDateTime(isoDate, timeZone);
-  if (post.publishedAt && post.status === 'SCHEDULED' && !post.isLive) {
+  if (post.publishedAt && post.status === 'SCHEDULED') {
     return `Goes live ${format(post.publishedAt)}`;
   }
   if (post.publishedAt) return `Published ${format(post.publishedAt)}`;

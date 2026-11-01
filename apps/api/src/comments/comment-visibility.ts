@@ -6,7 +6,7 @@ import {
 } from '../posts/post-visibility';
 
 /**
- * Тред, який бачить публіка (P4-1): пост живий (P3-1) або тред матчу
+ * Тред, який бачить публіка (P4-1): пост живий (D57) або тред матчу
  * (матч без soft delete; видалення матчу каскадно прибирає тред).
  */
 export function visibleThreadWhere(now: Date): Prisma.CommentThreadWhereInput {

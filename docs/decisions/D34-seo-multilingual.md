@@ -1,7 +1,7 @@
 # D34 — SEO багатомовного сайту
 
 - **Статус:** ✅ прийнято · 2026-10-08 · 👤 рішення власника (11.1, 11.4) + ⭐ деталі · уточнено 2026-10-30 (бриф M1.8, нижче) · ✅ M1.8.1
-- **Етап:** M1.8 (M1.8.1 метадані ✅, M1.8.2 sitemap і robots, M1.8.3 структуровані дані й замір); далі M2.2 (`SportsEvent`), M2.9 (OG-картинки), M3.7
+- **Етап:** M1.8 (M1.8.1 метадані ✅, M1.8.2 публікація за розкладом і маршрути sitemap в API ✅, M1.8.3 sitemap і robots у web, M1.8.4 структуровані дані й замір); далі M2.2 (`SportsEvent`), M2.9 (OG-картинки), M3.7
 
 ## Контекст
 SEO — пріоритет (👤 11.1): для новинного сайту Google — головне джерело трафіку.
@@ -30,15 +30,16 @@ SEO — пріоритет (👤 11.1): для новинного сайту Goo
 - 👤 Шаблон назви — `%s | Назва сайту`. Окремі SEO-назва й опис новини (`seoTitle` / `seoDescription`, nullable) — [`backlog.md`](../backlog.md).
 - ⭐ 404, а не 410, для знятої новини — *чому:* сторінка App Router віддає лише `notFound()`, а Google обробляє 404 і 410 майже однаково.
 
-### M1.8.2 sitemap і robots
+### M1.8.2 (API) і M1.8.3 (web): sitemap і robots
+- 👤 2026-10-30 (бриф M1.8.2): **два PR** — M1.8.2 API (воркер, події, правила статусів, адмінка, маршрути sitemap — [D57](D57-scheduled-publishing.md)) → M1.8.3 web (`SITE_INDEXING`, robots, sitemap, Google News, `/api/revalidate`); структуровані дані й замір — M1.8.4.
 - 👤 Індексацію вмикає серверна змінна web `SITE_INDEXING` (за замовчуванням `false`) — *чому:* `NODE_ENV=production` і на тесті, і на проді; забута змінна закриває сайт, а не відкриває тест-сервер. Вона ж замінює для web `APP_ENV=test` з [D31](D31-test-environment.md) (API — свій прапорець, M1.11.4).
-- 👤 `robots.ts` і `sitemap.ts` — динамічні (`force-dynamic`), змінна — лише серверна; вимкнено — `Disallow: /` і `X-Robots-Tag: noindex, nofollow` з `proxy.ts`, увімкнено — sitemap у `robots.txt` і глобально `max-image-preview:large`.
-- 👤 sitemap index з нарізкою за місяцями (`generateSitemaps`), маршрут API з `?month=`; кеш + `revalidateTag` при публікації; `hreflang` у sitemap — лише наявні переклади. **Slug один на всі мови** ([D24](D24-news-url-slug-number.md)) — адреси новини різняться лише мовою.
+- 👤 `robots.ts` і sitemap — динамічні, змінна — лише серверна; вимкнено — `Disallow: /`, sitemap-и — 404 і `X-Robots-Tag: noindex, nofollow` на HTML з `proxy.ts`, увімкнено — у `robots.txt` лише `Sitemap: /sitemap.xml` і глобально `max-image-preview:large`.
+- 👤 sitemap index з нарізкою за місяцями; кеш + `revalidateTag` за подіями API; `hreflang` у sitemap — лише наявні переклади. 🔁 2026-10-30 (відповіді на ❓ M1.8.3): **без `app/sitemap.ts`** — Next 16 sitemap index сам не будує, а `/sitemap.xml` зарезервований за `app/sitemap.ts`; натомість route handlers `app/sitemap.xml/route.ts` (index), `app/sitemaps/static.xml`, `app/sitemaps/[month]` (`posts-YYYY-MM.xml`), `app/sitemaps/news.xml` і один XML-хелпер з екрануванням; `hreflang` — `xhtml:link`. Кеш даних (`fetch` з тегами, `apiFetch`), теги й TTL, перевірка підпису вебхука — план, M1.8.3. **Slug один на всі мови** ([D24](D24-news-url-slug-number.md)) — адреси новини різняться лише мовою.
 - 👤 Матчі в sitemap — разом із `SportsEvent` (M2.2).
 - 👤 Відповіді на ❓ брифу (2026-10-30): API — `GET /posts/sitemap` (місяці), `GET /posts/sitemap/:month`, `GET /posts/sitemap/news` (48 год, ≤ 1000 — **Google News sitemap у цьому етапі**, а не в M3.7); групування — за місяцем `publishedAt` в UTC; «жива новина» = `status = PUBLISHED` — один предикат зі стрічкою.
-- 👤 Сповіщення web — **вебхук + TTL як страховка**: запланована новина виходить не сама за датою (P3-1), а воркером раз на хвилину (`SCHEDULED` → `PUBLISHED`, `SKIP LOCKED`, порції по 100); і воркер, і ручна публікація шлють ту саму подію `post.published`, вебхук web (`POST /api/revalidate` → `revalidateTag`) — її підписник. Правила статусів: `SCHEDULED` — лише з датою в майбутньому, `PUBLISHED → SCHEDULED` заборонено, дата після публікації незмінна. Рішення про публікацію — окремим D57 (у етапі). Outbox подій і IndexNow — [`backlog.md`](../backlog.md).
+- 👤 Сповіщення web — **вебхук + TTL як страховка**: запланована новина виходить не сама за датою (P3-1), а воркером раз на хвилину (`SCHEDULED` → `PUBLISHED`, `SKIP LOCKED`, порції по 100); і воркер, і ручна публікація шлють ту саму подію `post.published`, вебхук web (`POST /api/revalidate` → `revalidateTag`) — її підписник. Правила статусів: `SCHEDULED` — лише з датою в майбутньому, `PUBLISHED → SCHEDULED` заборонено, дата після публікації незмінна. Рішення про публікацію — [D57](D57-scheduled-publishing.md). Outbox подій і IndexNow — [`backlog.md`](../backlog.md).
 
-### M1.8.3 Структуровані дані й замір
+### M1.8.4 Структуровані дані й замір
 - 👤 Типи JSON-LD — `schema-dts`. `VideoObject` — ні, поки немає дати завантаження відео (YouTube Data API — [`backlog.md`](../backlog.md)).
-- 👤 Rich Results Test — у режимі «Код» на HTML локальної збірки; Lighthouse — `next build && next start`, мобільний профіль; повторно — на тест-сервері (M1.11). Пороги: **SEO = 100**, Best Practices ≥ 90; LCP < 2,5 с і CLS < 0,1 — ціль. Lighthouse CI — конфіг у M1.8.3, job у GitHub Actions — M1.10.1.
+- 👤 Rich Results Test — у режимі «Код» на HTML локальної збірки; Lighthouse — `next build && next start`, мобільний профіль; повторно — на тест-сервері (M1.11). Пороги: **SEO = 100**, Best Practices ≥ 90; LCP < 2,5 с і CLS < 0,1 — ціль. Lighthouse CI — конфіг у M1.8.4, job у GitHub Actions — M1.10.1.
 - 👤 Після запуску прод-домену — Search Console і Bing Webmaster Tools, IndexNow, RSS ([`backlog.md`](../backlog.md), M3.7).

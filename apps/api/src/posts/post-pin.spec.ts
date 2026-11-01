@@ -147,8 +147,12 @@ describe('decidePin — закріпити новину', () => {
       { status: PostStatus.DRAFT, publishedAt: null, pinnedAt: null },
     ],
     [
-      'ще не випущена запланована',
+      'запланована',
       { status: PostStatus.SCHEDULED, publishedAt: FUTURE, pinnedAt: null },
+    ],
+    [
+      'запланована, чия дата настала, — до проходу воркера (D57)',
+      { status: PostStatus.SCHEDULED, publishedAt: PAST, pinnedAt: null },
     ],
     [
       'архівна',
@@ -159,12 +163,6 @@ describe('decidePin — закріпити новину', () => {
       kind: 'rejected',
       errorCode: 'POST_NOT_LIVE',
     });
-  });
-
-  it('запланована, чия дата настала, — жива, закріпити можна', () => {
-    expect(
-      decide({ target: { ...published, status: PostStatus.SCHEDULED } }),
-    ).toEqual({ kind: 'pin', unpinPostId: null });
   });
 });
 
@@ -180,10 +178,6 @@ describe('unpinsOnPublicationChange — закріплення після оно
       { status: PostStatus.DRAFT, publishedAt: null },
     ],
     ['в архів', { status: PostStatus.ARCHIVED, publishedAt: PAST }],
-    [
-      'перенесли в майбутнє',
-      { status: PostStatus.SCHEDULED, publishedAt: FUTURE },
-    ],
   ])('%s — зняти', (_case, next) => {
     expect(
       unpinsOnPublicationChange({ current: livePublication, next, now: NOW }),
@@ -195,19 +189,6 @@ describe('unpinsOnPublicationChange — закріплення після оно
       unpinsOnPublicationChange({
         current: livePublication,
         next: { ...livePublication },
-        now: NOW,
-      }),
-    ).toBe(false);
-  });
-
-  it('нова минула дата публікації — жива, лишається', () => {
-    expect(
-      unpinsOnPublicationChange({
-        current: livePublication,
-        next: {
-          status: PostStatus.PUBLISHED,
-          publishedAt: new Date('2026-10-01T08:00:00.000Z'),
-        },
         now: NOW,
       }),
     ).toBe(false);

@@ -8,6 +8,9 @@ const SERVER_ERROR_MESSAGES: Record<string, string> = {
   SCHEDULED_AT_IN_PAST: 'Scheduled time is already in the past — pick a later time.',
   PUBLISHED_AT_REQUIRED: 'Choose when the post goes live.',
   PUBLISHED_AT_IN_FUTURE: 'A published post cannot have a future date — use Schedule.',
+  // Інша вкладка встигла опублікувати новину: дата опублікованої незмінна, і знову запланованою вона не стає (D57)
+  PUBLISHED_AT_LOCKED:
+    'This post is already published: its date can’t change and it can’t be scheduled again. Reload the page to see it.',
   DEFAULT_TRANSLATION_REQUIRED: 'The English version is required.',
   UNSUPPORTED_LANGUAGE: 'One of the languages is not enabled.',
   COVER_IMAGE_ALT_REQUIRED: 'Describe the cover photo in every language of the post — required to publish.',

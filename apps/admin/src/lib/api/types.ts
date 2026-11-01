@@ -46,9 +46,8 @@ export function adminPostTitle(
   );
 }
 
-/** Статус, що бачить редактор: запланований, чия дата настала, уже на сайті. */
-export function adminPostStatusLabel(post: Pick<AdminPost, 'isLive' | 'status'>): string {
-  if (post.isLive) return 'Published';
+/** Підпис статусу — як у БД: запланована, чия дата настала, виходить протягом хвилини сама (воркер, D57). */
+export function adminPostStatusLabel(post: Pick<AdminPost, 'status'>): string {
   switch (post.status) {
     case 'DRAFT':
       return 'Draft';

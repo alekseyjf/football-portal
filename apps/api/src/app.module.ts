@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { envConfig } from './config/env.config';
 import { PrismaModule } from './prisma/prisma.module';
@@ -11,6 +12,7 @@ import { FootballModule } from './football/football.module';
 import { HealthModule } from './health/health.module';
 import { LikeModule } from './likes/like.module';
 import { SecurityModule } from './security/security.module';
+import { SiteRevalidationModule } from './site-revalidation/site-revalidation.module';
 import { RequestThrottlingModule } from './security/throttling/request-throttling.module';
 import { UserManagementModule } from './users/management/user-management.module';
 
@@ -23,6 +25,8 @@ import { UserManagementModule } from './users/management/user-management.module'
       load: [envConfig],
     }),
     ScheduleModule.forRoot(),
+    // Події домену (D57): `post.published` / `post.unpublished` — їх слухає сповіщення сайту
+    EventEmitterModule.forRoot(),
     PrismaModule,
     RequestThrottlingModule,
     AuthModule,
@@ -34,6 +38,7 @@ import { UserManagementModule } from './users/management/user-management.module'
     FootballModule,
     LikeModule,
     HealthModule,
+    SiteRevalidationModule,
   ],
 })
 export class AppModule {}

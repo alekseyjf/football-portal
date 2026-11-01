@@ -8,6 +8,14 @@ import type {
   AdminPostDto,
 } from './dto/admin-post-response.dto';
 import type { PostDetailDto, PostSummaryDto } from './dto/post-response.dto';
+import type {
+  NewsSitemapEntryDto,
+  PostSitemapEntryDto,
+} from './dto/post-sitemap-response.dto';
+import type {
+  NewsSitemapPostRow,
+  SitemapPostRow,
+} from './post-sitemap.repository';
 import { isPostLive } from './post-visibility';
 import type { PostDetailRow, PostSummaryRow } from './public-post.repository';
 
@@ -29,7 +37,7 @@ function requireTranslation<Translation extends { languageCode: string }>(
   return translation;
 }
 
-/** Живий пост завжди має дату (P3-1, CHECK `Post_published_has_date_check`). */
+/** Живий пост (PUBLISHED) завжди має дату (CHECK `Post_published_has_date_check`). */
 function requirePublishedAt(postRow: {
   id: string;
   publishedAt: Date | null;
@@ -121,5 +129,34 @@ export function toAdminPostDetail(
       (competitionLink) => competitionLink.competition,
     ),
     clubs: postRow.clubs.map((clubLink) => clubLink.club),
+  };
+}
+
+/**
+ * Новина в sitemap: адреса кожною мовою перекладу. `lastmod` адреси — пізніша з дати публікації й правки перекладу:
+ * чернетку, написану давно, опублікували сьогодні — адреса нова сьогодні (D57).
+ */
+export function toSitemapEntry(postRow: SitemapPostRow): PostSitemapEntryDto {
+  const publishedAt = requirePublishedAt(postRow);
+  return {
+    number: postRow.number,
+    slug: postRow.slug,
+    translations: postRow.translations.map((translation) => ({
+      languageCode: translation.languageCode,
+      lastModifiedAt: new Date(
+        Math.max(publishedAt.getTime(), translation.updatedAt.getTime()),
+      ),
+    })),
+  };
+}
+
+export function toNewsSitemapEntry(
+  postRow: NewsSitemapPostRow,
+): NewsSitemapEntryDto {
+  return {
+    number: postRow.number,
+    slug: postRow.slug,
+    publishedAt: requirePublishedAt(postRow),
+    translations: postRow.translations,
   };
 }

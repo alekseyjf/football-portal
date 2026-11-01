@@ -41,10 +41,7 @@ export class ListAdminPostsQueryDto {
   @Max(ADMIN_POSTS_PAGE_LIMIT_MAX)
   limit: number = ADMIN_POSTS_PAGE_LIMIT_DEFAULT;
 
-  /**
-   * Статус, як його показує адмінка: PUBLISHED — новини на сайті, і запланована, чия дата настала;
-   * SCHEDULED — лише ті, що ще чекають своєї дати
-   */
+  /** Статус новини: PUBLISHED — на сайті, SCHEDULED — чекає своєї дати (виходить протягом хвилини після неї) */
   @ApiPropertyOptional({ enum: PostStatus, enumName: 'PostStatus' })
   @IsOptional()
   @IsEnum(PostStatus)

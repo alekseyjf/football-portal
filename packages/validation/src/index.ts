@@ -115,6 +115,12 @@ export const COMPETITION_SLUG_MAX_LENGTH = 32;
  */
 export const CLUB_SLUG_MAX_LENGTH = 100;
 
+/**
+ * Місяць sitemap новин — `2026-10` (місяць `publishedAt` в UTC, D57): `GET /posts/sitemap/{month}` і адреса файла
+ * sitemap сайту. Рік від 1000: `Date.UTC` роки 0–99 читає як 1900–1999.
+ */
+export const SITEMAP_MONTH_PATTERN = /^[1-9]\d{3}-(0[1-9]|1[0-2])$/;
+
 /** Сторінка списку новин в адмінці (`GET /posts/admin/all?limit=`): за замовчуванням і найбільша. */
 export const ADMIN_POSTS_PAGE_LIMIT_DEFAULT = 20;
 export const ADMIN_POSTS_PAGE_LIMIT_MAX = 100;

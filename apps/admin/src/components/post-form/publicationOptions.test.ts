@@ -8,24 +8,22 @@ function optionValuesFor(post: PublicationState | null) {
 }
 
 describe('publicationOptionsFor: статуси, які форма пропонує новині', () => {
-  it('нова, чернетка й запланована, що чекає, — Draft / Publish now / Schedule, без Archived', () => {
+  it('нова, чернетка й запланована (і та, чий час настав, — до проходу воркера, D57) — Draft / Publish now / Schedule', () => {
     const allButArchived = ['DRAFT', 'PUBLISHED', 'SCHEDULED'];
     expect(optionValuesFor(null)).toEqual(allButArchived);
     expect(optionValuesFor({ status: 'DRAFT', isLive: false, publishedAt: null })).toEqual(allButArchived);
-    expect(
-      optionValuesFor({ status: 'SCHEDULED', isLive: false, publishedAt: '2026-10-26T08:00:00.000Z' }),
-    ).toEqual(allButArchived);
+    for (const publishedAt of ['2026-10-26T08:00:00.000Z', '2026-10-23T08:59:30.000Z']) {
+      expect(optionValuesFor({ status: 'SCHEDULED', isLive: false, publishedAt })).toEqual(allButArchived);
+    }
   });
 
-  it('на сайті — лише Published або зняти (Archived), без Draft; запланована, чий час настав, — теж на сайті', () => {
-    for (const status of ['PUBLISHED', 'SCHEDULED'] as const) {
-      const options = publicationOptionsFor(
-        { status, isLive: true, publishedAt: '2026-10-20T07:00:00.000Z' },
-        CONTEXT,
-      );
-      expect(options.map((option) => option.value)).toEqual(['PUBLISHED', 'ARCHIVED']);
-      expect(options[0].hint).toContain('20 Oct 2026, 10:00');
-    }
+  it('на сайті — лише Published або зняти (Archived): без Draft і без Schedule (дата опублікованої незмінна, D57)', () => {
+    const options = publicationOptionsFor(
+      { status: 'PUBLISHED', isLive: true, publishedAt: '2026-10-20T07:00:00.000Z' },
+      CONTEXT,
+    );
+    expect(options.map((option) => option.value)).toEqual(['PUBLISHED', 'ARCHIVED']);
+    expect(options[0].hint).toContain('20 Oct 2026, 10:00');
   });
 
   it('архівна — назад на сайт зі своєю датою або в чернетки; знята до свого часу вийде зараз', () => {

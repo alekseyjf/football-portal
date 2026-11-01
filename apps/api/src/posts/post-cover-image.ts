@@ -1,6 +1,6 @@
 import type { PostStatus } from '@prisma/client';
 import { requestedOrCurrent } from './post-field-update';
-import { isLivePostStatus } from './post-visibility';
+import { isPublishingStatus } from './post-publication';
 
 export type PostCoverImageErrorCode =
   | 'COVER_IMAGE_ALT_REQUIRED'
@@ -66,7 +66,7 @@ export function resolvePostCoverImage(
     hasCoverImage: coverImageUrl !== null,
     isSamePhoto: coverImageUrl === currentUrl,
   };
-  if (!photo.hasCoverImage || !isLivePostStatus(status)) {
+  if (!photo.hasCoverImage || !isPublishingStatus(status)) {
     return { isValid: true, ...photo };
   }
 

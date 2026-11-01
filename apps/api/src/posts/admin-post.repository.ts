@@ -4,6 +4,7 @@ import {
   CLUB_REF_SELECT,
   COMPETITION_REF_SELECT,
 } from '../football/football-refs';
+import { isRecordNotFound } from '../prisma/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { ADMIN_TAG_REF_SELECT } from '../tags/tag.repository';
 import { PUBLIC_AUTHOR_SELECT } from '../users/public-author';
@@ -66,20 +67,32 @@ const ADMIN_POST_DETAIL_SELECT = {
 } satisfies Prisma.PostSelect;
 
 /**
- * Що треба знати про пост перед оновленням: публікацію, slug з EN-заголовком (D24), обкладинку
- * з описом у кожному перекладі (D44) і джерело (D26).
+ * Що треба знати про пост перед оновленням: публікацію, адресу, slug з EN-заголовком (D24), обкладинку з описом
+ * у кожному перекладі (D44), джерело (D26) і все, що бачить читач, — для події `post.updated` (D57).
  */
 const POST_EDIT_STATE_SELECT = {
+  id: true,
+  number: true,
   status: true,
   publishedAt: true,
   slug: true,
   coverImageUrl: true,
   coverImageCredit: true,
+  videoUrl: true,
   sourceUrl: true,
   sourceName: true,
   translations: {
-    select: { languageCode: true, title: true, coverImageAlt: true },
+    select: {
+      languageCode: true,
+      title: true,
+      excerpt: true,
+      content: true,
+      coverImageAlt: true,
+    },
   },
+  tags: { select: { tagId: true } },
+  clubs: { select: { clubId: true } },
+  competitions: { select: { competitionId: true } },
 } satisfies Prisma.PostSelect;
 
 export type AdminPostRow = Prisma.PostGetPayload<{
@@ -92,10 +105,20 @@ export type PostEditStateRow = Prisma.PostGetPayload<{
   select: typeof POST_EDIT_STATE_SELECT;
 }>;
 
+/** Новина, яку щойно видалили: id, адреса й статус — для події `post.unpublished` (D57). */
+const DELETED_POST_SELECT = {
+  id: true,
+  number: true,
+  slug: true,
+  status: true,
+} satisfies Prisma.PostSelect;
+
+export type DeletedPostRow = Prisma.PostGetPayload<{
+  select: typeof DELETED_POST_SELECT;
+}>;
+
 export interface AdminPostPageQuery {
   filters: AdminPostListFilters;
-  /** Від нього рахується статус «як бачить редактор» */
-  now: Date;
   pagination: { skip: number; take: number };
 }
 
@@ -209,7 +232,7 @@ export class AdminPostRepository {
   async findAdminPage(
     pageQuery: AdminPostPageQuery,
   ): Promise<{ posts: AdminPostRow[]; total: number }> {
-    const where = adminPostListWhere(pageQuery.filters, pageQuery.now);
+    const where = adminPostListWhere(pageQuery.filters);
     const [posts, total] = await Promise.all([
       this.prisma.post.findMany({
         where,
@@ -231,9 +254,22 @@ export class AdminPostRepository {
     });
   }
 
-  findEditState(id: string): Promise<PostEditStateRow | null> {
-    return this.prisma.post.findFirst({
-      where: { id, deletedAt: null },
+  /**
+   * Блокує невидалену новину до кінця транзакції (`FOR NO KEY UPDATE`, backend Rule 10) і читає її стан для оновлення;
+   * `null` — немає чи видалена. Рішення про публікацію й події — на заблокованому рядку: воркер розкладу (`SKIP LOCKED`),
+   * що встиг першим, уже записав PUBLISHED, і повторної публікації (та події) не буде (D57).
+   */
+  async lockEditState(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<PostEditStateRow | null> {
+    const lockedRows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "Post"
+      WHERE "id" = ${id} AND "deletedAt" IS NULL
+      FOR NO KEY UPDATE`;
+    if (lockedRows.length === 0) return null;
+    return tx.post.findUnique({
+      where: { id },
       select: POST_EDIT_STATE_SELECT,
     });
   }
@@ -261,13 +297,14 @@ export class AdminPostRepository {
     });
   }
 
-  /**
-   * Одна nested-операція = одна транзакція Prisma: поля, переклади й зв'язки
-   * змінюються разом. Видалений пост → `P2025` (сервіс віддає 404).
-   */
-  update(id: string, data: UpdatePostData): Promise<AdminPostRow> {
-    return this.prisma.post.update({
-      where: { id, deletedAt: null },
+  /** Поля, переклади й зв'язки — разом, у транзакції, що тримає блокування новини (`lockEditState`). */
+  update(
+    tx: Prisma.TransactionClient,
+    id: string,
+    data: UpdatePostData,
+  ): Promise<AdminPostRow> {
+    return tx.post.update({
+      where: { id },
       data: {
         status: data.status,
         publishedAt: data.publishedAt,
@@ -291,13 +328,24 @@ export class AdminPostRepository {
     });
   }
 
-  /** Soft delete разом зі зняттям закріплення (D56); `false` — поста немає або вже видалений (повтор → 404). */
-  async softDelete(id: string, deletedAt: Date): Promise<boolean> {
-    const { count } = await this.prisma.post.updateMany({
-      where: { id, deletedAt: null },
-      data: { deletedAt, pinnedAt: null, pinnedById: null },
-    });
-    return count === 1;
+  /**
+   * Soft delete разом зі зняттям закріплення (D56); статус у відповіді — той, з яким новину видалили (рядок тримає
+   * блокування запису), — для події `post.unpublished`. `null` — поста немає або вже видалений (повтор → 404).
+   */
+  async softDelete(
+    id: string,
+    deletedAt: Date,
+  ): Promise<DeletedPostRow | null> {
+    try {
+      return await this.prisma.post.update({
+        where: { id, deletedAt: null },
+        data: { deletedAt, pinnedAt: null, pinnedById: null },
+        select: DELETED_POST_SELECT,
+      });
+    } catch (error) {
+      if (isRecordNotFound(error)) return null;
+      throw error;
+    }
   }
 
   async countExistingRelations(ids: Required<PostRelationIds>) {

@@ -36,8 +36,8 @@ const scheduled: PostPublication = {
   status: PostStatus.SCHEDULED,
   publishedAt: FUTURE,
 };
-/** Запланований, дата якого вже настала (видно на сайті, статус у БД — SCHEDULED) */
-const scheduledLive: PostPublication = {
+/** Запланований, дата якого вже настала, а воркер ще не пройшов (на сайті ще немає, D57) */
+const scheduledDue: PostPublication = {
   status: PostStatus.SCHEDULED,
   publishedAt: PAST,
 };
@@ -149,12 +149,12 @@ describe('resolvePostPublication — створення', () => {
 });
 
 describe('resolvePostPublication — оновлення', () => {
-  it('без статусу і дати — нічого не змінюється (у т.ч. запланований, що вже вийшов)', () => {
+  it('без статусу і дати — нічого не змінюється (у т.ч. запланований, чия дата настала)', () => {
     for (const current of [
       draft,
       published,
       scheduled,
-      scheduledLive,
+      scheduledDue,
       archived,
     ]) {
       expectPublication({ current }, current);
@@ -163,8 +163,8 @@ describe('resolvePostPublication — оновлення', () => {
 
   it('той самий статус без дати — нічого не змінюється', () => {
     expectPublication(
-      { current: scheduledLive, requestedStatus: PostStatus.SCHEDULED },
-      scheduledLive,
+      { current: scheduledDue, requestedStatus: PostStatus.SCHEDULED },
+      scheduledDue,
     );
   });
 
@@ -182,9 +182,9 @@ describe('resolvePostPublication — оновлення', () => {
     );
   });
 
-  it('SCHEDULED, що вже вийшов → PUBLISHED — дата зберігається', () => {
+  it('SCHEDULED, чия дата настала → PUBLISHED — дата зберігається (ту саму поставив би воркер)', () => {
     expectPublication(
-      { current: scheduledLive, requestedStatus: PostStatus.PUBLISHED },
+      { current: scheduledDue, requestedStatus: PostStatus.PUBLISHED },
       published,
     );
   });
@@ -246,17 +246,54 @@ describe('resolvePostPublication — оновлення', () => {
     );
   });
 
-  it('PUBLISHED → SCHEDULED без дати — 400 (минула дата публікації не переноситься)', () => {
-    expectError(
-      { current: published, requestedStatus: PostStatus.SCHEDULED },
-      'PUBLISHED_AT_REQUIRED',
+  it('DRAFT → PUBLISHED з минулою датою — перенесення старої новини', () => {
+    expectPublication(
+      {
+        current: draft,
+        requestedStatus: PostStatus.PUBLISHED,
+        requestedPublishedAt: PAST,
+      },
+      published,
     );
   });
 
-  it('PUBLISHED → SCHEDULED з майбутньою датою — зняти з сайту до дати', () => {
+  it('ARCHIVED → DRAFT — дата стирається («почати заново», D50)', () => {
+    expectPublication(
+      { current: archived, requestedStatus: PostStatus.DRAFT },
+      draft,
+    );
+  });
+});
+
+describe('resolvePostPublication — дата опублікованої незмінна (D57)', () => {
+  it('PUBLISHED → SCHEDULED — 400 PUBLISHED_AT_LOCKED, з датою і без', () => {
+    for (const requestedPublishedAt of [undefined, FUTURE]) {
+      expectError(
+        {
+          current: published,
+          requestedStatus: PostStatus.SCHEDULED,
+          requestedPublishedAt,
+        },
+        'PUBLISHED_AT_LOCKED',
+      );
+    }
+  });
+
+  it('ARCHIVED → SCHEDULED — 400 PUBLISHED_AT_LOCKED: дата в архівної вже є', () => {
+    expectError(
+      {
+        current: archived,
+        requestedStatus: PostStatus.SCHEDULED,
+        requestedPublishedAt: FUTURE,
+      },
+      'PUBLISHED_AT_LOCKED',
+    );
+  });
+
+  it('архівна без дати (знята з чернеток) → SCHEDULED — можна', () => {
     expectPublication(
       {
-        current: published,
+        current: { status: PostStatus.ARCHIVED, publishedAt: null },
         requestedStatus: PostStatus.SCHEDULED,
         requestedPublishedAt: FUTURE,
       },
@@ -264,14 +301,34 @@ describe('resolvePostPublication — оновлення', () => {
     );
   });
 
-  it('зміна дати опублікованого — лише в минуле', () => {
-    expectPublication(
-      { current: published, requestedPublishedAt: NOW },
-      { status: PostStatus.PUBLISHED, publishedAt: NOW },
-    );
+  it('інша дата опублікованої — 400 PUBLISHED_AT_LOCKED, і в минуле, і в майбутнє', () => {
+    for (const requestedPublishedAt of [NOW, FUTURE]) {
+      expectError(
+        { current: published, requestedPublishedAt },
+        'PUBLISHED_AT_LOCKED',
+      );
+    }
+  });
+
+  it('ARCHIVED → PUBLISHED з іншою датою — 400 PUBLISHED_AT_LOCKED', () => {
     expectError(
-      { current: published, requestedPublishedAt: FUTURE },
-      'PUBLISHED_AT_IN_FUTURE',
+      {
+        current: archived,
+        requestedStatus: PostStatus.PUBLISHED,
+        requestedPublishedAt: NOW,
+      },
+      'PUBLISHED_AT_LOCKED',
+    );
+  });
+
+  it('та сама дата опублікованої — не зміна (повторний запит проходить)', () => {
+    expectPublication(
+      {
+        current: published,
+        requestedStatus: PostStatus.PUBLISHED,
+        requestedPublishedAt: PAST,
+      },
+      published,
     );
   });
 

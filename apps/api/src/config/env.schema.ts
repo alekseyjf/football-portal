@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isPrivateHost } from '../common/network/private-host';
 import { RATE_LIMIT_EVENT_RETENTION_MS } from '../security/abuse.constants';
 
 /*
@@ -111,6 +112,59 @@ function describeOriginProblem(
   return null;
 }
 
+/** У production — https, або http лише до хоста приватної мережі (сервіс Docker `web`, `localhost`, 10.x …). */
+function isAllowedWebhookUrl(value: string, isProduction: boolean): boolean {
+  const url = URL.parse(value);
+  // Не адреса — про це вже скаже перевірка `z.url`
+  if (!url || !isProduction) return true;
+  return url.protocol === 'https:' || isPrivateHost(url.hostname);
+}
+
+/**
+ * Вебхук web `POST /api/revalidate` (D57): API кличе його, коли новина з'явилась на сайті, змінилась чи зникла, — кеш
+ * і sitemap сайту оновлюються одразу, а не за TTL. Обидві змінні або жодна: без них — без вебхука. Секрет у запиті
+ * не йде (лише підпис з часом), тож http усередині приватної мережі (`http://web:3000`) — дозволено й на проді.
+ */
+function revalidateWebhook(definedEnv: Readonly<Record<string, unknown>>) {
+  const isProduction = definedEnv.NODE_ENV === 'production';
+  const url = z
+    .url({
+      protocol: /^https?$/,
+      error: (issue) =>
+        issue.input === undefined
+          ? 'is required with REVALIDATE_SECRET: web revalidate URL, e.g. http://web:3000/api/revalidate'
+          : 'must be an http(s) URL of the web revalidate route',
+    })
+    .refine(
+      (value) => isAllowedWebhookUrl(value, isProduction),
+      'must use https in production unless the host is on a private network (Docker service name, localhost, 10.x, 172.16–31.x, 192.168.x)',
+    );
+  const secretRule = z
+    .string({
+      error: whenMissing(
+        'is required with WEB_REVALIDATE_URL: random, at least 32 characters (openssl rand -base64 48), the same in web',
+      ),
+    })
+    .min(
+      SECRET_MIN_LENGTH,
+      `must be at least ${SECRET_MIN_LENGTH} characters (openssl rand -base64 48)`,
+    )
+    .refine(
+      (value) =>
+        value !== definedEnv.JWT_SECRET &&
+        value !== definedEnv.EMAIL_HASH_SECRET,
+      'must differ from JWT_SECRET and EMAIL_HASH_SECRET: one secret per purpose (web gets this one)',
+    );
+  return {
+    WEB_REVALIDATE_URL:
+      definedEnv.REVALIDATE_SECRET === undefined ? url.optional() : url,
+    REVALIDATE_SECRET:
+      definedEnv.WEB_REVALIDATE_URL === undefined
+        ? secretRule.optional()
+        : secretRule,
+  };
+}
+
 /** Правила, що залежать від інших змінних (`NODE_ENV`, `JWT_SECRET`), беруть їх із сирого середовища. */
 function buildEnvSchema(definedEnv: Readonly<Record<string, unknown>>) {
   const nodeEnvs = NODE_ENVS.join(' | ');
@@ -170,6 +224,7 @@ function buildEnvSchema(definedEnv: Readonly<Record<string, unknown>>) {
           ),
       )
       .default(DEFAULT_COMMENT_COOLDOWN_MS),
+    ...revalidateWebhook(definedEnv),
   });
 }
 
