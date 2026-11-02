@@ -1,8 +1,8 @@
 # Football Portal — Project Context
 
 ## Stack
-- **Web** (port 3000): Next.js 16, React 19, Tailwind 4, React Hook Form + Zod, Zustand, Vitest (unit), **TanStack Query** (`prefetchQuery` + `HydrationBoundary` для головної, новини й матчу; хуки для коментарів і auth), **next-intl** (маршрути `app/[locale]/…`, локалі лише `en` | `uk` — той самий код у БД, API і `<html lang>`, D22)
-- **Admin** (port 3001): Next.js 16, React Hook Form + Zod, Zustand, **TanStack Query** (пости, логін, створення поста)
+- **Web** (port 3000): Next.js 16.4, React 19, Tailwind 4, React Hook Form + Zod, Zustand, Vitest (unit), **TanStack Query** (`prefetchQuery` + `HydrationBoundary` для головної, новини й матчу; хуки для коментарів і auth), **next-intl** (маршрути `app/[locale]/…`, локалі лише `en` | `uk` — той самий код у БД, API і `<html lang>`, D22)
+- **Admin** (port 3001): Next.js 16.4, React Hook Form + Zod, Zustand, **TanStack Query** (пости, логін, створення поста)
 - **API** (port 4000): NestJS, Prisma 7, PostgreSQL (Supabase), JWT httpOnly cookies
 - **Monorepo**: pnpm + Turborepo; нову версію пакета pnpm бере не раніше ніж через 7 днів після публікації (`minimumReleaseAge` у `pnpm-workspace.yaml`)
 - `packages/types` — типи API для web і admin, **згенеровані** з OpenAPI (D28): `pnpm gen:api-types` (без сервера й БД; і `pnpm install`) → `openapi.json` + `src/generated/openapi.ts` — **не в git**; імена (схема без `Dto`) — по файлу на сутність у теці модуля API (`src/football/match.ts`)
