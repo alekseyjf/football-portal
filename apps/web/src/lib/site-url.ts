@@ -1,5 +1,6 @@
 import 'server-only';
 import { serverEnv } from '@/lib/env/server-env';
+import { absoluteUrl } from '@/lib/seo/page-metadata';
 
 /**
  * Адреса самого сайту (`SITE_URL`, origin без `/` у кінці) — лише на сервері: повні адреси JSON-LD, а клієнтському
@@ -11,5 +12,5 @@ export function siteUrl(): string {
 
 /** Шлях сторінки (`/uk/news`) → повна адреса на сайті. */
 export function absoluteSiteUrl(pathname: string): string {
-  return new URL(pathname, `${siteUrl()}/`).href;
+  return absoluteUrl(siteUrl(), pathname);
 }

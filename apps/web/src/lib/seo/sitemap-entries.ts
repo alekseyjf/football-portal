@@ -7,6 +7,7 @@ import type {
 } from '@/lib/api/types';
 import { postHref } from '@/lib/news/post-path';
 import {
+  absoluteUrl,
   languageAlternates,
   localizedPath,
   type PageHref,
@@ -43,10 +44,6 @@ export function postsSitemapPath(month: string): string {
 export function sitemapMonthOf(fileName: string): string | null {
   const month = POSTS_SITEMAP_FILE.exec(fileName)?.[1];
   return month && SITEMAP_MONTH_PATTERN.test(month) ? month : null;
-}
-
-function absoluteUrl(siteOrigin: string, pathname: string): string {
-  return new URL(pathname, `${siteOrigin}/`).href;
 }
 
 function alternatesOf(

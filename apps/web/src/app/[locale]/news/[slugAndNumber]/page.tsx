@@ -7,6 +7,7 @@ import { JsonLd } from '@/components/seo/JsonLd';
 import { isApiError } from '@/lib/api/http';
 import type { PostDetail } from '@/lib/api/types';
 import { localeToApiContentLang, localeToBcp47 } from '@/lib/i18n/content-lang';
+import { postJsonLd } from '@/lib/news/post-json-ld';
 import { postMetadata } from '@/lib/news/post-metadata';
 import {
   parsePostPathSegment,
@@ -14,10 +15,9 @@ import {
   postPathSegment,
 } from '@/lib/news/post-path';
 import { makeQueryClient } from '@/lib/query/queryClient';
-import { breadcrumbListJsonLd, newsArticleJsonLd } from '@/lib/seo/json-ld';
-import { absoluteSiteUrl, siteUrl } from '@/lib/site-url';
+import { siteUrl } from '@/lib/site-url';
 import { fetchPostDetail, postDetailQueryOptions } from '@/hooks/usePostDetail';
-import { getPathname, permanentRedirect } from '@/i18n/navigation';
+import { permanentRedirect } from '@/i18n/navigation';
 import { isAppLocale, type AppLocale } from '@/i18n/routing';
 import { NewsPostView } from './NewsPostView';
 
@@ -57,43 +57,31 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-/**
- * Структуровані дані новини (D34, D53): `NewsArticle` і `BreadcrumbList` — ті самі пункти й назви, що й видимі
- * хлібні крихти (`PostBreadcrumbs`). Адреси — повні (`SITE_URL`).
- */
-async function postJsonLd(locale: AppLocale, post: PostDetail) {
+/** Структуровані дані новини (`postJsonLd`): тексти мовою сторінки й адреса сайту — серверна `SITE_URL`. */
+async function PostJsonLd({
+  locale,
+  post,
+}: {
+  locale: AppLocale;
+  post: PostDetail;
+}) {
   const tCrumbs = await getTranslations({
     locale,
     namespace: 'news.breadcrumbs',
   });
   const tMeta = await getTranslations({ locale, namespace: 'meta' });
-  const pageUrl = absoluteSiteUrl(
-    getPathname({ href: postHref(post), locale }),
+  const { article, breadcrumbs } = postJsonLd(post, {
+    locale,
+    siteOrigin: siteUrl(),
+    siteName: tMeta('title'),
+    breadcrumbNames: { home: tCrumbs('home'), news: tCrumbs('news') },
+  });
+  return (
+    <>
+      <JsonLd data={article} />
+      <JsonLd data={breadcrumbs} />
+    </>
   );
-  return [
-    newsArticleJsonLd({
-      url: pageUrl,
-      headline: post.title,
-      description: post.excerpt,
-      imageUrl: post.coverImageUrl,
-      datePublished: post.publishedAt,
-      authorName: post.author.isDeleted ? null : post.author.name,
-      publisher: { name: tMeta('title'), url: siteUrl() },
-      inLanguage: post.resolvedLanguage,
-      sourceUrl: post.sourceUrl,
-    }),
-    breadcrumbListJsonLd([
-      {
-        name: tCrumbs('home'),
-        url: absoluteSiteUrl(getPathname({ href: '/', locale })),
-      },
-      {
-        name: tCrumbs('news'),
-        url: absoluteSiteUrl(getPathname({ href: '/news', locale })),
-      },
-      { name: post.title },
-    ]),
-  ];
 }
 
 export default async function NewsPostPage({ params }: Props) {
@@ -125,10 +113,7 @@ export default async function NewsPostPage({ params }: Props) {
 
   return (
     <>
-      {post &&
-        (await postJsonLd(locale, post)).map((data) => (
-          <JsonLd key={String(data['@type'])} data={data} />
-        ))}
+      {post && <PostJsonLd locale={locale} post={post} />}
       <HydrationBoundary state={dehydrate(queryClient)}>
         {/* Адреса сайту — з серверної змінної: клієнту вона потрібна лише тут, для «своїх» посилань тексту */}
         <NewsPostView postNumber={postRef.number} siteUrl={siteUrl()} />

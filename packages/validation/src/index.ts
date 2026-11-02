@@ -10,6 +10,7 @@ export { publicTagPath } from './public-paths';
 export { normalizeYouTubeUrl, parseYouTubeVideoId } from './youtube';
 export { commentEditWindowStart, isCommentEditWindowOpen } from './comment-edit';
 export {
+  articleImageUrls,
   COVER_IMAGE_HOSTS,
   coverImageUrlExample,
   isAllowedCoverImageUrl,

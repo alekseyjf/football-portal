@@ -26,7 +26,7 @@
 ### Хлібні крихти й JSON-LD
 - 👤 «Головна › Новини › заголовок»: `<nav aria-label="Навігаційний ланцюжок">` зі списком; поточна сторінка — без посилання, `aria-current="page"`; роздільник `›` — `aria-hidden`; довгий заголовок обрізає CSS (`truncate`) — диктор читає його повністю, у пошуку — теж повний.
 - 👤 `BreadcrumbList` у JSON-LD — ті самі пункти й назви (`news.breadcrumbs.*`), адреси — повні (`absoluteSiteUrl`, `SITE_URL`), у поточної сторінки адреси немає — Google бере адресу самої сторінки. Лише коли сервер отримав новину.
-- 👤 (рев'ю, 2026-10-25) **`NewsArticle`** (`newsArticleJsonLd`, unit) — за ним Google будує «Головні новини»: `url` і `mainEntityOfPage` — повна адреса сторінки, `headline`, `description` (анонс), `image` (обкладинка, якщо є), `datePublished`, `dateModified` = дата публікації (OQ-26), `author` — `Person` з ім'ям (видалений акаунт — автором видання), `publisher` — `Organization` з назвою сайту мовою сторінки й адресою, `inLanguage` (мова тексту: без перекладу — оригіналу), `isBasedOn` — джерело (D26). ⭐ Логотипа видання ще немає — разом з брендом (OQ-24); `VideoObject` — M1.8: Google вимагає дату завантаження відео (`uploadDate`), якої в нас немає.
+- 👤 (рев'ю, 2026-10-25) **`NewsArticle`** (`newsArticleJsonLd`, unit) — за ним Google будує «Головні новини»: `url` і `mainEntityOfPage` — повна адреса сторінки, `headline`, `description` (анонс), `image` (обкладинка, якщо є), `datePublished`, `dateModified` = дата публікації (OQ-26; з M1.8.4 — дата зміни новини, D34), `author` — `Person` з ім'ям (видалений акаунт — автором видання), `publisher` — `Organization` з назвою сайту мовою сторінки й адресою, `inLanguage` (мова тексту: без перекладу — оригіналу), `isBasedOn` — джерело (D26). ⭐ Логотипа видання ще немає — разом з брендом (OQ-24); `VideoObject` — M1.8: Google вимагає дату завантаження відео (`uploadDate`), якої в нас немає.
 - ⭐ **JSON-LD — без `dangerouslySetInnerHTML`** (`components/seo/JsonLd`): React 19 пише текст `<script>` як є, без HTML-екранування (перевірено), а `<` у JSON заміняє `\u003c` (`serializeJsonLd`, unit) — заголовок з `</script>` не закриває тег і не стає розміткою (перевірено наживо: нічого не виконалось, JSON розбирається в той самий заголовок). Для блоку даних (`application/ld+json`) React не попереджає про `<script>` у компоненті. Next.js радить `dangerouslySetInnerHTML` з тією самою заміною — у проєкті він заборонений, і тут не потрібен.
 
 ### Метадані
@@ -41,6 +41,7 @@
 
 ### «Оновлено …» (OQ-26)
 - ⭐ Після тестового релізу (бриф M1.6.2, без заперечень) — *чому:* окрема дата суттєвого оновлення — це колонка й міграція, позначка в адмінці й зміни на сайті, тобто окремий шматок роботи. До того `dateModified` у `NewsArticle` (M1.8) = дата публікації.
+- 👤 2026-11-02 (M1.8.4) Закрито без колонки: `dateModified` і `article:modified_time` — `lastModifiedAt` з `GET /posts/:number`, пізніша з дати публікації й правки тексту перекладу; та сама, що `lastmod` у sitemap ([D34](D34-seo-multilingual.md)). На сторінці «Оновлено …» не показуємо ([`backlog.md`](../backlog.md)).
 
 ## Як роблять сильні команди
 - BBC Sport, The Guardian: заголовок і анонс над фото; теми статті — чипами внизу («Related topics», «Explore more on these topics»).

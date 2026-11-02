@@ -7,6 +7,7 @@ const POST = {
   title: 'Arsenal win the derby',
   excerpt: 'A late winner settled a tense London derby.',
   publishedAt: '2026-10-20T18:30:00.000Z',
+  lastModifiedAt: '2026-10-21T08:15:00.000Z',
   coverImageUrl: null,
   coverImageAlt: null,
   availableLanguages: ['en', 'uk'],
@@ -42,7 +43,7 @@ describe('Метадані новини (M1.6.2, M1.8.1)', () => {
       title: POST.title,
       description: POST.excerpt,
       publishedTime: POST.publishedAt,
-      modifiedTime: POST.publishedAt,
+      modifiedTime: POST.lastModifiedAt,
       section: 'Premier League',
       tags: ['Transfers', 'Derby'],
       images: [

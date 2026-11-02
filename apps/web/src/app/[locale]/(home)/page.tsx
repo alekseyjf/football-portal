@@ -56,18 +56,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /** `WebSite` і `Organization` (D55): назва сайту для результатів пошуку й видання; адреси — повні (`SITE_URL`). */
-async function homeJsonLd(locale: AppLocale) {
+async function HomeJsonLd({ locale }: { locale: AppLocale }) {
   const tMeta = await getTranslations({ locale, namespace: 'meta' });
   const publisher = { name: tMeta('title'), url: siteUrl() };
-  return [
-    webSiteJsonLd({
-      name: tMeta('title'),
-      url: absoluteSiteUrl(getPathname({ href: '/', locale })),
-      inLanguage: locale,
-      publisher,
-    }),
-    organizationJsonLd(publisher),
-  ];
+  return (
+    <>
+      <JsonLd
+        data={webSiteJsonLd({
+          name: tMeta('title'),
+          url: absoluteSiteUrl(getPathname({ href: '/', locale })),
+          inLanguage: locale,
+          publisher,
+        })}
+      />
+      <JsonLd data={organizationJsonLd(publisher)} />
+    </>
+  );
 }
 
 /**
@@ -144,9 +148,7 @@ export default async function HomePage({ params, searchParams }: Props) {
 
   return (
     <>
-      {(await homeJsonLd(locale)).map((data) => (
-        <JsonLd key={String(data['@type'])} data={data} />
-      ))}
+      <HomeJsonLd locale={locale} />
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Один h1 на сторінку — для диктора й пошуку; видимі заголовки — у блоків (h2) */}
         <h1 className="sr-only">{t('title')}</h1>

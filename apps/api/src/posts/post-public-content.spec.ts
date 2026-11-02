@@ -1,8 +1,12 @@
 import type { UpdatePostData } from './admin-post.repository';
 import {
   changesPublicContent,
+  translationTextUpdatedAt,
   type PostPublicState,
 } from './post-public-content';
+
+const SAVED_AT = new Date('2026-10-01T09:00:00.000Z');
+const NOW = new Date('2026-11-02T12:00:00.000Z');
 
 const EN = {
   languageCode: 'en',
@@ -10,6 +14,7 @@ const EN = {
   excerpt: 'A late winner settled a tense London derby.',
   content: 'The hosts scored in stoppage time.',
   coverImageAlt: 'Arsenal players celebrate',
+  updatedAt: SAVED_AT,
 };
 
 const SAVED: PostPublicState = {
@@ -72,9 +77,42 @@ describe('changesPublicContent — запис змінює те, що бачит
   });
 
   it('опис фото не передано (`undefined`) — лишається як є, не зміна', () => {
-    const { languageCode, title, excerpt, content } = EN;
+    const { languageCode, title, excerpt, content, updatedAt } = EN;
     expect(
-      changes({ translations: [{ languageCode, title, excerpt, content }] }),
+      changes({
+        translations: [{ languageCode, title, excerpt, content, updatedAt }],
+      }),
     ).toBe(false);
+  });
+});
+
+describe('translationTextUpdatedAt — дата правки перекладу зсувається лише від тексту (OQ-26)', () => {
+  function updatedAt(requested: Partial<typeof EN>): Date {
+    return translationTextUpdatedAt({
+      saved: EN,
+      requested: { ...EN, ...requested },
+      now: NOW,
+    });
+  }
+
+  it('новий переклад — дата запису', () => {
+    expect(
+      translationTextUpdatedAt({ saved: undefined, requested: EN, now: NOW }),
+    ).toEqual(NOW);
+  });
+
+  it.each<[string, Partial<typeof EN>]>([
+    ['заголовок', { title: 'Arsenal edge Chelsea' }],
+    ['анонс', { excerpt: 'A stoppage-time winner settled the derby.' }],
+    ['текст', { content: 'Corrected text.' }],
+  ])('%s змінився — дата запису', (_field, requested) => {
+    expect(updatedAt(requested)).toEqual(NOW);
+  });
+
+  it('той самий текст (і з іншим описом фото) — збережена дата', () => {
+    expect(updatedAt({})).toEqual(SAVED_AT);
+    expect(updatedAt({ coverImageAlt: 'Fans in the stands' })).toEqual(
+      SAVED_AT,
+    );
   });
 });

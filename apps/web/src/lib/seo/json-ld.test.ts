@@ -36,13 +36,17 @@ describe('JSON-LD (D34)', () => {
     });
   });
 
-  it('NewsArticle: заголовок, опис, фото, дати (змінено = опубліковано), автор, видання, мова, джерело', () => {
+  it('NewsArticle: заголовок, опис, фото, дати, автор, видання, мова, джерело', () => {
     const article = {
       url: 'https://example.com/uk/news/derby-12',
       headline: 'Арсенал виграв дербі',
       description: 'Пізній гол вирішив дербі.',
-      imageUrl: 'https://images.example.com/derby.jpg',
+      imageUrls: [
+        'https://images.example.com/derby-16x9.jpg',
+        'https://images.example.com/derby-1x1.jpg',
+      ],
       datePublished: '2026-10-20T18:30:00.000Z',
+      dateModified: '2026-10-21T08:15:00.000Z',
       authorName: 'Олена Коваль',
       publisher: { name: 'Футбольний портал', url: 'https://example.com' },
       inLanguage: 'uk',
@@ -61,9 +65,9 @@ describe('JSON-LD (D34)', () => {
       url: article.url,
       headline: article.headline,
       description: article.description,
-      image: [article.imageUrl],
+      image: article.imageUrls,
       datePublished: article.datePublished,
-      dateModified: article.datePublished,
+      dateModified: article.dateModified,
       author: [{ '@type': 'Person', name: 'Олена Коваль' }],
       publisher,
       inLanguage: 'uk',
@@ -73,7 +77,7 @@ describe('JSON-LD (D34)', () => {
     // Без фото й джерела — без цих полів; видалений автор — автором видання
     const bare = newsArticleJsonLd({
       ...article,
-      imageUrl: null,
+      imageUrls: [],
       sourceUrl: null,
       authorName: null,
     });
