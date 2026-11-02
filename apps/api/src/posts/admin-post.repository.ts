@@ -88,6 +88,7 @@ const POST_EDIT_STATE_SELECT = {
       excerpt: true,
       content: true,
       coverImageAlt: true,
+      updatedAt: true,
     },
   },
   tags: { select: { tagId: true } },
@@ -129,6 +130,8 @@ export interface PostTranslationInput {
   content: string;
   /** Відсутній — при оновленні не змінюється */
   coverImageAlt?: string | null;
+  /** Дата правки тексту (`translationTextUpdatedAt`, OQ-26): пишемо явно — `@updatedAt` Prisma зсунув би її й від опису фото */
+  updatedAt: Date;
 }
 
 export interface PostRelationIds {
@@ -184,31 +187,14 @@ function replaceRelation<Link>(
   return ids ? { deleteMany: {}, create: ids.map(toLink) } : undefined;
 }
 
-/**
- * Переклади з масиву — upsert за мовою; решті — лише прибрати опис старого фото (D44). Переклади
- * з масиву `updateMany` не чіпає: їхній опис пише upsert, тож порядок nested-операцій неважливий.
- */
-function updateTranslations(
+/** Переклади з масиву — upsert за мовою, з датою правки тексту (OQ-26). */
+function upsertTranslations(
   postId: string,
-  postUpdate: UpdatePostData,
+  translations: PostTranslationInput[] | undefined,
 ): Prisma.PostTranslationUpdateManyWithoutPostNestedInput | undefined {
-  if (!postUpdate.translations && !postUpdate.clearCoverImageAlts) {
-    return undefined;
-  }
-  const listedLanguageCodes = (postUpdate.translations ?? []).map(
-    (translation) => translation.languageCode,
-  );
+  if (!translations) return undefined;
   return {
-    updateMany: postUpdate.clearCoverImageAlts
-      ? {
-          where: {
-            coverImageAlt: { not: null },
-            languageCode: { notIn: listedLanguageCodes },
-          },
-          data: { coverImageAlt: null },
-        }
-      : undefined,
-    upsert: postUpdate.translations?.map((translation) => ({
+    upsert: translations.map((translation) => ({
       where: {
         postId_languageCode: { postId, languageCode: translation.languageCode },
       },
@@ -218,6 +204,7 @@ function updateTranslations(
         excerpt: translation.excerpt,
         content: translation.content,
         coverImageAlt: translation.coverImageAlt,
+        updatedAt: translation.updatedAt,
       },
     })),
   };
@@ -298,11 +285,14 @@ export class AdminPostRepository {
   }
 
   /** Поля, переклади й зв'язки — разом, у транзакції, що тримає блокування новини (`lockEditState`). */
-  update(
+  async update(
     tx: Prisma.TransactionClient,
     id: string,
     data: UpdatePostData,
   ): Promise<AdminPostRow> {
+    if (data.clearCoverImageAlts) {
+      await this.clearCoverImageAlts(tx, id, data.translations ?? []);
+    }
     return tx.post.update({
       where: { id },
       data: {
@@ -317,7 +307,7 @@ export class AdminPostRepository {
         ...(data.unpin
           ? { pinnedAt: null, pinnedBy: { disconnect: true } }
           : {}),
-        translations: updateTranslations(id, data),
+        translations: upsertTranslations(id, data.translations),
         tags: replaceRelation(data.tagIds, (tagId) => ({ tagId })),
         clubs: replaceRelation(data.clubIds, (clubId) => ({ clubId })),
         competitions: replaceRelation(data.competitionIds, (competitionId) => ({
@@ -326,6 +316,25 @@ export class AdminPostRepository {
       },
       select: ADMIN_POST_SELECT,
     });
+  }
+
+  /**
+   * Фото обкладинки змінилось чи прибране — опис старого прибираємо в перекладах поза запитом (D44); перекладам із
+   * запиту опис пише upsert. Сирим SQL: опис — не текст, і `@updatedAt` Prisma не має зсувати дату правки (OQ-26).
+   */
+  private async clearCoverImageAlts(
+    tx: Prisma.TransactionClient,
+    postId: string,
+    listedTranslations: readonly PostTranslationInput[],
+  ): Promise<void> {
+    const listedLanguageCodes = listedTranslations.map(
+      (translation) => translation.languageCode,
+    );
+    await tx.$executeRaw`
+      UPDATE "PostTranslation" SET "coverImageAlt" = NULL
+      WHERE "postId" = ${postId}
+        AND "coverImageAlt" IS NOT NULL
+        AND "languageCode" <> ALL(${listedLanguageCodes}::text[])`;
   }
 
   /**

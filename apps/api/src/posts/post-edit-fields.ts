@@ -21,6 +21,7 @@ import {
   type PostCoverImagePhoto,
 } from './post-cover-image';
 import { unpinsOnPublicationChange } from './post-pin';
+import { translationTextUpdatedAt } from './post-public-content';
 import {
   isSamePublication,
   resolvePostPublication,
@@ -76,8 +77,9 @@ export function postCreateData(input: PostCreateInput): CreatePostData {
     sourceUrl: source.sourceUrl,
     sourceName: source.sourceName,
     authorId,
+    // Дата правки тексту — та сама, що й дата публікації: нова опублікована новина не «змінена» (OQ-26)
     translations: dto.translations.map((translation) =>
-      toTranslationInput(translation, coverPhoto),
+      toTranslationInput(translation, coverPhoto, now),
     ),
     tagIds: dto.tagIds,
     clubIds: dto.clubIds,
@@ -138,7 +140,17 @@ export function postUpdateData(input: PostUpdateInput): UpdatePostData {
     sourceUrl: source.sourceUrl,
     sourceName: source.sourceName,
     translations: dto.translations?.map((translation) =>
-      toTranslationInput(translation, coverPhoto),
+      toTranslationInput(
+        translation,
+        coverPhoto,
+        translationTextUpdatedAt({
+          saved: currentPost.translations.find(
+            (saved) => saved.languageCode === translation.languageCode,
+          ),
+          requested: translation,
+          now,
+        }),
+      ),
     ),
     // Фото змінилось чи прибране — опис попереднього не лишаємо й у перекладах поза запитом
     clearCoverImageAlts: !coverPhoto.isSamePhoto,
@@ -216,6 +228,7 @@ function updatedSlug(
 function toTranslationInput(
   translation: PostTranslationDto,
   coverPhoto: PostCoverImagePhoto,
+  updatedAt: Date,
 ): PostTranslationInput {
   return {
     languageCode: translation.languageCode,
@@ -223,5 +236,6 @@ function toTranslationInput(
     excerpt: translation.excerpt,
     content: translation.content,
     coverImageAlt: coverImageTextToStore(translation.coverImageAlt, coverPhoto),
+    updatedAt,
   };
 }

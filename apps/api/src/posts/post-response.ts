@@ -48,6 +48,20 @@ function requirePublishedAt(postRow: {
   return postRow.publishedAt;
 }
 
+/**
+ * Остання зміна адреси новини мовою перекладу — пізніша з дати публікації й правки тексту перекладу (OQ-26): чернетку,
+ * написану давно, опублікували сьогодні — сьогодні й змінена. Одна для `GET /posts/:number` і sitemap (D57), тож
+ * `dateModified` сторінки й `lastmod` адреси збігаються; місяць sitemap index — те саме в SQL (`GREATEST`).
+ */
+function postLastModifiedAt(
+  publishedAt: Date,
+  translationUpdatedAt: Date,
+): Date {
+  return new Date(
+    Math.max(publishedAt.getTime(), translationUpdatedAt.getTime()),
+  );
+}
+
 export function toPublicPostSummary(
   postRow: PostSummaryRow,
   languageChoice: ContentLanguageChoice,
@@ -88,6 +102,10 @@ export function toPublicPostDetail(
     sourceName: postRow.sourceName,
     availableLanguages,
     clubs: postRow.clubs.map((clubLink) => clubLink.club),
+    lastModifiedAt: postLastModifiedAt(
+      requirePublishedAt(postRow),
+      translation.updatedAt,
+    ),
   };
 }
 
@@ -132,10 +150,7 @@ export function toAdminPostDetail(
   };
 }
 
-/**
- * Новина в sitemap: адреса кожною мовою перекладу. `lastmod` адреси — пізніша з дати публікації й правки перекладу:
- * чернетку, написану давно, опублікували сьогодні — адреса нова сьогодні (D57).
- */
+/** Новина в sitemap: адреса кожною мовою перекладу, `lastmod` — `postLastModifiedAt` (D57). */
 export function toSitemapEntry(postRow: SitemapPostRow): PostSitemapEntryDto {
   const publishedAt = requirePublishedAt(postRow);
   return {
@@ -143,9 +158,7 @@ export function toSitemapEntry(postRow: SitemapPostRow): PostSitemapEntryDto {
     slug: postRow.slug,
     translations: postRow.translations.map((translation) => ({
       languageCode: translation.languageCode,
-      lastModifiedAt: new Date(
-        Math.max(publishedAt.getTime(), translation.updatedAt.getTime()),
-      ),
+      lastModifiedAt: postLastModifiedAt(publishedAt, translation.updatedAt),
     })),
   };
 }

@@ -75,6 +75,23 @@ function contentLocaleOf(
   return languages.includes(locale) ? locale : routing.defaultLocale;
 }
 
+/**
+ * Канонічний шлях сторінки (D34): мовою адреси, а сторінка без перекладу — мовою за замовчуванням (D23). Той самий —
+ * у `canonical` метаданих і в `url` JSON-LD новини.
+ */
+export function canonicalPath(
+  href: PageHref,
+  locale: AppLocale,
+  languages: readonly AppLocale[],
+): string {
+  return localizedPath(href, contentLocaleOf(locale, languages));
+}
+
+/** Шлях сторінки (`/uk/news`) → повна адреса на сайті (`SITE_URL` — origin без `/` у кінці). */
+export function absoluteUrl(siteOrigin: string, pathname: string): string {
+  return new URL(pathname, `${siteOrigin}/`).href;
+}
+
 /** `hreflang` кожної наявної мови + `x-default` → мова за замовчуванням (D34); ті самі — у sitemap (`sitemap-entries.ts`). */
 export function languageAlternates(
   href: PageHref,
@@ -141,7 +158,7 @@ function openGraphOf(
 export function pageMetadata(source: PageMetadataSource): Metadata {
   const languages = source.languages ?? routing.locales;
   const contentLocale = contentLocaleOf(source.locale, languages);
-  const canonical = localizedPath(source.href, contentLocale);
+  const canonical = canonicalPath(source.href, source.locale, languages);
   const isIndexable = source.isIndexable ?? true;
 
   return {

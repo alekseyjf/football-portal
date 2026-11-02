@@ -317,6 +317,7 @@ model PostTranslation {
   /// Опис обкладинки для незрячих — мовою перекладу (D44)
   coverImageAlt String?
   createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  /// Дата правки тексту (заголовок, анонс, текст) — `dateModified` новини й `lastmod` у sitemap; опис фото її не зсуває. API пише її явно (OQ-26)
   updatedAt     DateTime @updatedAt @db.Timestamptz(3)
 
   post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)

@@ -24,6 +24,8 @@ next-env.d.ts
 
 # Tests
 coverage
+# Lighthouse CI: прогони й звіти (`lighthouserc.cjs`) — лише локально
+.lighthouseci
 
 # Environment — не комітити секрети
 .env

@@ -62,6 +62,7 @@ function postDetailSelect(languageCodes: string[]) {
         excerpt: true,
         content: true,
         coverImageAlt: true,
+        updatedAt: true,
       },
     },
     clubs: {

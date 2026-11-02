@@ -61,6 +61,11 @@ export class PostDetailDto extends PostSummaryDto {
   /** Мови, якими є переклад (для `hreflang`) */
   availableLanguages!: string[];
   clubs!: PostClubDto[];
+  /**
+   * Остання зміна новини мовою `resolvedLanguage`: пізніша з дати публікації й правки тексту перекладу (заголовок,
+   * анонс, текст — не теги й не фото). Те саме значення, що `lastModifiedAt` цієї адреси в sitemap новин
+   */
+  lastModifiedAt!: Date;
 }
 
 /** Сторінка стрічки: новіші першими. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COVER_IMAGE_HOSTS, coverImageUrlExample, isAllowedCoverImageUrl } from './cover-image';
+import { articleImageUrls, COVER_IMAGE_HOSTS, coverImageUrlExample, isAllowedCoverImageUrl } from './cover-image';
 import { coverImageUrlSchema } from './forms';
 
 const UNSPLASH_PHOTO = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018';
@@ -81,5 +81,36 @@ describe('Обкладинка — лише з фотобанку зі спис�
     expect(coverImageUrlSchema.safeParse('http://images.unsplash.com/photo-1').error?.issues[0].message).toBe(
       'Must be an https:// URL',
     );
+  });
+});
+
+describe('Обкладинка в JSON-LD статті — обрізання 16:9, 4:3, 1:1 на CDN фотобанку (M1.8.4)', () => {
+  it('Unsplash: розмір і обрізання — наші, решта параметрів редактора лишається', () => {
+    expect(articleImageUrls(`${UNSPLASH_PHOTO}?w=1200&h=630&fit=max&q=80&fm=jpg`)).toEqual([
+      `${UNSPLASH_PHOTO}?w=1200&h=675&fit=crop&q=80&fm=jpg`,
+      `${UNSPLASH_PHOTO}?w=1200&h=900&fit=crop&q=80&fm=jpg`,
+      `${UNSPLASH_PHOTO}?w=1200&h=1200&fit=crop&q=80&fm=jpg`,
+    ]);
+  });
+
+  it('Pexels і фото без параметрів', () => {
+    expect(articleImageUrls(`${PEXELS_PHOTO}?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1`)).toEqual([
+      `${PEXELS_PHOTO}?auto=compress&cs=tinysrgb&w=1200&h=675&dpr=1&fit=crop`,
+      `${PEXELS_PHOTO}?auto=compress&cs=tinysrgb&w=1200&h=900&dpr=1&fit=crop`,
+      `${PEXELS_PHOTO}?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1&fit=crop`,
+    ]);
+    expect(articleImageUrls(UNSPLASH_PHOTO)[2]).toBe(`${UNSPLASH_PHOTO}?w=1200&h=1200&fit=crop`);
+  });
+
+  it('кожне обрізання — ≥ 50 000 пікселів і та сама дозволена адреса фото', () => {
+    for (const url of articleImageUrls(UNSPLASH_PHOTO)) {
+      const params = new URL(url).searchParams;
+      expect(Number(params.get('w')) * Number(params.get('h'))).toBeGreaterThanOrEqual(50_000);
+      expect(isAllowedCoverImageUrl(url)).toBe(true);
+    }
+  });
+
+  it('збережена обкладинка з іншого сайту — як є: її CDN наших параметрів може не знати', () => {
+    expect(articleImageUrls('https://e2e.test/news/cover.jpg?w=800')).toEqual(['https://e2e.test/news/cover.jpg?w=800']);
   });
 });

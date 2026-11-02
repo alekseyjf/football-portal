@@ -13,12 +13,20 @@ type MetadataSource = Pick<
   | 'title'
   | 'excerpt'
   | 'publishedAt'
+  | 'lastModifiedAt'
   | 'coverImageUrl'
   | 'coverImageAlt'
   | 'availableLanguages'
   | 'tags'
   | 'competitions'
 >;
+
+/** Мови сайту, якими новина є (`hreflang`, canonical): мову, якої сайт не знає, пропускаємо. */
+export function postLanguages(
+  post: Pick<PostDetail, 'availableLanguages'>,
+): AppLocale[] {
+  return post.availableLanguages.filter(isAppLocale);
+}
 
 /**
  * Метадані новини (M1.6.2, M1.8.1): опис — анонс (D25); `hreflang` — лише мови з перекладом, а сторінка без перекладу
@@ -39,11 +47,11 @@ export function postMetadata(
     cover: post.coverImageUrl
       ? { url: post.coverImageUrl, alt: post.coverImageAlt }
       : null,
-    languages: post.availableLanguages.filter(isAppLocale),
+    languages: postLanguages(post),
     article: {
       publishedTime: post.publishedAt,
-      // «Оновлено» ще немає (OQ-26) — як `dateModified` у `NewsArticle`
-      modifiedTime: post.publishedAt,
+      // Та сама дата, що `dateModified` у `NewsArticle` і `lastmod` адреси в sitemap (OQ-26)
+      modifiedTime: post.lastModifiedAt,
       section: postKicker(post, page.collator)?.name ?? null,
       tags: post.tags.map((tag) => tag.name),
     },

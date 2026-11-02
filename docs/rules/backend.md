@@ -152,3 +152,11 @@ email = dto.email.toLowerCase().trim();
 // Календарний день без часу — @db.Date. Зміна типу колонки — ACCESS EXCLUSIVE і переписування таблиці
 // (decisions/v5-foundation.md, розділ 11, «Блокування й збій міграції»)
 ```
+
+> ⭐ **Доповнення до Rule 18** (2026-11-02, M1.8.4, OQ-26): дату, яку бачить читач чи пошуковик, не віддаємо `@updatedAt`:
+> ```typescript
+> // `@updatedAt` Prisma ставить now() на БУДЬ-ЯКИЙ update — і з тими самими значеннями, і від сусіднього поля в рядку
+> // ✅ update: { …, updatedAt: translationTextUpdatedAt({ saved, requested, now }) }  — дата правки тексту, явно
+> // ✅ запис поля, що дату не зсуває (опис фото, закріплення), — сирим SQL (`clearCoverImageAlts`, D56)
+> // ❌ dateModified / lastmod з updatedAt, який зсувають лайки, теги чи повторне збереження
+> ```

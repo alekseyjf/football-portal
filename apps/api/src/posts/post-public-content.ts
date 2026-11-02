@@ -70,12 +70,43 @@ function changesTranslations(
     );
     if (!saved) return true;
     return (
-      translation.title !== saved.title ||
-      translation.excerpt !== saved.excerpt ||
-      translation.content !== saved.content ||
+      isTextChanged(saved, translation) ||
       isChanged(translation.coverImageAlt, saved.coverImageAlt)
     );
   });
+}
+
+/** Текст перекладу: заголовок, анонс, текст новини. */
+type TranslationText = Pick<
+  PublicTranslationState,
+  'title' | 'excerpt' | 'content'
+>;
+
+function isTextChanged(
+  saved: TranslationText,
+  requested: TranslationText,
+): boolean {
+  return (
+    requested.title !== saved.title ||
+    requested.excerpt !== saved.excerpt ||
+    requested.content !== saved.content
+  );
+}
+
+/**
+ * Дата правки перекладу (`PostTranslation.updatedAt`, OQ-26) — коли змінився його текст: заголовок, анонс чи текст
+ * новини. Сайт віддає її (пізнішу з датою публікації) як `dateModified` і `article:modified_time`, а sitemap — як
+ * `lastmod` адреси цією мовою. Google радить зсувати ці дати лише за суттєвої зміни, тож опис фото (D44) і той самий
+ * текст, надісланий ще раз, дату лишають.
+ */
+export function translationTextUpdatedAt(input: {
+  /** Збережений переклад цією мовою; `undefined` — переклад новий */
+  saved: (TranslationText & { updatedAt: Date }) | undefined;
+  requested: TranslationText;
+  now: Date;
+}): Date {
+  const { saved, requested, now } = input;
+  return !saved || isTextChanged(saved, requested) ? now : saved.updatedAt;
 }
 
 /** Набір зв'язків — порядок не важить (масив у `PUT` замінює зв'язки повністю). */
