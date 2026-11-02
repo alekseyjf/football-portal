@@ -5,7 +5,7 @@ import { RATE_LIMIT_EVENT_RETENTION_MS } from '../security/abuse.constants';
 /*
  * Єдина схема змінних середовища API (Rule 13). Перевіряється один раз при старті (`env.config.ts`):
  * з відсутньою або невалідною змінною API не стартує й перелічує всі проблеми разом.
- * Перелік із поясненнями — `apps/api/.env.example`. `DIRECT_URL` і `SEED_ADMIN_*` читає лише CLI
+ * Перелік із поясненнями — `apps/api/.env.example`. `DIRECT_URL`, `SEED_ADMIN_*` і `SEED_TARGET_SCHEMA` читає лише CLI
  * (`prisma.config.ts`, `prisma/seed.ts`), тож у схемі їх немає.
  */
 

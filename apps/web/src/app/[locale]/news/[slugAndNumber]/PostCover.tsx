@@ -1,3 +1,4 @@
+import { isAllowedCoverImageUrl } from '@football-portal/validation';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import type { PostDetail } from '@/lib/api/types';
@@ -24,14 +25,13 @@ export function PostCover({ post }: Props) {
         className="relative aspect-video w-full overflow-hidden rounded-2xl bg-gray-900"
         lang={post.resolvedLanguage}
       >
-        {/* `unoptimized` — як у стрічці: обкладинка — довільний https-хост із адмінки, оптимізація Next = серверний
-            fetch чужого URL (SSRF, `url-field.decorators.ts` в API) */}
         <Image
           src={post.coverImageUrl}
           // Без опису — порожній, а не заголовок: його й так прочитає h1
           alt={post.coverImageAlt ?? ''}
           fill
-          unoptimized
+          // Фото з фотобанку — через оптимізатор (M1.8.3a): розмір під екран і WebP; збережене раніше з іншого хоста — як є
+          unoptimized={!isAllowedCoverImageUrl(post.coverImageUrl)}
           loading="eager"
           fetchPriority="high"
           sizes="(min-width: 768px) 768px, 100vw"

@@ -1,5 +1,6 @@
 'use client';
 
+import { isAllowedCoverImageUrl } from '@football-portal/validation';
 import Image from 'next/image';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -17,7 +18,7 @@ function youtubeEmbedUrl(videoId: string): string {
   return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
 }
 
-/** Прев'ю 480×360 є в кожного відео (більші — не завжди); дозволений хост — `images.remotePatterns` у `next.config.ts`. */
+/** Прев'ю 480×360 є в кожного відео (більші — не завжди); дозволений файл — `IMAGE_REMOTE_PATTERNS`. */
 function youtubeThumbnailUrl(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
@@ -42,8 +43,8 @@ function PlayIcon() {
 
 /**
  * Прев'ю під кнопкою — найбільший елемент першого екрана (LCP): вантажиться одразу й першим. Обкладинка — як на сайті
- * всюди, без оптимізатора (довільний хост, D44); прев'ю YouTube віддає наш сервер (`next/image`), тож до кліку браузер
- * читача до Google не звертається. `alt=""`: що це, каже підпис кнопки.
+ * всюди: з фотобанку — через оптимізатор, збережена раніше з іншого хоста — як є (M1.8.3a); прев'ю YouTube віддає наш
+ * сервер (`next/image`), тож до кліку браузер читача до Google не звертається. `alt=""`: що це, каже підпис кнопки.
  */
 function VideoPoster({
   videoId,
@@ -55,7 +56,9 @@ function VideoPoster({
   return (
     <Image
       src={coverImageUrl ?? youtubeThumbnailUrl(videoId)}
-      unoptimized={coverImageUrl !== null}
+      unoptimized={
+        coverImageUrl !== null && !isAllowedCoverImageUrl(coverImageUrl)
+      }
       alt=""
       fill
       loading="eager"

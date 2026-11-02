@@ -13,6 +13,7 @@ const SERVER_ERROR_MESSAGES: Record<string, string> = {
     'This post is already published: its date can’t change and it can’t be scheduled again. Reload the page to see it.',
   DEFAULT_TRANSLATION_REQUIRED: 'The English version is required.',
   UNSUPPORTED_LANGUAGE: 'One of the languages is not enabled.',
+  COVER_IMAGE_HOST_NOT_ALLOWED: 'The cover photo must come from a photo bank on the list — see the hint under Image URL.',
   COVER_IMAGE_ALT_REQUIRED: 'Describe the cover photo in every language of the post — required to publish.',
   COVER_IMAGE_CREDIT_REQUIRED: 'Credit the author of the cover photo — required to publish.',
   SOURCE_URL_REQUIRED: 'Add the source article URL — the source name is shown only with it.',

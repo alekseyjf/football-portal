@@ -1,9 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { parse as parseDotenv } from 'dotenv';
 import { Client } from 'pg';
+import {
+  assertSchemaTarget,
+  createSchemaPrismaClient,
+  type SchemaTarget,
+} from '../../prisma/schema-target';
 
 /*
  * E2E живуть в окремій схемі `e2e` тієї самої БД, що й розробка (👤 2026-10-18, D30): справжні дані
@@ -101,31 +105,20 @@ export async function rebuildE2eSchema(databaseUrl: string): Promise<number> {
 }
 
 /**
- * Клієнт Prisma на схему `e2e` — замість `PrismaService` (той пише в `public`: адаптер Prisma 7
- * параметр `?schema=` з рядка підключення ігнорує). Запити Prisma адаптер кваліфікує сам
- * (`"e2e"."Post"`); сирий SQL застосунку (`FOR NO KEY UPDATE`) пише таблиці без схеми —
- * їх знаходить `search_path`, заданий при підключенні (`options`).
+ * Клієнт Prisma на схему `e2e` — замість `PrismaService` (той пише в `public`: адаптер Prisma 7 схему таблиць бере
+ * лише зі свого параметра, а не з рядка підключення). Запити Prisma адаптер кваліфікує сам (`"e2e"."Post"`); сирий
+ * SQL застосунку (`FOR NO KEY UPDATE`) пише таблиці без схеми — їх знаходить `search_path` (`options`). Обидва
+ * задає спільний `createSchemaPrismaClient` (`prisma/schema-target.ts`) — той самий, що в сіда.
  */
 export function createE2ePrismaClient(databaseUrl: string): PrismaClient {
-  const connectionUrl = new URL(databaseUrl);
-  connectionUrl.searchParams.set('options', `-c search_path=${E2E_SCHEMA}`);
-  return new PrismaClient({
-    adapter: new PrismaPg(
-      { connectionString: connectionUrl.toString() },
-      { schema: E2E_SCHEMA },
-    ),
-  });
+  return createSchemaPrismaClient(databaseUrl, E2E_SCHEMA);
 }
 
 /** Пулер, що мовчки відкинув `options`, віддав би сирому SQL таблиці `public` — тоді тести не стартують. */
-export async function assertE2eSearchPath(prisma: PrismaClient): Promise<void> {
-  const [{ schema }] = await prisma.$queryRaw<{ schema: string | null }[]>`
-    SELECT current_schema() AS schema`;
-  if (schema !== E2E_SCHEMA) {
-    throw new Error(
-      `E2E: raw SQL resolves to schema "${schema}", expected "${E2E_SCHEMA}" — the connection ignores the search_path option (use a session-mode connection)`,
-    );
-  }
+export function assertE2eSchemaTarget(
+  prisma: PrismaClient,
+): Promise<SchemaTarget> {
+  return assertSchemaTarget(prisma, E2E_SCHEMA);
 }
 
 /**

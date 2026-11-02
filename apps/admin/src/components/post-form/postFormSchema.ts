@@ -1,7 +1,7 @@
 import type { FieldErrors } from 'react-hook-form';
 import { z } from 'zod';
 import {
-  mediaUrlSchema,
+  coverImageUrlSchema,
   postContentSchema,
   postCoverImageAltSchema,
   postCoverImageCreditSchema,
@@ -70,8 +70,8 @@ const formFieldsSchema = z.object({
   contentUk: z.string().trim(),
   // Порожній — адреса з англійського заголовка (D24), поле не надсилаємо
   slug: optionalField(postSlugSchema),
-  // Лише https — як `@IsMediaUrl()` у DTO API
-  coverImageUrl: optionalField(mediaUrlSchema),
+  // Перевірка — в addCoverImageUrlIssues: адреса, збережена до списку фотобанків (M1.8.3a), лишається без змін
+  coverImageUrl: z.string().trim(),
   // Межі опису й підпису — в addCoverImageIssues, лише з адресою фото: без неї поля сховані,
   // і схована помилка мовчки блокувала б відправку
   coverImageAltEn: z.string().trim(),
@@ -197,6 +197,18 @@ function addScheduleIssues(values: PostFormValues, ctx: FormRefinementCtx, conte
 }
 
 /**
+ * Як правило API (`COVER_IMAGE_HOST_NOT_ALLOWED`, M1.8.3a): нова адреса обкладинки — https і фото з фотобанку зі
+ * списку. Збережену з іншого хоста API приймає, поки її не змінили, — і форма: інакше стара новина не зберігалась би
+ * через фото, якого редактор не чіпав.
+ */
+function addCoverImageUrlIssues(values: PostFormValues, ctx: FormRefinementCtx, savedValues?: PostFormValues) {
+  if (!hasCoverImage(values.coverImageUrl) || values.coverImageUrl === savedValues?.coverImageUrl) return;
+  const urlResult = coverImageUrlSchema.safeParse(values.coverImageUrl);
+  if (urlResult.success) return;
+  ctx.addIssue({ code: 'custom', path: ['coverImageUrl'], message: urlResult.error.issues[0].message });
+}
+
+/**
  * Як правило API (D44): опублікувати з обкладинкою — лише з описом для незрячих кожною мовою новини
  * й підписом автора фото; чернетка й архівна можуть бути неповними. Без цієї перевірки редактор дізнався б
  * про пропуск з 400 після відправлення.
@@ -257,6 +269,7 @@ export function postFormSchemaFor(context: PostFormContext) {
   return formFieldsSchema.superRefine((values, ctx) => {
     addUkTranslationIssues(values, ctx, isUkSaved);
     addScheduleIssues(values, ctx, context);
+    addCoverImageUrlIssues(values, ctx, savedValues);
     addCoverImageIssues(values, ctx);
     addSourceIssues(values, ctx);
     if (liveSavedValues) addLiveSlugIssues(values, ctx, liveSavedValues);

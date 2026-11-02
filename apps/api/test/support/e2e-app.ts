@@ -11,7 +11,7 @@ import { envConfig } from '../../src/config/env.config';
 import { parseEnv, type AppEnv } from '../../src/config/env.schema';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import {
-  assertE2eSearchPath,
+  assertE2eSchemaTarget,
   createE2ePrismaClient,
   resolveE2eDatabaseUrl,
 } from './e2e-database';
@@ -70,7 +70,7 @@ export async function createE2eApp(
       })
     : createE2ePrismaClient(resolveE2eDatabaseUrl().url);
   try {
-    if (!options.unavailableDatabaseUrl) await assertE2eSearchPath(prisma);
+    if (!options.unavailableDatabaseUrl) await assertE2eSchemaTarget(prisma);
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(envConfig.KEY)
       .useValue(buildE2eEnv(options.envOverrides))

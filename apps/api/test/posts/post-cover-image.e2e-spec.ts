@@ -9,11 +9,16 @@ import { createUser, loginAs } from '../support/e2e-auth';
 import { resetE2eData } from '../support/e2e-database';
 import { expectMatchesContract } from '../support/openapi-contract';
 
-const COVER_IMAGE_URL = 'https://e2e.test/derby-cover.jpg';
+// Обкладинка — лише з фотобанку зі списку (M1.8.3a)
+const COVER_IMAGE_URL =
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&h=630&fit=crop&q=80';
 const COVER_IMAGE_CREDIT = 'Stuart MacFarlane / Getty Images';
 const ALT_EN = 'Arsenal players celebrate the winning goal';
 const ALT_UK = 'Гравці «Арсенала» святкують переможний гол';
-const OTHER_COVER_IMAGE_URL = 'https://e2e.test/stadium.jpg';
+const OTHER_COVER_IMAGE_URL =
+  'https://images.pexels.com/photos/46798/the-ball-stadion-football-the-pitch-46798.jpeg';
+/** Фото з чужого сайту — як у новин, збережених до M1.8.3a */
+const FOREIGN_COVER_IMAGE_URL = 'https://e2e.test/news/derby-cover.jpg';
 const OTHER_ALT_EN = 'Empty stands of the stadium before kick-off';
 
 const DERBY_EN = {
@@ -34,7 +39,7 @@ interface CreatedPostBody {
   number: number;
 }
 
-describe('Обкладинка новини: опис для незрячих і підпис автора фото (D44)', () => {
+describe('Обкладинка новини: фотобанк, опис для незрячих і підпис автора фото (D44, M1.8.3a)', () => {
   let e2e: E2eApp;
   let admin: request.Agent;
   let post: CreatedPostBody;
@@ -231,6 +236,88 @@ describe('Обкладинка новини: опис для незрячих і
       coverImageUrl: null,
       coverImageAlt: null,
       coverImageCredit: null,
+    });
+  });
+
+  it('нова обкладинка не з фотобанку зі списку → 400 COVER_IMAGE_HOST_NOT_ALLOWED, і в чернетці', async () => {
+    const postsBefore = await e2e.prisma.post.count();
+    const response = await admin
+      .post(apiPath('/posts'))
+      .send({
+        coverImageUrl: FOREIGN_COVER_IMAGE_URL,
+        translations: [DERBY_EN],
+      })
+      .expect(400);
+    expectMatchesContract(response, 'post', '/posts');
+    expect(response.body).toMatchObject({
+      message: 'COVER_IMAGE_HOST_NOT_ALLOWED',
+    });
+    expect(await e2e.prisma.post.count()).toBe(postsBefore);
+  });
+
+  it('збережена обкладинка з чужого сайту: новина редагується без зміни фото, інше чуже фото → 400', async () => {
+    const created = await admin
+      .post(apiPath('/posts'))
+      .send({
+        status: 'PUBLISHED',
+        coverImageUrl: COVER_IMAGE_URL,
+        coverImageCredit: COVER_IMAGE_CREDIT,
+        translations: [
+          { ...DERBY_EN, coverImageAlt: ALT_EN },
+          { ...DERBY_UK, coverImageAlt: ALT_UK },
+        ],
+      })
+      .expect(201);
+    const legacyPost = created.body as CreatedPostBody;
+    // Новина, збережена до M1.8.3a: фото з будь-якого https-хоста — записом в обхід API
+    await e2e.prisma.post.update({
+      where: { id: legacyPost.id },
+      data: { coverImageUrl: FOREIGN_COVER_IMAGE_URL },
+    });
+
+    // Як адмінка: у `PUT` лише змінене (D50) — заголовок, потім підпис фото без адреси
+    const titleEdit = await admin
+      .put(apiPath(`/posts/${legacyPost.id}`))
+      .send({
+        translations: [
+          { ...DERBY_EN, title: 'Arsenal edge Chelsea in the derby' },
+        ],
+      })
+      .expect(200);
+    expectMatchesContract(titleEdit, 'put', '/posts/{id}');
+    await admin
+      .put(apiPath(`/posts/${legacyPost.id}`))
+      .send({ coverImageCredit: 'Getty Images' })
+      .expect(200);
+    // Клієнт, що надсилає адресу без змін, — те саме фото
+    await admin
+      .put(apiPath(`/posts/${legacyPost.id}`))
+      .send({ coverImageUrl: FOREIGN_COVER_IMAGE_URL })
+      .expect(200);
+
+    const otherForeign = await admin
+      .put(apiPath(`/posts/${legacyPost.id}`))
+      .send({ coverImageUrl: 'https://e2e.test/news/stadium.jpg' })
+      .expect(400);
+    expectMatchesContract(otherForeign, 'put', '/posts/{id}');
+    expect(otherForeign.body).toMatchObject({
+      message: 'COVER_IMAGE_HOST_NOT_ALLOWED',
+    });
+
+    expect(await storedCoverImage(legacyPost.id)).toEqual({
+      coverImageUrl: FOREIGN_COVER_IMAGE_URL,
+      coverImageCredit: 'Getty Images',
+      translations: [
+        { languageCode: 'en', coverImageAlt: ALT_EN },
+        { languageCode: 'uk', coverImageAlt: ALT_UK },
+      ],
+    });
+    const detail = await request(e2e.app.getHttpServer())
+      .get(apiPath(`/posts/${legacyPost.number}`))
+      .expect(200);
+    expect(detail.body).toMatchObject({
+      title: 'Arsenal edge Chelsea in the derby',
+      coverImageUrl: FOREIGN_COVER_IMAGE_URL,
     });
   });
 

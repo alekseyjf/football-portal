@@ -63,7 +63,8 @@ describe('Пости: відповіді за контрактом OpenAPI', () 
       .send({
         status: 'PUBLISHED',
         translations: [TRANSLATION_EN, TRANSLATION_UK],
-        coverImageUrl: 'https://e2e.test/cover.jpg',
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&h=630&fit=crop&q=80',
         coverImageCredit: 'Getty Images',
         videoUrl: 'https://www.youtube.com/shorts/aqz-KE-bpKQ',
         sourceUrl: 'https://e2e.test/source',

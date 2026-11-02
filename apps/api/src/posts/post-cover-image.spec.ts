@@ -7,8 +7,12 @@ import {
   type PostCoverImageState,
 } from './post-cover-image';
 
-const COVER_URL = 'https://images.example/derby.jpg';
-const OTHER_COVER_URL = 'https://images.example/stadium.jpg';
+const COVER_URL =
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018';
+const OTHER_COVER_URL =
+  'https://images.pexels.com/photos/46798/the-ball-stadion-football-the-pitch-46798.jpeg';
+/** Обкладинка не з фотобанку зі списку — як у новин, збережених до M1.8.3a */
+const FOREIGN_COVER_URL = 'https://news.example/photos/derby.jpg';
 const CREDIT = 'Stuart MacFarlane / Getty Images';
 const ALT_EN = 'Arsenal players celebrate the winning goal';
 const ALT_UK = 'Гравці «Арсенала» святкують переможний гол';
@@ -250,6 +254,59 @@ describe('resolvePostCoverImage — оновлення', () => {
     expect(updatePost(COMPLETE_COVER, requested, PostStatus.ARCHIVED)).toEqual({
       isValid: true,
       ...SAME_PHOTO,
+    });
+  });
+});
+
+describe('resolvePostCoverImage — фотобанк обкладинки (M1.8.3a)', () => {
+  it.each([PostStatus.DRAFT, PostStatus.PUBLISHED])(
+    'нова новина (%s) з фото не з фотобанку — COVER_IMAGE_HOST_NOT_ALLOWED',
+    (status) => {
+      const requested = { ...COMPLETE_COVER, coverImageUrl: FOREIGN_COVER_URL };
+      expect(createPost(requested, status)).toEqual({
+        isValid: false,
+        errorCode: 'COVER_IMAGE_HOST_NOT_ALLOWED',
+      });
+    },
+  );
+
+  describe('збережене фото з іншого хоста', () => {
+    const foreignCover = {
+      ...COMPLETE_COVER,
+      coverImageUrl: FOREIGN_COVER_URL,
+    };
+
+    it.each([
+      ['адресу не передано — правка тексту', {}],
+      ['передано ту саму адресу', { coverImageUrl: FOREIGN_COVER_URL }],
+      ['змінено лише підпис', { coverImageCredit: 'Getty Images' }],
+    ])('%s — можна: фото лишається', (_case, requested) => {
+      expect(updatePost(foreignCover, requested)).toEqual({
+        isValid: true,
+        ...SAME_PHOTO,
+      });
+    });
+
+    it('інша адреса не з фотобанку — COVER_IMAGE_HOST_NOT_ALLOWED, і в чернетці', () => {
+      expect(
+        updatePost(
+          foreignCover,
+          { coverImageUrl: 'https://news.example/photos/stadium.jpg' },
+          PostStatus.DRAFT,
+        ),
+      ).toEqual({ isValid: false, errorCode: 'COVER_IMAGE_HOST_NOT_ALLOWED' });
+    });
+
+    it('заміна фотом з фотобанку чи прибрати обкладинку — можна', () => {
+      expect(updatePost(foreignCover, COMPLETE_COVER)).toEqual({
+        isValid: true,
+        ...NEW_PHOTO,
+      });
+      expect(updatePost(foreignCover, { coverImageUrl: null })).toEqual({
+        isValid: true,
+        hasCoverImage: false,
+        isSamePhoto: false,
+      });
     });
   });
 });

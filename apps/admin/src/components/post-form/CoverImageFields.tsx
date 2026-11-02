@@ -8,7 +8,9 @@ import {
   type UseFormRegister,
   type UseFormSetValue,
 } from 'react-hook-form';
+import { COVER_IMAGE_HOSTS } from '@football-portal/validation';
 import { mediaUrlSchema } from '@football-portal/validation/forms';
+import { EDITOR_GUIDE_PHOTOS_URL } from '@/lib/editorGuide';
 import { FormField, OptionalMark } from './FormField';
 import { controlProps } from './formStyles';
 import {
@@ -17,6 +19,11 @@ import {
   hasCoverImage,
   type PostFormValues,
 } from './postFormSchema';
+
+/** «Unsplash or Pexels» — фотобанки, з яких API прийме нову обкладинку (M1.8.3a). */
+const COVER_IMAGE_SOURCE_NAMES = new Intl.ListFormat('en', { type: 'disjunction' }).format(
+  COVER_IMAGE_HOSTS.map((host) => host.name),
+);
 
 interface CoverImageFieldsProps {
   register: UseFormRegister<PostFormValues>;
@@ -44,7 +51,24 @@ export function CoverImageFields({ register, control, errors, setValue }: CoverI
       <legend className="px-1 text-sm font-semibold text-gray-300">
         Cover image <OptionalMark />
       </legend>
-      <FormField fieldId="coverImageUrl" label="Image URL" error={errors.coverImageUrl?.message}>
+      <FormField
+        fieldId="coverImageUrl"
+        label="Image URL"
+        error={errors.coverImageUrl?.message}
+        hint={
+          <>
+            Only photos from {COVER_IMAGE_SOURCE_NAMES}.{' '}
+            <a
+              href={EDITOR_GUIDE_PHOTOS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-green-400 transition-colors hover:text-green-300"
+            >
+              Where to find them and how to credit the author ↗
+            </a>
+          </>
+        }
+      >
         <input
           {...register('coverImageUrl', {
             deps: DEPENDENT_FIELD_NAMES.coverImageUrl,
@@ -82,7 +106,7 @@ function CoverImagePreview({ url }: { url: string }) {
     );
   }
   return (
-    // Звичайний <img>, як на сайті (D44): фото з будь-якого https-хоста, без оптимізатора next/image
+    // Звичайний <img>: прев'ю будь-якої https-адреси — і тієї, яку форма не пропустить: редактор бачить, що вставив
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
