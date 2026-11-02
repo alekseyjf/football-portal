@@ -1,4 +1,5 @@
 import { infiniteQueryOptions } from '@tanstack/react-query';
+import { NEWS_FEED_CACHE } from '@/lib/api/cache-tags';
 import { apiGet } from '@/lib/api/http';
 import type { ApiContentLanguage, PaginatedPosts } from '@/lib/api/types';
 import { newsFeedApiPath, type NewsFeedFilters } from './news-feed-filters';
@@ -24,6 +25,7 @@ export function newsFeedQueryOptions(
           limit: NEWS_FEED_PAGE_SIZE,
           lang,
         }),
+        NEWS_FEED_CACHE,
       ),
     initialPageParam: startPage,
     getNextPageParam: (lastPage) =>

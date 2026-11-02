@@ -12,8 +12,10 @@ import { resetE2eData } from '../support/e2e-database';
 const WEBHOOK_SECRET = 'e2e-revalidate-secret-e2e-revalidate-secret';
 const POLL_ATTEMPTS = 300;
 const POLL_MS = 20;
-/** Повільний сайт відповідає пізніше за таймаут вебхука (3 с) */
-const SLOW_WEB_DELAY_MS = 5000;
+/** Таймаут запиту вебхука в API (`WEB_REVALIDATE_URL`, `web-revalidate-webhook.ts`) */
+const WEBHOOK_TIMEOUT_MS = 3000;
+/** Повільний сайт відповідає набагато пізніше за таймаут: обрив — точно від API, а не відповідь сайту */
+const SLOW_WEB_DELAY_MS = 10_000;
 
 const POST_EN = {
   languageCode: 'en',
@@ -26,6 +28,10 @@ interface WebhookCall {
   headers: Record<string, string | string[] | undefined>;
   rawBody: string;
   body: unknown;
+  /** Коли сайт дочитав запит */
+  receivedAt: number;
+  /** Коли API обірвав з'єднання, не дочекавшись відповіді; `undefined` — сайт відповів */
+  abortedAt?: number;
 }
 
 interface CreatedPost {
@@ -51,7 +57,7 @@ async function waitFor<Value>(
 }
 
 /**
- * Вебхук web (D57): подія новини → `POST /api/revalidate`, підписаний HMAC від `{timestamp}.{тіло}` — сам секрет не
+ * Вебхук web (D57): подія новини чи головної → `POST /api/revalidate`, підписаний HMAC від `{timestamp}.{тіло}` — сам секрет не
  * йде; запис не чекає вебхука, збій сайту — лише в лог. Замість web — локальний HTTP-сервер, що записує запити.
  */
 describe('Сповіщення сайту: вебхук web (D57)', () => {
@@ -84,12 +90,22 @@ describe('Сповіщення сайту: вебхук web (D57)', () => {
         rawBody += chunk.toString();
       });
       req.on('end', () => {
-        webhookCalls.push({
+        const call: WebhookCall = {
           headers: req.headers,
           rawBody,
           body: JSON.parse(rawBody) as unknown,
+          receivedAt: Date.now(),
+        };
+        webhookCalls.push(call);
+        const answer = setTimeout(
+          () => res.writeHead(webAnswersStatus).end(),
+          webDelayMs,
+        );
+        res.on('close', () => {
+          // Відповідь не встигла — з'єднання закрив клієнт (API); таймер не тримає Jest
+          clearTimeout(answer);
+          if (!res.writableFinished) call.abortedAt = Date.now();
         });
-        setTimeout(() => res.writeHead(webAnswersStatus).end(), webDelayMs);
       });
     });
     await new Promise<void>((resolve) =>
@@ -178,6 +194,43 @@ describe('Сповіщення сайту: вебхук web (D57)', () => {
     });
   });
 
+  it('закріплення головної й зняття — `home.updated`, тим самим підписом; уже закріплена — без події', async () => {
+    const post = await createPost({ status: 'PUBLISHED' });
+    await waitFor(
+      () => (webhookCalls.length > 0 ? webhookCalls : undefined),
+      'publish webhook call',
+    );
+    webhookCalls = [];
+
+    await admin
+      .post(apiPath(`/posts/${post.id}/pin`))
+      .send({ replacesPostId: null })
+      .expect(200);
+    // Уже закріплена — головна та сама
+    await admin
+      .post(apiPath(`/posts/${post.id}/pin`))
+      .send({ replacesPostId: null })
+      .expect(200);
+    await admin.delete(apiPath(`/posts/${post.id}/pin`)).expect(200);
+    const calls = await waitFor(
+      () => (webhookCalls.length >= 2 ? webhookCalls : undefined),
+      'two home webhook calls',
+    );
+    // Вікно для зайвого вебхука, якби повторне закріплення його слало
+    await sleep(200);
+
+    expect(webhookCalls.map((call) => call.body)).toEqual([
+      { event: 'home.updated' },
+      { event: 'home.updated' },
+    ]);
+    for (const call of calls) {
+      const timestamp = String(call.headers['x-revalidate-timestamp']);
+      expect(call.headers['x-revalidate-signature']).toBe(
+        `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(`${timestamp}.${call.rawBody}`).digest('hex')}`,
+      );
+    }
+  });
+
   it('сайт відповів 500 — публікація відбулась, у лозі причина без секрету', async () => {
     webAnswersStatus = 500;
     const post = await createPost({ status: 'PUBLISHED' });
@@ -194,23 +247,27 @@ describe('Сповіщення сайту: вебхук web (D57)', () => {
     expect(warning).not.toContain(WEBHOOK_SECRET);
   });
 
-  it('повільний сайт: збереження вебхука не чекає, а сам запит обривається за 3 с', async () => {
+  it('повільний сайт: збереження вебхука не чекає — відповідь раніше, ніж API обриває запит до сайту за 3 с', async () => {
     webDelayMs = SLOW_WEB_DELAY_MS;
-    const startedAt = Date.now();
     const post = await createPost({ status: 'PUBLISHED' });
-    const savedInMs = Date.now() - startedAt;
-    await waitFor(
+    const savedAt = Date.now();
+    const [call] = await waitFor(
       () => (webhookCalls.length > 0 ? webhookCalls : undefined),
       'webhook call',
     );
+    const abortedAt = await waitFor(() => call.abortedAt, 'webhook abort');
 
-    // Відповідь API — без очікування сайту (той відповість лише за 5 с)
-    expect(savedInMs).toBeLessThan(SLOW_WEB_DELAY_MS / 2);
+    // Порядок, а не тривалість запису: повільна БД розтягує все до коміту, а вебхук стартує після нього. Запис, що
+    // чекав би вебхук, відповів би лише після обриву; не чекає — відповідь задовго до нього
+    expect(abortedAt - savedAt).toBeGreaterThan(WEBHOOK_TIMEOUT_MS / 2);
+    // Обрив — від таймауту API (~3 с від запиту), а не відповідь сайту (10 с)
+    const abortedAfterMs = abortedAt - call.receivedAt;
+    expect(abortedAfterMs).toBeGreaterThan(WEBHOOK_TIMEOUT_MS / 2);
+    expect(abortedAfterMs).toBeLessThan(SLOW_WEB_DELAY_MS / 2);
     const [warning] = await waitFor(() => {
       const warnings = warningsWith('TimeoutError');
       return warnings.length > 0 ? warnings : undefined;
     }, 'webhook timeout warning');
     expect(warning).toContain(`post.published новини ${post.number}`);
-    expect(Date.now() - startedAt).toBeLessThan(SLOW_WEB_DELAY_MS);
   });
 });

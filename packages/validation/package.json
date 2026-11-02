@@ -2,7 +2,7 @@
   "name": "@football-portal/validation",
   "version": "1.0.0",
   "private": true,
-  "description": "Спільні правила валідації (API DTO + форми web/admin)",
+  "description": "Спільні правила валідації (API DTO + форми web/admin) і підпис вебхука сайту",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -13,6 +13,10 @@
     "./forms": {
       "types": "./dist/forms.d.ts",
       "default": "./dist/forms.js"
+    },
+    "./webhook": {
+      "types": "./dist/webhook.d.ts",
+      "default": "./dist/webhook.js"
     }
   },
   "files": [
@@ -33,6 +37,7 @@
     }
   },
   "devDependencies": {
+    "@types/node": "^22",
     "typescript": "^5.7.3",
     "vitest": "4.1.11",
     "zod": "^4.3.6"

@@ -13,6 +13,11 @@ export function postPathSegment(post: PostPathRef): string {
   return `${post.slug}-${post.number}`;
 }
 
+/** Адреса новини без мови — для `Link`, `getPathname`, метаданих і sitemap. */
+export function postHref(post: PostPathRef): string {
+  return `/news/${postPathSegment(post)}`;
+}
+
 /**
  * Сегмент `{slug}-{number}` → slug і номер; `null` — такої сторінки немає (404): без номера або номер поза
  * межами `Post.number` (старі URL з таймстемпом: `…-1775675859414`). Чи slug канонічний — вирішує сторінка.

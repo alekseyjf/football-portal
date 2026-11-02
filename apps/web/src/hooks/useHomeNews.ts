@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
+import { HOME_NEWS_CACHE } from '@/lib/api/cache-tags';
 import { apiGet } from '@/lib/api/http';
 import type { ApiContentLanguage, HomePosts } from '@/lib/api/types';
 
@@ -13,7 +14,10 @@ export function homeNewsQueryOptions(lang: ApiContentLanguage) {
   return queryOptions({
     queryKey: ['posts', 'home', lang] as const,
     queryFn: () =>
-      apiGet<HomePosts>(`/posts/home?lang=${encodeURIComponent(lang)}`),
+      apiGet<HomePosts>(
+        `/posts/home?lang=${encodeURIComponent(lang)}`,
+        HOME_NEWS_CACHE,
+      ),
     staleTime: 60_000,
   });
 }

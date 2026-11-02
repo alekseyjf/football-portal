@@ -4,7 +4,7 @@ import type { PostDetail } from '@/lib/api/types';
 import { pageMetadata } from '@/lib/seo/page-metadata';
 import { postShareCardHref } from '@/lib/seo/share-card';
 import { postKicker } from './post-kicker';
-import { postPathSegment } from './post-path';
+import { postHref } from './post-path';
 
 type MetadataSource = Pick<
   PostDetail,
@@ -31,7 +31,7 @@ export function postMetadata(
 ): Metadata {
   return pageMetadata({
     locale: page.locale,
-    href: `/news/${postPathSegment(post)}`,
+    href: postHref(post),
     title: post.title,
     description: post.excerpt,
     siteName: page.siteName,

@@ -1,6 +1,10 @@
 /**
  * HTTP-клієнт до API (cookies, JSON).
  *
+ * Кеш даних Next на сервері (M1.8.3): запит у кеш — лише явно публічний (`{ cache: 'public', tags, revalidate }`):
+ * однаковий для всіх читачів, без cookies й токена. Решта — `no-store`: персональна відповідь (`/auth/me`,
+ * `myReaction`) у спільний кеш не потрапить. Теги й TTL — `cache-tags.ts`; оновлює їх вебхук API (`/api/revalidate`).
+ *
  * Сесія: access-cookie живе 15 хв. На 401 клієнт один раз викликає `POST /auth/refresh`
  * і повторює запит (лише в браузері — на сервері Next.js cookies користувача немає).
  * Паралельні запити чекають один спільний refresh (single-flight).
@@ -14,7 +18,18 @@
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
-type NextFetchInit = RequestInit & { next?: { tags?: string[] } };
+/**
+ * Чи можна відповідь покласти в кеш даних Next. `public` — та сама для всіх: `tags` — що оновлює вебхук,
+ * `revalidate` — TTL у секундах, якщо вебхук не дійшов. `private` — ні (за замовчуванням).
+ */
+export type ApiCache =
+  | { cache: 'public'; tags: readonly string[]; revalidate: number }
+  | { cache: 'private' };
+
+const PRIVATE: ApiCache = { cache: 'private' };
+
+/** Заголовки, що роблять відповідь персональною: з ними — лише `private`. */
+const PERSONAL_HEADERS = ['authorization', 'cookie'];
 
 /**
  * Помилка відповіді API. `code` (він же `message`) — `message` з тіла Nest: наш код
@@ -147,7 +162,7 @@ async function performRefresh(): Promise<RefreshOutcome> {
   const generationAtStart = sessionGeneration;
   let response: Response;
   try {
-    response = await sendRequest('/auth/refresh', { method: 'POST' });
+    response = await apiFetch('/auth/refresh', { method: 'POST' }, PRIVATE);
   } catch (networkError) {
     return { kind: 'unavailable', error: networkError };
   }
@@ -175,17 +190,57 @@ async function performRefresh(): Promise<RefreshOutcome> {
   return { kind: 'unavailable', error };
 }
 
-function sendRequest(endpoint: string, init: RequestInit): Promise<Response> {
+/**
+ * Єдиний `fetch` до API. Публічний запит на сервері — у кеш даних Next з тегами й TTL. Публічний з `Authorization`
+ * чи `Cookie` — помилка розробника, а не тихо закешована чужа відповідь.
+ */
+export function apiFetch(
+  endpoint: string,
+  init: Omit<RequestInit, 'cache'>,
+  cache: ApiCache,
+): Promise<Response> {
+  if (cache.cache === 'public') assertNotPersonal(endpoint, init.headers);
   return fetch(`${API_URL}${endpoint}`, {
     credentials: 'include',
-    cache: 'no-store',
     ...init,
+    ...fetchCacheOptions(cache),
   });
 }
 
-async function request<T>(endpoint: string, init: NextFetchInit): Promise<T> {
+function fetchCacheOptions(
+  cache: ApiCache,
+):
+  | Pick<RequestInit, 'cache'>
+  | { next: { tags: string[]; revalidate: number } } {
+  // У браузері кешу даних Next немає: там і публічний — `no-store`, як було
+  if (cache.cache === 'private' || typeof window !== 'undefined') {
+    return { cache: 'no-store' };
+  }
+  return { next: { tags: [...cache.tags], revalidate: cache.revalidate } };
+}
+
+function assertNotPersonal(
+  endpoint: string,
+  headers: HeadersInit | undefined,
+): void {
+  const requestHeaders = new Headers(headers);
+  const personalHeader = PERSONAL_HEADERS.find((name) =>
+    requestHeaders.has(name),
+  );
+  if (personalHeader) {
+    throw new Error(
+      `Public (cached) API request must not send ${personalHeader}: ${endpointPath(endpoint)}`,
+    );
+  }
+}
+
+async function request<T>(
+  endpoint: string,
+  init: Omit<RequestInit, 'cache'>,
+  cache: ApiCache = PRIVATE,
+): Promise<T> {
   const generationAtSend = sessionGeneration;
-  const response = await sendRequest(endpoint, init);
+  const response = await apiFetch(endpoint, init, cache);
   if (response.ok && SESSION_START_ENDPOINTS.has(endpointPath(endpoint))) {
     sessionGeneration += 1;
   }
@@ -200,7 +255,7 @@ async function request<T>(endpoint: string, init: NextFetchInit): Promise<T> {
 
   if (outcome.kind === 'refreshed') {
     // Лише один повтор: повторний 401 іде викликачу як є
-    return parseResponse<T>(await sendRequest(endpoint, init));
+    return parseResponse<T>(await apiFetch(endpoint, init, cache));
   }
   if (outcome.kind === 'expired') {
     // 403 від refresh несе причину (`ACCOUNT_LOCKED`), 401 — нічого нового
@@ -216,13 +271,13 @@ async function request<T>(endpoint: string, init: NextFetchInit): Promise<T> {
 /**
  * GET (RSC metadata, prefetch queryFn, клієнтські запити). Без `Content-Type`: тіла немає,
  * а цей заголовок робить запит «не простим» — браузер слав би CORS preflight перед кожним GET.
+ * `cache` — публічний лише для даних, однакових для всіх читачів (`cache-tags.ts`).
  */
 export async function apiGet<T>(
   endpoint: string,
-  init?: NextFetchInit,
+  cache: ApiCache = PRIVATE,
 ): Promise<T> {
-  const { next, ...rest } = init ?? {};
-  return request<T>(endpoint, { method: 'GET', ...rest, next });
+  return request<T>(endpoint, { method: 'GET' }, cache);
 }
 
 export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {

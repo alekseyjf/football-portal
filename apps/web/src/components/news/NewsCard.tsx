@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import type { PostSummary } from '@/lib/api/types';
 import { contentLanguageName } from '@/lib/i18n/content-lang';
-import { postPathSegment } from '@/lib/news/post-path';
+import { postHref } from '@/lib/news/post-path';
 import { useApiContentLang } from '@/hooks/useApiContentLang';
 import { useDateTimeFormat } from '@/hooks/useDateTimeFormat';
 import { PostKickerLink } from './PostKickerLink';
@@ -147,7 +147,7 @@ export function NewsCard({
         >
           <Link
             ref={isFocusTarget ? focusTitleLink : undefined}
-            href={`/news/${postPathSegment(post)}`}
+            href={postHref(post)}
             className="outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-green-500"
           >
             {post.title}

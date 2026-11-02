@@ -110,3 +110,15 @@
 > // ✅ <NewsPostView siteUrl={siteUrl()} />  — у page.tsx (RSC)
 > // ❌ process.env.SITE_URL у 'use client' — там його немає; NEXT_PUBLIC_ «щоб працювало» — зайве вбудовування
 > ```
+
+**Rule 15 — Кеш даних Next — лише явно публічний** ⭐ (2026-11-01, M1.8.3, [D57](../decisions/D57-scheduled-publishing.md))
+```typescript
+// ✅ apiGet<PostDetail>(`/posts/${number}?lang=${lang}`, postDetailCache(number))  — тег і TTL з lib/api/cache-tags.ts;
+//    тег оновлює вебхук API (/api/revalidate → lib/revalidate/content-event-tags.ts): нова сутність у кеші — нова подія
+// ✅ apiGet('/auth/me')  — без другого аргументу `no-store`: усе персональне й живе (футбол) — так
+// ❌ fetch(url, { next: { revalidate } }) напряму, кеш відповіді, що залежить від cookies / токена (apiFetch кидає помилку)
+// ❌ export const dynamic = 'force-dynamic' там, де є кешовані запити: він вимикає кеш усіх fetch маршруту
+// GET route handler і robots.ts без request-time API `next build` пререндерить зі змінними збірки —
+//   що читає серверну змінну (SITE_INDEXING), починається з `await connection()`;
+//   страж — `pnpm --filter @football-portal/web test:runtime-env` (одна збірка, два `next start` з різною змінною)
+```

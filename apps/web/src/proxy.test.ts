@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
-import { describe, expect, it } from 'vitest';
-import proxy from './proxy';
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import proxy, { config } from './proxy';
 
 const ORIGIN = 'http://localhost:3000';
 
@@ -53,5 +54,66 @@ describe('proxy: мова з браузера', () => {
       requestTo('/', { 'accept-language': 'uk', cookie: 'NEXT_LOCALE=ua' }),
     );
     expect(redirectTarget(response)).toBe('/uk');
+  });
+});
+
+describe('proxy: які адреси проходять (matcher, M1.8.3)', () => {
+  function passesProxy(path: string): boolean {
+    return unstable_doesMiddlewareMatch({
+      config,
+      url: new URL(path, ORIGIN).href,
+    });
+  }
+
+  it.each([
+    '/',
+    '/en',
+    '/uk/news/slug-123',
+    '/uk/news/top-10-42',
+    '/en/news?tags=transfers&page=2',
+    '/en/matches?date=2026-10-10',
+    '/ua/news/some-post',
+    '/en/og/post/42',
+    '/en/api',
+  ])('сторінка %s — проходить (мова, X-Robots-Tag)', (path) => {
+    expect(passesProxy(path)).toBe(true);
+  });
+
+  it.each([
+    '/api/revalidate',
+    '/_next/static/chunks/main.js',
+    '/_next/image?url=%2Fx.png&w=640&q=75',
+    '/favicon.ico',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/sitemaps/static.xml',
+    '/sitemaps/posts-2026-10.xml',
+    '/sitemaps/news.xml',
+  ])('%s — повз proxy: без мови в адресі', (path) => {
+    expect(passesProxy(path)).toBe(false);
+  });
+});
+
+describe('proxy: індексація сайту (SITE_INDEXING, M1.8.3)', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([undefined, '', 'false', 'yes'])(
+    'SITE_INDEXING=%j — сайт закритий: X-Robots-Tag: noindex, nofollow і на сторінці, і на редиректі',
+    (value) => {
+      vi.stubEnv('SITE_INDEXING', value);
+      expect(proxy(requestTo('/en/news')).headers.get('X-Robots-Tag')).toBe(
+        'noindex, nofollow',
+      );
+      expect(proxy(requestTo('/ua')).headers.get('X-Robots-Tag')).toBe(
+        'noindex, nofollow',
+      );
+    },
+  );
+
+  it('SITE_INDEXING=true — без X-Robots-Tag', () => {
+    vi.stubEnv('SITE_INDEXING', 'true');
+    expect(proxy(requestTo('/en/news')).headers.has('X-Robots-Tag')).toBe(
+      false,
+    );
   });
 });

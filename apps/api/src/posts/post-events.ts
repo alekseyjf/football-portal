@@ -15,6 +15,11 @@ export const POST_PUBLISHED_EVENT = 'post.published';
 export const POST_UPDATED_EVENT = 'post.updated';
 /** Новина зникла з сайту: в архів, у чернетки, видалили. */
 export const POST_UNPUBLISHED_EVENT = 'post.unpublished';
+/**
+ * Змінилась головна новина сайту (D56): закріпили чи зняли закріплення. Закріплення, що знімається разом з публікацією
+ * (в архів, видалення), окремо не шлемо — `post.unpublished` оновлює й головну.
+ */
+export const HOME_UPDATED_EVENT = 'home.updated';
 
 export type PostEventName =
   | typeof POST_PUBLISHED_EVENT

@@ -9,6 +9,7 @@
     "lint": "eslint && prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:runtime-env": "node scripts/check-runtime-env.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {
