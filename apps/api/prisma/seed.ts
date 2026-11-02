@@ -11,12 +11,18 @@
  * існуючі рядки (editorial-поля могли змінити в адмінці).
  * Усе пишеться в одній транзакції — або весь seed, або нічого.
  *
- * Запуск: pnpm --filter @football-portal/api db:seed  (= prisma db seed)
+ * Куди — каже лише SEED_TARGET_SCHEMA (обов'язкова): `public` — dev-БД, `e2e` — схема тестів і стенду.
+ * До першого запису сід перевіряє, що з'єднання саме там, і друкує ціль (`schema-target.ts`).
+ *
+ * Запуск: SEED_TARGET_SCHEMA=public pnpm --filter @football-portal/api db:seed  (= prisma db seed)
  */
 import 'dotenv/config';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { PrismaPg } from '@prisma/adapter-pg';
+import {
+  COVER_IMAGE_HOSTS,
+  isAllowedCoverImageUrl,
+} from '@football-portal/validation';
 import {
   CompetitionType,
   DataProvider,
@@ -26,6 +32,11 @@ import {
   Role,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import {
+  assertSchemaTarget,
+  createSchemaPrismaClient,
+  describeSchemaTarget,
+} from './schema-target';
 
 const CONTENT_PATH = resolve(__dirname, 'seed-data/content.json');
 const SUPPORTED_CONTENT_FORMAT_VERSION = 1;
@@ -159,7 +170,13 @@ interface ExportedPost {
   slug: string;
   authorEmail: string;
   published: boolean;
+  /** Лише з фотобанку зі списку (`COVER_IMAGE_HOSTS`, M1.8.3a): сід пише в БД повз API, тож перевіряє сам */
   coverImageUrl: string | null;
+  /**
+   * Підпис автора фото (D44): експорт Фази 0 його не має — дописують у content.json вручну разом з фото фотобанку;
+   * без нього опубліковану новину з обкладинкою адмінка не збереже (`COVER_IMAGE_CREDIT_REQUIRED`)
+   */
+  coverImageCredit?: string;
   videoUrl: string | null;
   sourceUrl: string | null;
   createdAt: string;
@@ -184,13 +201,27 @@ interface SeedSummary {
   competitions: number;
 }
 
-function createPrismaClient(): PrismaClient {
+/**
+ * Схема, у яку пише сід, — лише явно (M1.8.3a): без значення за замовчуванням, бо dev-БД стане БД тест-сервера,
+ * а рядок підключення схему таблиць Prisma не задає (`schema-target.ts`).
+ */
+function seedTargetSchema(): string {
+  const schema = process.env.SEED_TARGET_SCHEMA?.trim();
+  if (!schema) {
+    throw new Error(
+      'SEED_TARGET_SCHEMA is not set — public (dev database) or e2e (tests and stand)',
+    );
+  }
+  return schema;
+}
+
+function createPrismaClient(schema: string): PrismaClient {
   // Як у prisma.config.ts: пряме з'єднання, якщо є (Supabase pooler + транзакції); порожнє — не задано
   const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DIRECT_URL / DATABASE_URL is not set');
   }
-  return new PrismaClient({ adapter: new PrismaPg(databaseUrl) });
+  return createSchemaPrismaClient(databaseUrl, schema);
 }
 
 function normalizeEmail(email: string): string {
@@ -277,6 +308,12 @@ function assertContentConsistent(contentExport: ContentExport): void {
       if (!tagSlugs.has(tagSlug)) {
         problems.push(`post "${post.slug}": unknown tag "${tagSlug}"`);
       }
+    }
+    if (post.coverImageUrl && !isAllowedCoverImageUrl(post.coverImageUrl)) {
+      problems.push(
+        `post "${post.slug}": cover image ${post.coverImageUrl} is not from a photo bank on the list ` +
+          `(${COVER_IMAGE_HOSTS.map((host) => host.name).join(', ')}) — replace it in content.json`,
+      );
     }
   }
 
@@ -435,6 +472,9 @@ async function seedPosts(
         status: post.published ? PostStatus.PUBLISHED : PostStatus.DRAFT,
         publishedAt: post.published ? createdAt : null,
         coverImageUrl: post.coverImageUrl,
+        coverImageCredit: post.coverImageUrl
+          ? (post.coverImageCredit ?? null)
+          : null,
         videoUrl: post.videoUrl,
         sourceUrl: post.sourceUrl,
         authorId,
@@ -447,7 +487,7 @@ async function seedPosts(
             title: translation.title,
             excerpt: translation.excerpt,
             content: translation.content,
-            // Опису фото в експорті немає — із заголовка, як міграція 0007; підпис вписує редакція (D44)
+            // Опису фото в експорті немає — із заголовка, як міграція 0007 (D44)
             coverImageAlt: post.coverImageUrl ? translation.title : null,
           })),
         },
@@ -474,8 +514,11 @@ async function main(): Promise<void> {
   const tags = contentExport?.tags ?? [];
   const posts = contentExport?.posts ?? [];
 
-  const prisma = createPrismaClient();
+  const targetSchema = seedTargetSchema();
+  const prisma = createPrismaClient(targetSchema);
   try {
+    const target = await assertSchemaTarget(prisma, targetSchema);
+    console.log(`Seed target: ${describeSchemaTarget(target)}`);
     await prisma.$transaction(
       async (transaction) => {
         await seedLanguages(transaction);

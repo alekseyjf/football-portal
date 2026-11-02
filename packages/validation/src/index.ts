@@ -9,6 +9,12 @@ export { SLUG_PATTERN, slugify } from './slug';
 export { publicTagPath } from './public-paths';
 export { normalizeYouTubeUrl, parseYouTubeVideoId } from './youtube';
 export { commentEditWindowStart, isCommentEditWindowOpen } from './comment-edit';
+export {
+  COVER_IMAGE_HOSTS,
+  coverImageUrlExample,
+  isAllowedCoverImageUrl,
+  type CoverImageHost,
+} from './cover-image';
 
 /** RFC 5321: довша адреса не доставляється. */
 export const EMAIL_MAX_LENGTH = 254;
@@ -37,7 +43,10 @@ export const COMMENT_MAX_LENGTH = 2000;
 /** Порція коментарів (`GET /comments?limit=`, `…/replies?limit=`, D27): сайт бере 20 коренів і 10 відповідей. */
 export const COMMENTS_PAGE_LIMIT_MAX = 50;
 
-/** Адреса обкладинки поста (`coverImageUrl`): лише https. Відео — лише YouTube (`parseYouTubeVideoId`, D54). */
+/**
+ * Адреса обкладинки поста (`coverImageUrl`): лише https, нова — ще й з фотобанку зі списку (`isAllowedCoverImageUrl`,
+ * M1.8.3a). Відео — лише YouTube (`parseYouTubeVideoId`, D54).
+ */
 export const MEDIA_URL_PROTOCOLS = ['https'];
 /** Посилання на джерело новини (`sourceUrl`). */
 export const SOURCE_URL_PROTOCOLS = ['http', 'https'];

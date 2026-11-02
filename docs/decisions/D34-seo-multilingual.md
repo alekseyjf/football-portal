@@ -41,5 +41,5 @@ SEO — пріоритет (👤 11.1): для новинного сайту Goo
 
 ### M1.8.4 Структуровані дані й замір
 - 👤 Типи JSON-LD — `schema-dts`. `VideoObject` — ні, поки немає дати завантаження відео (YouTube Data API — [`backlog.md`](../backlog.md)).
-- 👤 Rich Results Test — у режимі «Код» на HTML локальної збірки; Lighthouse — `next build && next start`, мобільний профіль; повторно — на тест-сервері (M1.11). Пороги: **SEO = 100**, Best Practices ≥ 90; LCP < 2,5 с і CLS < 0,1 — ціль. Lighthouse CI — конфіг у M1.8.4, job у GitHub Actions — M1.10.1.
+- 👤 Rich Results Test — у режимі «Код» на HTML локальної збірки; Lighthouse — `next build && next start`, мобільний профіль; повторно — на тест-сервері (M1.11). Пороги: **SEO = 100**, Best Practices ≥ 90; LCP < 2,5 с і CLS < 0,1 — ціль. Lighthouse CI — конфіг у M1.8.4, job у GitHub Actions — M1.12.2 (👤 2026-11-02: зі стендом, після деплою й демо); LCP і CLS локально не оптимізуємо — перевірка на тест-сервері.1.
 - 👤 Після запуску прод-домену — Search Console і Bing Webmaster Tools, IndexNow, RSS ([`backlog.md`](../backlog.md), M3.7).

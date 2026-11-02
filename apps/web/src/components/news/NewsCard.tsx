@@ -1,5 +1,6 @@
 'use client';
 
+import { isAllowedCoverImageUrl } from '@football-portal/validation';
 import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
@@ -116,8 +117,6 @@ export function NewsCard({
       className={`relative flex h-full overflow-hidden rounded-xl bg-gray-900 transition-colors hover:bg-gray-800 ${classes.article}`}
     >
       {post.coverImageUrl && (
-        // `unoptimized`: обкладинка — довільний https-хост із адмінки; оптимізація Next = серверний fetch чужого URL
-        // (SSRF, див. API `url-field.decorators.ts`)
         <div
           className={`relative aspect-video ${classes.cover}`}
           lang={post.resolvedLanguage}
@@ -127,7 +126,8 @@ export function NewsCard({
             // Опис з адмінки (D44) — мовою тексту картки, звідси `lang`; не заголовок — він і так поруч
             alt={post.coverImageAlt ?? ''}
             fill
-            unoptimized
+            // Фото з фотобанку — через оптимізатор (M1.8.3a); збережене раніше з іншого хоста — як є
+            unoptimized={!isAllowedCoverImageUrl(post.coverImageUrl)}
             loading={isCoverPriority ? 'eager' : 'lazy'}
             fetchPriority={isCoverPriority ? 'high' : 'auto'}
             sizes={COVER_SIZES[layout]}

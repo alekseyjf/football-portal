@@ -6,9 +6,12 @@ import { z } from 'zod';
 import {
   COMMENT_MAX_LENGTH,
   COMMENT_MIN_LENGTH,
+  COVER_IMAGE_HOSTS,
+  coverImageUrlExample,
   DISPLAY_NAME_MAX_LENGTH,
   DISPLAY_NAME_MIN_LENGTH,
   EMAIL_MAX_LENGTH,
+  isAllowedCoverImageUrl,
   MEDIA_URL_PROTOCOLS,
   PASSWORD_INPUT_MAX_LENGTH,
   PASSWORD_MAX_BYTES,
@@ -78,6 +81,20 @@ export const mediaUrlSchema = z
     (value) => hasAllowedProtocol(value, MEDIA_URL_PROTOCOLS),
     'Must be an https:// URL',
   );
+
+const COVER_IMAGE_SOURCES = new Intl.ListFormat('en', { type: 'disjunction' }).format(
+  COVER_IMAGE_HOSTS.map((host) => `${host.name} (${coverImageUrlExample(host)})`),
+);
+
+/**
+ * Нова адреса обкладинки (M1.8.3a): https і фото з фотобанку зі списку — та сама перевірка, що в API
+ * (`COVER_IMAGE_HOST_NOT_ALLOWED`). Збережену адресу з іншого хоста API приймає без змін, тож форма редагування
+ * перевіряє цією схемою лише змінену.
+ */
+export const coverImageUrlSchema = mediaUrlSchema.refine(
+  isAllowedCoverImageUrl,
+  `Use a photo from ${COVER_IMAGE_SOURCES} — right-click the photo → Copy image address`,
+);
 
 /**
  * Відео новини (D54) — посилання YouTube у звичних формах (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`), як

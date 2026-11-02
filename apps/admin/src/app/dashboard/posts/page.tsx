@@ -1,15 +1,15 @@
-import { connection } from 'next/server';
+import { Suspense } from 'react';
 import { AdminLink } from '@/components/AdminLink';
+import { PostListLoading } from './PostListStates';
 import { PostsListView } from './PostsListView';
 
 /**
- * Динамічна, а не статична (D50): у Next 16.2 роутер кешує статичну сторінку під адресою з query її першого
- * завантаження — відкрита як `?status=SCHEDULED`, вона потім підставляла цей фільтр у кожен перехід на
- * `/dashboard/posts` (меню, після створення; vercel/next.js#92187). Фільтр, пошук і сторінки однаково йдуть
- * через `history.pushState` — без запитів до сервера.
+ * Статична оболонка (D50): фільтр, пошук і сторінка — в адресі, їх читає `PostsListView` на клієнті й міняє через
+ * `history.pushState` без запитів до сервера; `Suspense` — бо адресу (`useSearchParams`) знає лише браузер, а збірка
+ * віддає оболонку зі «Loading posts…». До Next 16.4.3 сторінка була динамічною (`connection()`): роутер
+ * підставляв query першого завантаження в кожен перехід на `/dashboard/posts` (vercel/next.js#92187).
  */
-export default async function PostsPage() {
-  await connection();
+export default function PostsPage() {
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -21,7 +21,9 @@ export default async function PostsPage() {
           + New Post
         </AdminLink>
       </div>
-      <PostsListView />
+      <Suspense fallback={<PostListLoading />}>
+        <PostsListView />
+      </Suspense>
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
+import { IMAGE_REMOTE_PATTERNS } from './src/lib/images/remote-patterns';
 
 const withNextIntl = createNextIntlPlugin({
   requestConfig: './src/i18n/request.ts',
@@ -22,16 +23,12 @@ const nextConfig: NextConfig = {
   // Спільний UI — без збірки: пакет віддає TypeScript-джерела, Next компілює їх сам
   transpilePackages: ['@football-portal/ui'],
   images: {
-    // Прев'ю відео YouTube (D54) віддає наш сервер: браузер читача до Google до кліку не звертається. Оптимізатор
-    // завантажить лише `i.ytimg.com/vi/…` — чужий хост через нього не підставити. Обкладинки — `unoptimized` (D44)
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'i.ytimg.com',
-        pathname: '/vi/**',
-        search: '',
-      },
-    ],
+    // Прев'ю відео YouTube (D54) і обкладинки з фотобанків (M1.8.3a) віддає наш сервер: розмір під екран і WebP, а
+    // браузер читача до Google до кліку не звертається. Чужий хост через оптимізатор не підставити
+    remotePatterns: IMAGE_REMOTE_PATTERNS,
+    // Редиректи `remotePatterns` не перевіряє (документація Next): відкритий редирект на дозволеному хості завів би
+    // оптимізатор куди завгодно. CDN фотобанків і YouTube віддають фото напряму (перевірено, M1.8.3a)
+    maximumRedirects: 0,
   },
   async headers() {
     return [

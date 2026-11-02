@@ -12,6 +12,9 @@ import { expectMatchesContract } from '../support/openapi-contract';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+/** Обкладинка — лише з фотобанку зі списку (M1.8.3a) */
+const COVER_IMAGE_URL =
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&h=630&fit=crop&q=80';
 
 const DETAIL_TRANSLATION_EN = {
   languageCode: 'en',
@@ -159,7 +162,7 @@ describe('Адмінка: список новин і новина для фор�
     // Чернетка з усім, що редагує форма; мови й зв'язки — не в тому порядку, у якому їх віддає API
     detailPost = await createPost({
       translations: [DETAIL_TRANSLATION_UK, DETAIL_TRANSLATION_EN],
-      coverImageUrl: 'https://e2e.test/cover.jpg',
+      coverImageUrl: COVER_IMAGE_URL,
       coverImageCredit: 'Getty Images',
       // Відео — у формі редактора, яку віддає API: канонічним (D54)
       videoUrl: 'https://youtu.be/dQw4w9WgXcQ?si=e2e',
@@ -234,7 +237,7 @@ describe('Адмінка: список новин і новина для фор�
       status: 'DRAFT',
       publishedAt: null,
       isLive: false,
-      coverImageUrl: 'https://e2e.test/cover.jpg',
+      coverImageUrl: COVER_IMAGE_URL,
       coverImageCredit: 'Getty Images',
       videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       sourceUrl: 'https://e2e.test/source',

@@ -21,6 +21,8 @@ const UKRAINIAN = {
   contentUk: '«Арсенал» відіграв гол і переміг «Челсі» 2:1 на «Емірейтс».',
 };
 const COVER_IMAGE_URL = 'https://images.unsplash.com/photo-1?w=1200&h=630&fit=crop&q=80';
+/** Фото з чужого сайту — як у новин, збережених до списку фотобанків (M1.8.3a) */
+const FOREIGN_COVER_IMAGE_URL = 'https://news.example/photos/derby.jpg';
 // `datetime-local` — час у поясі редактора
 const TIME_ZONE = 'Europe/Kyiv';
 const FUTURE_LOCAL_TIME = '2099-01-01T10:00';
@@ -92,6 +94,16 @@ describe('postFormSchema', () => {
         }),
       ),
     ).toEqual([]);
+  });
+
+  it('обкладинка — лише з фотобанку зі списку, і в чернетці; помилка називає фотобанки (M1.8.3a)', () => {
+    const values = formValues({ coverImageUrl: FOREIGN_COVER_IMAGE_URL });
+    expect(invalidFields(values)).toEqual(['coverImageUrl']);
+    expect(fieldError(values, NEW_POST, 'coverImageUrl')).toMatch(/^Use a photo from Unsplash .* or Pexels /);
+    // Не https — та сама помилка, що й раніше: протокол перевіряється першим
+    expect(fieldError(formValues({ coverImageUrl: 'http://images.unsplash.com/photo-1' }), NEW_POST, 'coverImageUrl')).toBe(
+      'Must be an https:// URL',
+    );
   });
 
   it('джерело — адреса http(s); назва без адреси — помилка біля адреси, як SOURCE_URL_REQUIRED (D26)', () => {
@@ -188,6 +200,20 @@ describe('postFormSchema: збережена новина', () => {
     expect(
       invalidFields(formValues({ publication: 'SCHEDULED', scheduledAt: PAST_LOCAL_TIME, slug: '' }), savedScheduled),
     ).toEqual([]);
+  });
+
+  it('збережену обкладинку з чужого сайту форма пропускає, поки адресу не змінили — як API (M1.8.3a)', () => {
+    const savedWithForeignCover: PostFormContext = {
+      timeZone: TIME_ZONE,
+      savedValues: formValues({ coverImageUrl: FOREIGN_COVER_IMAGE_URL }),
+    };
+    expect(
+      invalidFields(formValues({ coverImageUrl: FOREIGN_COVER_IMAGE_URL, titleEn: 'Arsenal edge Chelsea' }), savedWithForeignCover),
+    ).toEqual([]);
+    expect(
+      invalidFields(formValues({ coverImageUrl: 'https://news.example/photos/stadium.jpg' }), savedWithForeignCover),
+    ).toEqual(['coverImageUrl']);
+    expect(invalidFields(formValues({ coverImageUrl: COVER_IMAGE_URL }), savedWithForeignCover)).toEqual([]);
   });
 
   it('збережений розклад без змін не перевіряється: його час міг настати, поки форма відкрита', () => {

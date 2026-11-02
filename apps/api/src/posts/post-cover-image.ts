@@ -1,8 +1,10 @@
+import { isAllowedCoverImageUrl } from '@football-portal/validation';
 import type { PostStatus } from '@prisma/client';
 import { requestedOrCurrent } from './post-field-update';
 import { isPublishingStatus } from './post-publication';
 
 export type PostCoverImageErrorCode =
+  | 'COVER_IMAGE_HOST_NOT_ALLOWED'
   | 'COVER_IMAGE_ALT_REQUIRED'
   | 'COVER_IMAGE_CREDIT_REQUIRED';
 
@@ -51,6 +53,8 @@ export type PostCoverImageResult =
 
 /**
  * Обкладинка після створення / оновлення (D44):
+ * - нове фото — лише з фотобанку зі списку (`isAllowedCoverImageUrl`, M1.8.3a), і в чернетці; збережене з іншого хоста
+ *   лишається, доки фото не змінять, — інакше будь-яка правка тексту старої новини падала б на обкладинці;
  * - опис і підпис — про конкретне фото: нове фото (інша адреса) наявних не успадковує, а без фото
  *   вони не зберігаються — що саме записати, вирішує `coverImageTextToStore`;
  * - опублікована або запланована новина з обкладинкою — опис у кожному перекладі увімкненою мовою
@@ -66,6 +70,13 @@ export function resolvePostCoverImage(
     hasCoverImage: coverImageUrl !== null,
     isSamePhoto: coverImageUrl === currentUrl,
   };
+  if (
+    coverImageUrl !== null &&
+    !photo.isSamePhoto &&
+    !isAllowedCoverImageUrl(coverImageUrl)
+  ) {
+    return invalid('COVER_IMAGE_HOST_NOT_ALLOWED');
+  }
   if (!photo.hasCoverImage || !isPublishingStatus(status)) {
     return { isValid: true, ...photo };
   }
