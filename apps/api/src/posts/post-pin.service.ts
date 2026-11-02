@@ -11,6 +11,7 @@ import type {
   PinnedAdminPostDto,
 } from './dto/admin-post-response.dto';
 import { PinPostDto } from './dto/pin-post.dto';
+import { PostEventPublisher } from './post-event-publisher';
 import { decidePin } from './post-pin';
 import { PostPinRepository } from './post-pin.repository';
 import { toAdminPostView } from './post-response';
@@ -20,13 +21,15 @@ const SINGLE_PINNED_POST_INDEX = 'Post_single_pinned_idx';
 
 /**
  * Закріплення головної новини редактором (D56). Хто й коли закріпив — лише в адмінці; сайт бере головну
- * з `GET /posts/home`. Правило — `decidePin`; сервіс блокує рядки й записує рішення.
+ * з `GET /posts/home`. Правило — `decidePin`; сервіс блокує рядки й записує рішення, а після коміту — `home.updated`
+ * (сайт оновлює кеш головної одразу, а не за TTL, D57).
  */
 @Injectable()
 export class PostPinService {
   constructor(
     private readonly postPinRepository: PostPinRepository,
     private readonly prisma: PrismaService,
+    private readonly postEventPublisher: PostEventPublisher,
   ) {}
 
   async getPinnedPost(): Promise<PinnedAdminPostDto> {
@@ -42,7 +45,7 @@ export class PostPinService {
   ): Promise<AdminPostDto> {
     const now = new Date();
     try {
-      const postRow = await this.prisma.$transaction(async (tx) => {
+      const pinned = await this.prisma.$transaction(async (tx) => {
         const target = await this.postPinRepository.lockPinTarget(tx, postId);
         if (!target) throw new NotFoundException('POST_NOT_FOUND');
         const currentPinnedPostId = target.pinnedAt
@@ -57,7 +60,8 @@ export class PostPinService {
         if (decision.kind === 'rejected') {
           throw new ConflictException(decision.errorCode);
         }
-        if (decision.kind === 'pin') {
+        const isPinChanged = decision.kind === 'pin';
+        if (isPinChanged) {
           if (decision.unpinPostId) {
             await this.postPinRepository.unpinInTransaction(
               tx,
@@ -70,11 +74,14 @@ export class PostPinService {
             pinnedAt: now,
           });
         }
-        return this.requireAdminRow(
+        const postRow = this.requireAdminRow(
           await this.postPinRepository.findAdminRow(tx, postId),
         );
+        return { postRow, isPinChanged };
       });
-      return toAdminPostView(postRow, now);
+      // Уже закріплена — головна та сама, сайту нічого оновлювати
+      if (pinned.isPinChanged) this.postEventPublisher.publishHomeUpdated();
+      return toAdminPostView(pinned.postRow, now);
     } catch (error) {
       // Паралельне закріплення встигло першим: закріплена вже не та, яку підтвердив редактор
       if (isUniqueViolationOfIndex(error, SINGLE_PINNED_POST_INDEX)) {
@@ -84,10 +91,12 @@ export class PostPinService {
     }
   }
 
+  /** Не закріплена — запис без змін, а `home.updated` усе одно йде: зайве оновлення кешу головної дешевше за ще одне читання. */
   async unpinPost(postId: string): Promise<AdminPostDto> {
     const postRow = this.requireAdminRow(
       await this.postPinRepository.unpin(postId),
     );
+    this.postEventPublisher.publishHomeUpdated();
     return toAdminPostView(postRow, new Date());
   }
 

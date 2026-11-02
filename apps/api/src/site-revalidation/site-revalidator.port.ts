@@ -9,4 +9,6 @@ export const SITE_REVALIDATOR = Symbol('SITE_REVALIDATOR');
 export interface SiteRevalidator {
   /** Новина з'явилась, змінилась чи зникла; збій — виняток (той, хто викликав, лише логує). Не налаштовано — нічого. */
   postChanged(event: PostEvent): Promise<void>;
+  /** Змінилась головна новина (D56) — так само: збій — виняток, не налаштовано — нічого. */
+  homeChanged(): Promise<void>;
 }

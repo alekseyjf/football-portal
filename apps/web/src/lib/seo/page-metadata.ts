@@ -58,7 +58,7 @@ export type PageMetadataSource = {
 };
 
 /** Шлях з мовою. Порожній `query` `getPathname` перетворює на `?` у кінці — тож його не передаємо. */
-function localizedPath(href: PageHref, locale: AppLocale): string {
+export function localizedPath(href: PageHref, locale: AppLocale): string {
   const isEmptyQuery =
     typeof href === 'object' && Object.keys(href.query ?? {}).length === 0;
   return getPathname({
@@ -75,8 +75,8 @@ function contentLocaleOf(
   return languages.includes(locale) ? locale : routing.defaultLocale;
 }
 
-/** `hreflang` кожної наявної мови + `x-default` → мова за замовчуванням (D34). */
-function languageAlternates(
+/** `hreflang` кожної наявної мови + `x-default` → мова за замовчуванням (D34); ті самі — у sitemap (`sitemap-entries.ts`). */
+export function languageAlternates(
   href: PageHref,
   languages: readonly AppLocale[],
 ): Record<string, string> {

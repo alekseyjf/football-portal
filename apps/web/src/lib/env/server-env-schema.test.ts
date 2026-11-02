@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseServerEnv, validateServerEnv } from './server-env-schema';
+import {
+  isSiteIndexingEnabled,
+  parseServerEnv,
+  validateServerEnv,
+} from './server-env-schema';
 
 describe('Перевірка при старті сервера (validateServerEnv)', () => {
   it('SITE_URL є — проблем немає', () => {
@@ -75,5 +79,83 @@ describe('Серверні змінні web', () => {
     } catch (error) {
       expect((error as Error).message).not.toContain(SITE_URL);
     }
+  });
+});
+
+describe('Індексація сайту (SITE_INDEXING, M1.8.3)', () => {
+  it('за замовчуванням — закрито: змінної немає чи вона порожня', () => {
+    for (const SITE_INDEXING of [undefined, '', '  ']) {
+      expect(
+        parseServerEnv({ NODE_ENV: 'development', SITE_INDEXING })
+          .SITE_INDEXING,
+      ).toBe(false);
+      expect(isSiteIndexingEnabled({ SITE_INDEXING })).toBe(false);
+    }
+  });
+
+  it('відкриває лише `true`; `false` — закрито', () => {
+    expect(parseServerEnv({ SITE_INDEXING: 'true' }).SITE_INDEXING).toBe(true);
+    expect(parseServerEnv({ SITE_INDEXING: 'false' }).SITE_INDEXING).toBe(
+      false,
+    );
+    expect(isSiteIndexingEnabled({ SITE_INDEXING: 'true' })).toBe(true);
+    expect(isSiteIndexingEnabled({ SITE_INDEXING: 'false' })).toBe(false);
+  });
+
+  it.each(['yes', '1', 'TRUE', 'on'])(
+    'не `true` / `false` (%j) — сервер не стартує, а proxy вважає сайт закритим',
+    (SITE_INDEXING) => {
+      expect(validateServerEnv({ SITE_INDEXING })).toEqual([
+        'SITE_INDEXING: must be true or false (without it the site is not indexed)',
+      ]);
+      expect(isSiteIndexingEnabled({ SITE_INDEXING })).toBe(false);
+    },
+  );
+});
+
+describe('Секрет вебхука API (REVALIDATE_SECRET, D57)', () => {
+  const SECRET = 'revalidate-secret-revalidate-secret';
+  const PREVIOUS = 'previous-secret-previous-secret-previous';
+
+  it('опційний: без нього — без вебхука; з ним — як є, без trim', () => {
+    expect(parseServerEnv({}).REVALIDATE_SECRET).toBeUndefined();
+    expect(parseServerEnv({ REVALIDATE_SECRET: '' }).REVALIDATE_SECRET).toBe(
+      undefined,
+    );
+    const env = parseServerEnv({
+      REVALIDATE_SECRET: SECRET,
+      REVALIDATE_SECRET_PREVIOUS: PREVIOUS,
+    });
+    expect([env.REVALIDATE_SECRET, env.REVALIDATE_SECRET_PREVIOUS]).toEqual([
+      SECRET,
+      PREVIOUS,
+    ]);
+  });
+
+  it('коротший за 32 символи — проблема без значення', () => {
+    const problems = validateServerEnv({ REVALIDATE_SECRET: 'short-secret' });
+    expect(problems).toEqual([
+      'REVALIDATE_SECRET: must be at least 32 characters — the same REVALIDATE_SECRET as in apps/api/.env',
+    ]);
+    expect(problems.join()).not.toContain('short-secret');
+  });
+
+  it('попередній без чинного — проблема: його приймаємо лише під час ротації', () => {
+    expect(validateServerEnv({ REVALIDATE_SECRET_PREVIOUS: PREVIOUS })).toEqual(
+      [
+        'REVALIDATE_SECRET_PREVIOUS: requires REVALIDATE_SECRET: the previous secret is accepted only next to the current one, during rotation',
+      ],
+    );
+  });
+
+  it('кілька невалідних змінних — усі проблеми разом', () => {
+    expect(
+      validateServerEnv({
+        NODE_ENV: 'production',
+        SITE_URL: 'https://portal.test/uk',
+        SITE_INDEXING: 'yes',
+        REVALIDATE_SECRET: 'short',
+      }),
+    ).toHaveLength(3);
   });
 });

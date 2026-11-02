@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
+  HOME_UPDATED_EVENT,
   POST_PUBLISHED_EVENT,
   POST_UNPUBLISHED_EVENT,
   POST_UPDATED_EVENT,
@@ -13,8 +14,8 @@ import {
 } from './site-revalidator.port';
 
 /**
- * Підписник подій новини (D57): сповіщає сайт, щоб кеш сторінок, sitemap і Google News sitemap оновились одразу,
- * а не за TTL. `async: true` — EventEmitter2 кличе підписника в наступному такті, тож ні збереження в адмінці, ні
+ * Підписник подій новини й головної (D57): сповіщає сайт, щоб кеш сторінок, sitemap і Google News sitemap оновились
+ * одразу, а не за TTL. `async: true` — EventEmitter2 кличе підписника в наступному такті, тож ні збереження в адмінці, ні
  * прохід воркера вебхука не чекають; збій — лише в лог: запис уже відбувся, а TTL сайту — страховка. Подія живе
  * в пам'яті процесу — рестарт між записом і вебхуком її губить; повторів немає (outbox і повтори — backlog).
  */
@@ -41,13 +42,29 @@ export class PostSiteRevalidationListener {
     return this.notifySite(POST_UNPUBLISHED_EVENT, post);
   }
 
-  private async notifySite(name: PostEventName, post: PostRef): Promise<void> {
+  @OnEvent(HOME_UPDATED_EVENT, { async: true })
+  onHomeUpdated(): Promise<void> {
+    return this.sendOrLog(HOME_UPDATED_EVENT, () =>
+      this.siteRevalidator.homeChanged(),
+    );
+  }
+
+  private notifySite(name: PostEventName, post: PostRef): Promise<void> {
+    return this.sendOrLog(`${name} новини ${post.number}`, () =>
+      this.siteRevalidator.postChanged({ name, post }),
+    );
+  }
+
+  /** `subject` — подія для лога: без секрету й адреси, лише що й чому не дійшло. */
+  private async sendOrLog(
+    subject: string,
+    send: () => Promise<void>,
+  ): Promise<void> {
     try {
-      await this.siteRevalidator.postChanged({ name, post });
+      await send();
     } catch (error) {
-      // Без секрету й адреси: лише подія, номер і причина
       this.log.warn(
-        `Сайт не отримав ${name} новини ${post.number}: ${describeError(error)} — кеш сайту оновить TTL`,
+        `Сайт не отримав ${subject}: ${describeError(error)} — кеш сайту оновить TTL`,
       );
     }
   }

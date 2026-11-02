@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
+  HOME_UPDATED_EVENT,
   POST_PUBLISHED_EVENT,
   type PostEvent,
   type PostRef,
@@ -21,5 +22,10 @@ export class PostEventPublisher {
   /** Воркер розкладу: кожна новина порції стала PUBLISHED. */
   publishPublished(posts: readonly PostRef[]): void {
     this.publish(posts.map((post) => ({ name: POST_PUBLISHED_EVENT, post })));
+  }
+
+  /** Редактор закріпив головну новину чи зняв закріплення (D56). */
+  publishHomeUpdated(): void {
+    this.eventEmitter.emit(HOME_UPDATED_EVENT);
   }
 }

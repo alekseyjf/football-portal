@@ -1,13 +1,14 @@
+import {
+  type ContentEvent,
+  REVALIDATE_SIGNATURE_HEADER,
+  REVALIDATE_TIMESTAMP_HEADER,
+  signRevalidatePayload,
+} from '@football-portal/validation/webhook';
 import { Inject, Injectable } from '@nestjs/common';
 import { envConfig } from '../../config/env.config';
 import type { AppEnv } from '../../config/env.schema';
-import type { PostEvent } from '../../posts/post-events';
+import { HOME_UPDATED_EVENT, type PostEvent } from '../../posts/post-events';
 import type { SiteRevalidator } from '../site-revalidator.port';
-import {
-  WEBHOOK_SIGNATURE_HEADER,
-  WEBHOOK_TIMESTAMP_HEADER,
-  webhookSignature,
-} from './webhook-signature';
 
 /**
  * Сайт відповідає одразу (`revalidateTag` лише позначає кеш застарілим) — довше чекати немає сенсу. Запис на це не
@@ -21,8 +22,8 @@ interface WebhookTarget {
 }
 
 /**
- * Вебхук web `POST /api/revalidate` (D57): тіло — подія й новина, підпис — HMAC з часом (`webhookSignature`), сам
- * секрет не йде. Без `WEB_REVALIDATE_URL` і `REVALIDATE_SECRET` (схема env задає обидві або жодну) — нічого не шле:
+ * Вебхук web `POST /api/revalidate` (D57): тіло — подія (`ContentEvent`), підпис — HMAC з часом
+ * (`signRevalidatePayload`; формат — спільний з web, `@football-portal/validation/webhook`), сам секрет не йде. Без `WEB_REVALIDATE_URL` і `REVALIDATE_SECRET` (схема env задає обидві або жодну) — нічого не шле:
  * кеш сайту оновить TTL. Редиректів не йдемо — підписаний запит іде лише на адресу з env.
  */
 @Injectable()
@@ -36,16 +37,24 @@ export class WebRevalidateWebhook implements SiteRevalidator {
         : null;
   }
 
-  async postChanged(event: PostEvent): Promise<void> {
+  postChanged(event: PostEvent): Promise<void> {
+    return this.send({ event: event.name, post: event.post });
+  }
+
+  homeChanged(): Promise<void> {
+    return this.send({ event: HOME_UPDATED_EVENT });
+  }
+
+  private async send(payload: ContentEvent): Promise<void> {
     if (!this.target) return;
-    const body = JSON.stringify({ event: event.name, post: event.post });
+    const body = JSON.stringify(payload);
     const timestamp = Math.floor(Date.now() / 1000);
     const response = await fetch(this.target.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        [WEBHOOK_TIMESTAMP_HEADER]: String(timestamp),
-        [WEBHOOK_SIGNATURE_HEADER]: webhookSignature({
+        [REVALIDATE_TIMESTAMP_HEADER]: String(timestamp),
+        [REVALIDATE_SIGNATURE_HEADER]: signRevalidatePayload({
           secret: this.target.secret,
           timestamp,
           body,

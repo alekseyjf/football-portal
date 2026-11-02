@@ -16,6 +16,9 @@ const withNextIntl = createNextIntlPlugin({
 const CONTENT_SECURITY_POLICY = 'frame-src https://www.youtube-nocookie.com';
 
 const nextConfig: NextConfig = {
+  // Окрема тека збірки — лише для стража `scripts/check-runtime-env.mjs`: він збирає з тестовою адресою API й не
+  // затирає `.next` розробника
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // Спільний UI — без збірки: пакет віддає TypeScript-джерела, Next компілює їх сам
   transpilePackages: ['@football-portal/ui'],
   images: {

@@ -10,6 +10,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { QueryProviders } from '@/providers/QueryProvider';
 import { TimeZoneSync } from '@/providers/TimeZoneSync';
 import { isAppLocale, routing } from '@/i18n/routing';
+import { serverEnv } from '@/lib/env/server-env';
 import { siteUrl } from '@/lib/site-url';
 import { geist } from '../fonts';
 import '../globals.css';
@@ -42,6 +43,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       template: `%s | ${t('title')}`,
     },
     description: t('description'),
+    // Відкритий сайт (M1.8.3) — велике прев'ю обкладинки в пошуку й Discover; сторінка з `noindex` замінює `robots`
+    // цілком. Закритий — `X-Robots-Tag` з `proxy.ts`
+    ...(serverEnv().SITE_INDEXING
+      ? { robots: { 'max-image-preview': 'large' } }
+      : {}),
   };
 }
 

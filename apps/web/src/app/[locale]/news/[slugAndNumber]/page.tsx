@@ -8,7 +8,11 @@ import { isApiError } from '@/lib/api/http';
 import type { PostDetail } from '@/lib/api/types';
 import { localeToApiContentLang, localeToBcp47 } from '@/lib/i18n/content-lang';
 import { postMetadata } from '@/lib/news/post-metadata';
-import { parsePostPathSegment, postPathSegment } from '@/lib/news/post-path';
+import {
+  parsePostPathSegment,
+  postHref,
+  postPathSegment,
+} from '@/lib/news/post-path';
 import { makeQueryClient } from '@/lib/query/queryClient';
 import { breadcrumbListJsonLd, newsArticleJsonLd } from '@/lib/seo/json-ld';
 import { absoluteSiteUrl, siteUrl } from '@/lib/site-url';
@@ -64,7 +68,7 @@ async function postJsonLd(locale: AppLocale, post: PostDetail) {
   });
   const tMeta = await getTranslations({ locale, namespace: 'meta' });
   const pageUrl = absoluteSiteUrl(
-    getPathname({ href: `/news/${postPathSegment(post)}`, locale }),
+    getPathname({ href: postHref(post), locale }),
   );
   return [
     newsArticleJsonLd({
@@ -116,7 +120,7 @@ export default async function NewsPostPage({ params }: Props) {
 
   // Старий чи невірний slug → 308 на канонічну адресу (D24). Поза `try`: редирект — теж виняток
   if (post && postPathSegment(post) !== slugAndNumber) {
-    permanentRedirect({ href: `/news/${postPathSegment(post)}`, locale });
+    permanentRedirect({ href: postHref(post), locale });
   }
 
   return (
