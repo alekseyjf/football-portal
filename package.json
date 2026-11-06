@@ -13,6 +13,7 @@
     "build:packages": "pnpm --filter @football-portal/validation build",
     "db:generate": "pnpm --filter @football-portal/api exec prisma generate",
     "db:migrate": "pnpm --filter @football-portal/api exec prisma migrate deploy",
+    "db:migration:new": "pnpm --filter @football-portal/api db:migration:new",
     "db:seed": "pnpm --filter @football-portal/api db:seed",
     "gen:api-types": "pnpm --filter @football-portal/api openapi:generate && pnpm --filter @football-portal/types generate",
     "dev": "turbo dev",

@@ -810,6 +810,9 @@
   - секрети — `sync: false`: значення вводимо в панелі Render, у git їх немає.
   - ⭐ Без `rootDir` — *чому:* файлів поза ним Render не дає ні збірці, ні процесу, а API потрібні `packages/*`.
   - ❓ Команди збірки й запуску — визначити на старті. ⚠️ `NODE_ENV=production` у змінних Render діє й під час збірки, а pnpm з ним не ставить `devDependencies` (Nest CLI, TypeScript) → ⭐ `pnpm install --frozen-lockfile --prod=false`. ⚠️ `prepare` у корені ще й генерує типи для web і admin — API вони не потрібні. pnpm — версії з `packageManager` (10.33.0, через Corepack), а не та, що встановлена на машині Render.
+  - 👤 2026-11-06 Термінала на Render Free немає (Shell — лише на платних). Команда збірки (`pnpm install --frozen-lockfile --prod=false` …) живе в `buildCommand` у `render.yaml`, тобто в git, і виконується на кожен деплой. ⭐ Окремий скрипт `package.json` для неї — лише якщо `render.yaml` посилатиметься на нього: тоді ту саму збірку можна повторити локально.
+  - Render збирає на Linux (x64, glibc), а розробка — на macOS. `node_modules` з Мака не переносимо: залежності ставляться на Linux самі, разом з нативними збірками для нього (`bcrypt` — `prebuilds/linux-x64`, glibc і musl). Різниці платформ ловить CI, бо він теж на Linux: ⚠️ на Linux регістр у шляхах має значення (`import './Foo'` при файлі `foo.ts` на Маку працює, на Linux — ні).
+  - ❓ `.nvmrc` — CRLF (`24.18.0\r\n`): `setup-node` у CI бере `24.18.0` (перевірено його розбором), Render — подивитись у журналі першої збірки.
   - ⚠️ `engines.node` — `>=24.18.0`, без верхньої межі. Render бере `.nvmrc` (вищий пріоритет), а Vercel — `engines`, і з `>=` перейде на нову основну версію Node, щойно вона вийде → ⭐ `^24.18.0`.
 - [ ] 👤 Vercel — два проєкти (`apps/web`, `apps/admin`):
   - регіон функцій — `fra1` (⭐ у `vercel.json` застосунку: конфіг у git, як `render.yaml`);
@@ -855,6 +858,12 @@
   - Застосовуємо з локальної машини (`pnpm db:migrate`, `DIRECT_URL`). Окремого кроку міграцій у релізі тесту немає (pre-deploy команди Render Free однаково не має).
   - ⭐ Порядок: expand — до злиття коду, якому він потрібен; contract — коли на тесті вже працює код, що старого не використовує.
 - [x] ⭐ Нову міграцію генеруємо без БД, як 0006–0012: `prisma migrate diff --from-schema <schema.prisma з master> --to-schema prisma/schema.prisma --script` → `prisma/migrations/<NNNN>_<назва>/migration.sql`. *Чому не `migrate dev --create-only`:* це той самий `migrate dev` — він ходить у спільну БД і на розбіжності пропонує скинути схему.
+  - [x] 👤 2026-11-06 (зроблено в M1.10) Одна команда — `pnpm db:migration:new <назва>` (`apps/api/scripts/new-migration.mjs`):
+    - база — схема, з якої почалась гілка (`git merge-base HEAD origin/master`); інша — `--base <ref>`;
+    - номер — наступний за останньою міграцією; SQL — LF;
+    - відмова, якщо схема не змінилась або в гілці є міграція, якої немає в базі (її SQL повторився б: другу міграцію гілки — після коміту першої, `--base HEAD`);
+    - наприкінці — що перевірити: SQL, `constraints.sql`, expand → contract, e2e, ворота перед `pnpm db:migrate`.
+    - Перевірено: погана назва, схема без змін, тимчасова колонка (`ALTER TABLE "Language" ADD COLUMN …`, без CR), повторний запуск з незакоміченою міграцією; з `DIRECT_URL` / `DATABASE_URL` на закритий порт — працює (до БД не ходить).
 - [x] 👤 Підключення: `DATABASE_URL` — transaction pooler (`:6543`, `pgbouncer=true`); `DIRECT_URL` — session pooler (`:5432`), лише для міграцій з локальної машини; на Render — лише `DATABASE_URL`.
   - Перевірено 2026-11-06: поля `directUrl` у Prisma 7 немає (`datasource` конфігу має лише `url` і `shadowDatabaseUrl`). Те саме вже зроблено інакше: CLI бере `DIRECT_URL || DATABASE_URL` (`prisma.config.ts`), застосунок — `PrismaPg(DATABASE_URL)`.
   - `pgbouncer=true` адаптеру не потрібен (prepared statements без імені), але й не шкодить.
