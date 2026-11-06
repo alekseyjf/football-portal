@@ -1,5 +1,6 @@
 import type { FieldErrors } from 'react-hook-form';
 import { describe, expect, it } from 'vitest';
+import { formIssueMessage } from '@/lib/formErrorMessages';
 import {
   EMPTY_POST_FORM_VALUES,
   firstLanguageWithErrors,
@@ -40,10 +41,11 @@ function invalidFields(values: PostFormValues, context: PostFormContext = NEW_PO
   return [...new Set(result.error.issues.map((issue) => issue.path.join('.')))].sort();
 }
 
-/** Текст помилки поля. */
+/** Текст помилки поля — як його покаже форма (ключ спільної схеми — через мапу адмінки, M1.9). */
 function fieldError(values: PostFormValues, context: PostFormContext, fieldName: keyof PostFormValues) {
   const result = postFormSchemaFor(context).safeParse(values);
-  return result.error?.issues.find((issue) => issue.path[0] === fieldName)?.message;
+  const issue = result.error?.issues.find((fieldIssue) => fieldIssue.path[0] === fieldName);
+  return issue && formIssueMessage(issue);
 }
 
 /** Як у формі: тіло запиту будується з уже перевірених (і обрізаних схемою) значень. */
@@ -63,6 +65,11 @@ describe('postFormSchema', () => {
       'excerptUk',
     ]);
     expect(invalidFields(formValues(UKRAINIAN))).toEqual([]);
+  });
+
+  it('межа спільної схеми в українському полі — з числом у тексті: правило форми переносить issue цілим (M1.9)', () => {
+    const shortUkTitle = formValues({ ...UKRAINIAN, titleUk: 'Гол' });
+    expect(fieldError(shortUkTitle, NEW_POST, 'titleUk')).toBe('Title must be at least 5 characters');
   });
 
   it('Schedule — лише з датою в майбутньому; чернетці дата не потрібна', () => {

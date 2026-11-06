@@ -90,7 +90,7 @@ describe('Сесія: GET /auth/me без зайвих запитів гостя
     expect(response.body).toEqual({ user: null });
   });
 
-  it('реєстрація, помилки й logout — за контрактом', async () => {
+  it('реєстрація, помилки з кодами й logout — за контрактом', async () => {
     const registered = await server()
       .post(apiPath('/auth/register'))
       .send({
@@ -106,12 +106,30 @@ describe('Сесія: GET /auth/me без зайвих запитів гостя
       .send({ email: user.email, password: 'wrong-password' })
       .expect(401);
     expectMatchesContract(wrongPassword, 'post', '/auth/login');
+    expect(wrongPassword.body).toMatchObject({
+      message: 'INVALID_CREDENTIALS',
+    });
 
     const duplicateEmail = await server()
       .post(apiPath('/auth/register'))
       .send({ email: user.email, name: 'Duplicate', password: user.password })
       .expect(409);
     expectMatchesContract(duplicateEmail, 'post', '/auth/register');
+    expect(duplicateEmail.body).toMatchObject({ message: 'EMAIL_TAKEN' });
+
+    // Простір адрес анонімізованих акаунтів (`deleted-<id>@removed.invalid`) — не для реєстрації
+    const reservedDomain = await server()
+      .post(apiPath('/auth/register'))
+      .send({
+        email: 'deleted-1@removed.invalid',
+        name: 'Squatter',
+        password: user.password,
+      })
+      .expect(400);
+    expectMatchesContract(reservedDomain, 'post', '/auth/register');
+    expect(reservedDomain.body).toMatchObject({
+      message: 'EMAIL_DOMAIN_NOT_ALLOWED',
+    });
 
     const logoutResponse = await server()
       .post(apiPath('/auth/logout'))

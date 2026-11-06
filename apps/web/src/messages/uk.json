@@ -208,15 +208,18 @@
     "editError": "Не вдалося зберегти зміни. Спробуйте ще раз."
   },
   "auth": {
-    "email": "Email",
+    "email": "Електронна пошта",
     "password": "Пароль",
     "name": "Ім'я",
+    "namePlaceholder": "Ваше ім'я",
     "confirmPassword": "Підтвердіть пароль",
+    "signInSubtitle": "Увійдіть у свій акаунт",
     "signingIn": "Вхід…",
     "signIn": "Увійти",
     "noAccount": "Немає акаунта?",
     "registerLink": "Реєстрація",
     "creating": "Створення акаунта…",
+    "registerSubtitle": "Створіть акаунт",
     "createAccount": "Створити акаунт",
     "hasAccount": "Вже є акаунт?",
     "signInLink": "Увійти",
@@ -226,7 +229,32 @@
     "invalidCredentials": "Неправильний email або пароль.",
     "tooManyAttempts": "Забагато спроб. Спробуйте пізніше.",
     "emailInUse": "Цей email уже зареєстровано.",
-    "emailBlocked": "Цей email не можна використати для реєстрації."
+    "emailBlocked": "Цей email не можна використати для реєстрації.",
+    "emailDomainNotAllowed": "Адреси на цьому домені не можна використати для реєстрації."
+  },
+  "validation": {
+    "invalid": "Перевірте це поле",
+    "email": {
+      "tooLong": "Адреса пошти задовга: щонайбільше {maximum, plural, one {# символ} few {# символи} many {# символів} other {# символу}}",
+      "invalid": "Неправильна адреса електронної пошти"
+    },
+    "password": {
+      "required": "Введіть пароль",
+      "tooLong": "Пароль задовгий",
+      "tooShort": "Пароль має містити щонайменше {minimum, plural, one {# символ} few {# символи} many {# символів} other {# символу}}",
+      "tooManyBytes": "Пароль задовгий: щонайбільше {maxBytes, plural, one {# байт} few {# байти} many {# байтів} other {# байта}} (літера не з латиниці займає 2)"
+    },
+    "name": {
+      "tooShort": "Ім'я має містити щонайменше {minimum, plural, one {# символ} few {# символи} many {# символів} other {# символу}}",
+      "tooLong": "Ім'я задовге: щонайбільше {maximum, plural, one {# символ} few {# символи} many {# символів} other {# символу}}"
+    },
+    "confirmPassword": {
+      "mismatch": "Паролі не збігаються"
+    },
+    "comment": {
+      "tooShort": "Коментар має містити щонайменше {minimum, plural, one {# символ} few {# символи} many {# символів} other {# символу}}",
+      "tooLong": "Коментар задовгий: щонайбільше {maximum, plural, one {# символ} few {# символи} many {# символів} other {# символу}}"
+    }
   },
   "users": {
     "deletedUser": "Видалений користувач"

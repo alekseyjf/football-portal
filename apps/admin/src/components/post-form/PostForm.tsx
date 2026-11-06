@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { AdminLink } from '@/components/AdminLink';
@@ -9,6 +8,7 @@ import { useLastPostListHref } from '@/hooks/useLastPostListHref';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import type { AdminPostDetail } from '@/lib/api/types';
 import { editorTimeZone } from '@/lib/editorDateTime';
+import { formResolver } from '@/lib/formResolver';
 import { CoverImageFields } from './CoverImageFields';
 import { PostRelationsFields } from './PostRelationsFields';
 import { PostSlugField } from './PostSlugField';
@@ -61,7 +61,7 @@ export function PostForm({ post, defaultValues, submitLabel, pendingLabel, onSub
   );
   const [hasSaved, setHasSaved] = useState(false);
   // `values`, а не `defaultValues`: після збереження редагування форма скидається до збереженого
-  const form = useForm<PostFormValues>({ resolver: zodResolver(schema), values: defaultValues });
+  const form = useForm<PostFormValues>({ resolver: formResolver(schema), values: defaultValues });
   const {
     register,
     handleSubmit,

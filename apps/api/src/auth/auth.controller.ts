@@ -48,9 +48,9 @@ export class AuthController {
 
   /**
    * Реєстрація (без входу: сесію створює `login`).
-   * @throws {400} Невалідні поля; `Email domain is not allowed` — зарезервований домен
+   * @throws {400} Невалідні поля; EMAIL_DOMAIN_NOT_ALLOWED — зарезервований домен (`.invalid`)
    * @throws {403} EMAIL_BLOCKED — пошта нещодавно видаленого або забаненого акаунта
-   * @throws {409} Email already in use
+   * @throws {409} EMAIL_TAKEN — пошту вже зареєстровано
    * @throws {429} TOO_MANY_REQUESTS — понад 5 реєстрацій за 10 хв з IP
    */
   @Post('register')
@@ -65,7 +65,7 @@ export class AuthController {
 
   /**
    * Вхід: ставить httpOnly cookies сесії (`access_token` — 15 хв, `refresh_token`).
-   * @throws {401} Invalid credentials
+   * @throws {401} INVALID_CREDENTIALS — невідомий email або хибний пароль
    * @throws {403} ACCOUNT_LOCKED
    * @throws {429} TOO_MANY_REQUESTS — понад 10 спроб за хвилину з IP або 10 за 15 хв на акаунт
    */
@@ -93,7 +93,7 @@ export class AuthController {
    * Вхід в адмінку — лише ADMIN.
    * @remarks Не-ADMIN отримує 403 `ADMIN_ONLY` після перевірки пароля — без токенів і cookies
    * (сесія, з якою користувач уже зайшов на сайт, теж лишається). Ліміт спроб — спільний з `login`.
-   * @throws {401} Invalid credentials
+   * @throws {401} INVALID_CREDENTIALS — невідомий email або хибний пароль
    * @throws {403} ADMIN_ONLY, ACCOUNT_LOCKED
    * @throws {429} TOO_MANY_REQUESTS — спільний ліміт з `login`
    */

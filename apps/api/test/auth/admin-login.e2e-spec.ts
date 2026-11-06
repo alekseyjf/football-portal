@@ -62,7 +62,7 @@ describe('POST /auth/login/admin: вхід в адмінку лише для ADM
     for (const credentials of attempts) {
       const response = await adminLogin(credentials).expect(401);
       expectMatchesContract(response, 'post', '/auth/login/admin');
-      expect(response.body).toMatchObject({ message: 'Invalid credentials' });
+      expect(response.body).toMatchObject({ message: 'INVALID_CREDENTIALS' });
     }
   });
 

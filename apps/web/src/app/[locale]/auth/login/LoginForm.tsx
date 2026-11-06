@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useLoginMutation } from '@/hooks/useAuth';
+import { useFormResolver } from '@/hooks/useFormResolver';
 import {
   loginFormSchema,
   type LoginFormValues,
@@ -19,12 +19,14 @@ export function LoginForm() {
 
   const { mutateAsync: login, isPending } = useLoginMutation();
 
+  const resolver = useFormResolver(loginFormSchema);
+
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginFormSchema),
+    resolver,
   });
 
   const onSubmit = async (data: LoginFormValues) => {
@@ -41,15 +43,17 @@ export function LoginForm() {
 
   const loginErrorMessage = (error: unknown): string => {
     if (!isApiError(error)) return t('genericError');
+    if (error.code === 'INVALID_CREDENTIALS') return t('invalidCredentials');
     if (error.code === 'ACCOUNT_LOCKED') return t('accountLocked');
     if (error.code === 'TOO_MANY_REQUESTS') return t('tooManyAttempts');
-    if (error.status === 401) return t('invalidCredentials');
-    return error.message;
+    return t('genericError');
   };
 
   return (
+    // `noValidate`: помилки полів — наші, мовою сторінки; підказку браузера до `type="email"` він пише мовою браузера (M1.9)
     <form
       onSubmit={handleSubmit(onSubmit)}
+      noValidate
       className="bg-gray-900 rounded-2xl p-8 space-y-5"
     >
       {/* Server Error — показуємо помилку від API */}

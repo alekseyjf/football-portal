@@ -11,6 +11,7 @@ import {
   postTitleSchema,
   sourceUrlSchema,
   youtubeVideoUrlSchema,
+  type FormIssue,
 } from '@football-portal/validation/forms';
 import type { CreatePostRequest, PostTranslationRequest } from '@/lib/api/types';
 import { fromDateTimeLocalValue } from '@/lib/editorDateTime';
@@ -161,6 +162,14 @@ export function hasCoverImage(coverImageUrl: string): boolean {
 }
 
 /**
+ * Помилка спільної схеми поля — у поле форми цілою (M1.9): у ній ключ і межа (`minimum` / `maximum`), з яких мапа
+ * адмінки будує текст; лише `message` — це ключ без чисел.
+ */
+function addFieldSchemaIssue(ctx: FormRefinementCtx, fieldName: keyof PostFormValues, issue: FormIssue) {
+  ctx.addIssue({ ...issue, path: [fieldName] });
+}
+
+/**
  * Українська — повністю або ніяк; збережену прибрати не можна (P3-5: `PUT` переклад не видаляє), тож її поля
  * обов'язкові, як англійські. Інакше очищені поля мовчки лишили б на сайті стару версію.
  */
@@ -169,14 +178,14 @@ function addUkTranslationIssues(values: PostFormValues, ctx: FormRefinementCtx, 
   for (const fieldName of UK_FIELD_NAMES) {
     const fieldResult = UK_FIELD_SCHEMAS[fieldName].safeParse(values[fieldName]);
     if (fieldResult.success) continue;
+    if (values[fieldName].trim()) {
+      addFieldSchemaIssue(ctx, fieldName, fieldResult.error.issues[0]);
+      continue;
+    }
     const emptyFieldMessage = isUkSaved
       ? 'The Ukrainian version is already saved and can’t be removed — fix the text instead'
       : 'Fill all Ukrainian fields or leave all empty';
-    ctx.addIssue({
-      code: 'custom',
-      path: [fieldName],
-      message: values[fieldName].trim() ? fieldResult.error.issues[0].message : emptyFieldMessage,
-    });
+    ctx.addIssue({ code: 'custom', path: [fieldName], message: emptyFieldMessage });
   }
 }
 
@@ -205,7 +214,7 @@ function addCoverImageUrlIssues(values: PostFormValues, ctx: FormRefinementCtx, 
   if (!hasCoverImage(values.coverImageUrl) || values.coverImageUrl === savedValues?.coverImageUrl) return;
   const urlResult = coverImageUrlSchema.safeParse(values.coverImageUrl);
   if (urlResult.success) return;
-  ctx.addIssue({ code: 'custom', path: ['coverImageUrl'], message: urlResult.error.issues[0].message });
+  addFieldSchemaIssue(ctx, 'coverImageUrl', urlResult.error.issues[0]);
 }
 
 /**
@@ -219,7 +228,7 @@ function addCoverImageIssues(values: PostFormValues, ctx: FormRefinementCtx) {
     ctx.addIssue({ code: 'custom', path: [fieldName], message });
   for (const fieldName of COVER_IMAGE_TEXT_FIELD_NAMES) {
     const fieldResult = COVER_IMAGE_TEXT_SCHEMAS[fieldName].safeParse(values[fieldName]);
-    if (!fieldResult.success) addFieldIssue(fieldName, fieldResult.error.issues[0].message);
+    if (!fieldResult.success) addFieldSchemaIssue(ctx, fieldName, fieldResult.error.issues[0]);
   }
 
   const isUkTranslated = hasUkTranslation(values);

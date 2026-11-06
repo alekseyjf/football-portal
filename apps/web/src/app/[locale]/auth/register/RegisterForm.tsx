@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useRegisterMutation } from '@/hooks/useAuth';
+import { useFormResolver } from '@/hooks/useFormResolver';
 import {
   registerFormSchema,
   type RegisterFormValues,
@@ -27,12 +27,14 @@ export function RegisterForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const { mutateAsync: registerUser, isPending } = useRegisterMutation();
 
+  const resolver = useFormResolver(registerFormSchema);
+
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerFormSchema),
+    resolver,
   });
 
   const onSubmit = async (data: RegisterFormValues) => {
@@ -51,15 +53,20 @@ export function RegisterForm() {
 
   const registerErrorMessage = (error: unknown): string => {
     if (!isApiError(error)) return t('genericError');
+    if (error.code === 'EMAIL_TAKEN') return t('emailInUse');
     if (error.code === 'EMAIL_BLOCKED') return t('emailBlocked');
+    if (error.code === 'EMAIL_DOMAIN_NOT_ALLOWED') {
+      return t('emailDomainNotAllowed');
+    }
     if (error.code === 'TOO_MANY_REQUESTS') return t('tooManyAttempts');
-    if (error.status === 409) return t('emailInUse');
-    return error.message;
+    return t('genericError');
   };
 
   return (
+    // `noValidate`: помилки полів — наші, мовою сторінки; підказку браузера до `type="email"` він пише мовою браузера (M1.9)
     <form
       onSubmit={handleSubmit(onSubmit)}
+      noValidate
       className="bg-gray-900 rounded-2xl p-8 space-y-5"
     >
       {serverError && (
@@ -72,7 +79,7 @@ export function RegisterForm() {
         <label className="text-sm font-medium text-gray-300">{t('name')}</label>
         <input
           {...register('name')}
-          placeholder="Your name"
+          placeholder={t('namePlaceholder')}
           className={inputClass(!!errors.name)}
         />
         {errors.name && (

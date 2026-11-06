@@ -70,16 +70,13 @@ describe('Обкладинка — лише з фотобанку зі спис�
     }
   });
 
-  it('схема форми: та сама перевірка й перелік фотобанків у повідомленні', () => {
+  it('схема форми: та сама перевірка (текст з переліком фотобанків — у мапі адмінки)', () => {
     expect(coverImageUrlSchema.safeParse(` ${UNSPLASH_PHOTO} `)).toEqual({ success: true, data: UNSPLASH_PHOTO });
     const foreign = coverImageUrlSchema.safeParse('https://e2e.test/cover.jpg');
     expect(foreign.success).toBe(false);
-    expect(foreign.error?.issues[0].message).toBe(
-      'Use a photo from Unsplash (https://images.unsplash.com/photo-…) or Pexels (https://images.pexels.com/photos/…/…)' +
-        ' — right-click the photo → Copy image address',
-    );
+    expect(foreign.error?.issues[0].message).toBe('validation.coverImageUrl.notPhotoBank');
     expect(coverImageUrlSchema.safeParse('http://images.unsplash.com/photo-1').error?.issues[0].message).toBe(
-      'Must be an https:// URL',
+      'validation.mediaUrl.notHttps',
     );
   });
 });

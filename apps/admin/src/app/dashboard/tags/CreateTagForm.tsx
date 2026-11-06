@@ -2,7 +2,6 @@
 
 import { publicTagPath, slugifyTagName } from '@football-portal/validation';
 import { tagFormSchema, type TagFormValues } from '@football-portal/validation/forms';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { FootballNameWarning } from '@/components/tags/FootballNameWarning';
@@ -18,6 +17,7 @@ import {
 import { useCreateTag } from '@/hooks/useCreateTag';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import type { AdminTag } from '@/lib/api/types';
+import { formResolver } from '@/lib/formResolver';
 import { tagTitle } from '@/lib/tagNames';
 
 const FORM_ID = 'new-tag';
@@ -39,7 +39,7 @@ export function CreateTagForm({ tags }: { tags: readonly AdminTag[] }) {
     setError,
     setFocus,
     formState: { errors, isSubmitting, isDirty },
-  } = useForm<TagFormValues>({ resolver: zodResolver(tagFormSchema), defaultValues: EMPTY_TAG_FORM_VALUES });
+  } = useForm<TagFormValues>({ resolver: formResolver(tagFormSchema), defaultValues: EMPTY_TAG_FORM_VALUES });
   useUnsavedChangesGuard(isDirty);
 
   const [nameEn, nameUk, slug] = useWatch({ control, name: ['nameEn', 'nameUk', 'slug'] });

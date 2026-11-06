@@ -2,7 +2,6 @@
 
 import { slugifyTagName } from '@football-portal/validation';
 import { tagFormSchema, type TagFormValues } from '@football-portal/validation/forms';
-import { zodResolver } from '@hookform/resolvers/zod';
 import type { FormEvent, RefObject } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { DIALOG_BUTTON_CLASS, DIALOG_CLASS } from '@/components/dialogStyles';
@@ -17,6 +16,7 @@ import { useCreateTag } from '@/hooks/useCreateTag';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { isApiError } from '@/lib/api/http';
 import type { AdminTag } from '@/lib/api/types';
+import { formResolver } from '@/lib/formResolver';
 import { tagTitle } from '@/lib/tagNames';
 
 const FORM_ID = 'post-new-tag';
@@ -63,7 +63,7 @@ function NewTagForm({ initialValues, tags, onCancel, onCreated, onUseTag }: NewT
     control,
     setError,
     formState: { errors, isSubmitting, isDirty },
-  } = useForm<TagFormValues>({ resolver: zodResolver(tagFormSchema), defaultValues: initialValues });
+  } = useForm<TagFormValues>({ resolver: formResolver(tagFormSchema), defaultValues: initialValues });
   useUnsavedChangesGuard(isDirty);
 
   const [nameEn, nameUk, slug] = useWatch({ control, name: ['nameEn', 'nameUk', 'slug'] });

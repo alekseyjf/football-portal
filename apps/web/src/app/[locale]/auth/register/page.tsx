@@ -24,13 +24,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const tNav = await getTranslations('nav');
+  const tAuth = await getTranslations('auth');
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold">⚽ Football Portal</h1>
-          <p className="text-gray-400 mt-2">Create your account</p>
+          <h1 className="text-3xl font-bold">
+            <span aria-hidden>⚽</span> {tNav('brand')}
+          </h1>
+          <p className="text-gray-400 mt-2">{tAuth('registerSubtitle')}</p>
         </div>
         <RegisterForm />
       </div>
