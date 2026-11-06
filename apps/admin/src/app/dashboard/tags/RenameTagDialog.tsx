@@ -2,7 +2,6 @@
 
 import { publicTagPath } from '@football-portal/validation';
 import { tagNamesFormSchema, type TagNamesFormValues } from '@football-portal/validation/forms';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, type RefObject } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { DIALOG_BUTTON_CLASS, DIALOG_CLASS } from '@/components/dialogStyles';
@@ -12,6 +11,7 @@ import { tagFormServerErrorMessage, toTagNamesFormValues, toUpdateTagRequest } f
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { useUpdateTag } from '@/hooks/useUpdateTag';
 import type { AdminTag } from '@/lib/api/types';
+import { formResolver } from '@/lib/formResolver';
 
 const DIALOG_TITLE_ID = 'rename-tag-dialog-title';
 const SUBMIT_LABEL = 'Save names';
@@ -53,7 +53,7 @@ function RenameTagForm({ tag, onCancel, onRenamed }: RenameTagFormProps) {
     control,
     setError,
     formState: { errors, isSubmitting, isDirty },
-  } = useForm<TagNamesFormValues>({ resolver: zodResolver(tagNamesFormSchema), defaultValues: savedNames });
+  } = useForm<TagNamesFormValues>({ resolver: formResolver(tagNamesFormSchema), defaultValues: savedNames });
   useUnsavedChangesGuard(isDirty);
   const nameEn = useWatch({ control, name: 'nameEn' });
 

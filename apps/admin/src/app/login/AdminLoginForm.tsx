@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useAdminLogin } from '@/hooks/useAdminLogin';
 import { useAuthStore } from '@/store/auth.store';
@@ -11,6 +10,7 @@ import {
   type LoginFormValues,
 } from '@football-portal/validation/forms';
 import { isApiError } from '@/lib/api/http';
+import { formResolver } from '@/lib/formResolver';
 
 function loginErrorMessage(error: unknown): string {
   if (!isApiError(error)) return 'Something went wrong';
@@ -20,7 +20,7 @@ function loginErrorMessage(error: unknown): string {
   if (error.code === 'TOO_MANY_REQUESTS') {
     return 'Too many attempts. Please try again later.';
   }
-  if (error.status === 401) return 'Invalid email or password.';
+  if (error.code === 'INVALID_CREDENTIALS') return 'Invalid email or password.';
   return error.message;
 }
 
@@ -35,7 +35,7 @@ export function AdminLoginForm() {
     handleSubmit,
     formState: { errors },
   } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginFormSchema),
+    resolver: formResolver(loginFormSchema),
   });
 
   const onSubmit = async (data: LoginFormValues) => {

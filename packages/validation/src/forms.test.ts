@@ -4,7 +4,7 @@ import { TAG_NAME_MAX_LENGTH, TAG_SLUG_MAX_LENGTH } from './index';
 
 const VALID_TAG = { nameEn: 'Transfers', nameUk: 'Трансфери', slug: '' };
 
-/** Поля з помилками й перше повідомлення кожного — як їх покаже форма. */
+/** Поля з помилками й перший ключ помилки кожного — як їх покаже форма (текст — у застосунку). */
 function fieldErrors(values: unknown): Record<string, string> {
   const result = tagFormSchema.safeParse(values);
   if (result.success) return {};
@@ -23,12 +23,12 @@ describe('форма тегу (D45, D51)', () => {
 
   it('назва кожною мовою — 2–50 символів після trim, як в API', () => {
     expect(fieldErrors({ ...VALID_TAG, nameEn: ' a ' })).toEqual({
-      nameEn: 'Name must be at least 2 characters',
+      nameEn: 'validation.tagName.tooShort',
     });
-    expect(fieldErrors({ ...VALID_TAG, nameUk: 'Т' })).toEqual({ nameUk: 'Name must be at least 2 characters' });
+    expect(fieldErrors({ ...VALID_TAG, nameUk: 'Т' })).toEqual({ nameUk: 'validation.tagName.tooShort' });
     expect(fieldErrors({ ...VALID_TAG, nameEn: 'x'.repeat(TAG_NAME_MAX_LENGTH) })).toEqual({});
     expect(fieldErrors({ ...VALID_TAG, nameUk: 'ж'.repeat(TAG_NAME_MAX_LENGTH + 1) })).toEqual({
-      nameUk: 'Name must be at most 50 characters',
+      nameUk: 'validation.tagName.tooLong',
     });
   });
 
@@ -46,13 +46,13 @@ describe('форма тегу (D45, D51)', () => {
       expect(fieldErrors({ ...VALID_TAG, slug })).toHaveProperty('slug');
     }
     expect(fieldErrors({ ...VALID_TAG, slug: 'x'.repeat(TAG_SLUG_MAX_LENGTH + 1) })).toEqual({
-      slug: 'Slug must be at most 50 characters',
+      slug: 'validation.slug.tooLong',
     });
   });
 
   it('англійська назва без латиниці й цифр — адресу треба вписати (інакше API — TAG_SLUG_REQUIRED)', () => {
     expect(fieldErrors({ nameEn: 'Трансфери', nameUk: 'Трансфери', slug: '' })).toEqual({
-      slug: 'The English name has no latin letters or digits — type the address',
+      slug: 'validation.tagSlug.required',
     });
     expect(fieldErrors({ nameEn: 'Трансфери', nameUk: 'Трансфери', slug: 'transfers' })).toEqual({});
     // Цифра — уже адреса: API візьме її з назви
@@ -61,9 +61,9 @@ describe('форма тегу (D45, D51)', () => {
 
   it('помилка адреси — разом з помилками назв, а не після їх виправлення', () => {
     expect(fieldErrors({ nameEn: 'Т', nameUk: 'Т', slug: '' })).toEqual({
-      nameEn: 'Name must be at least 2 characters',
-      nameUk: 'Name must be at least 2 characters',
-      slug: 'The English name has no latin letters or digits — type the address',
+      nameEn: 'validation.tagName.tooShort',
+      nameUk: 'validation.tagName.tooShort',
+      slug: 'validation.tagSlug.required',
     });
   });
 

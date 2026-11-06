@@ -43,6 +43,14 @@ export interface LoginRequirements {
 /** Логін в адмінку не-адміном: сесія не створюється (2f). */
 const ADMIN_ONLY = 'ADMIN_ONLY';
 
+/**
+ * Коди помилок входу й реєстрації (M1.9): сайт показує текст мовою сторінки за кодом. Невідомий email, хибний пароль
+ * і видалений акаунт — один код, щоб відповідь не видавала, чи існує акаунт.
+ */
+const INVALID_CREDENTIALS = 'INVALID_CREDENTIALS';
+const EMAIL_TAKEN = 'EMAIL_TAKEN';
+const EMAIL_DOMAIN_NOT_ALLOWED = 'EMAIL_DOMAIN_NOT_ALLOWED';
+
 @Injectable()
 export class AuthService {
   /** Хеш для порівняння, коли email не знайдено — вирівнює час відповіді (P2-2). */
@@ -58,7 +66,7 @@ export class AuthService {
     const email = normalizeEmail(dto.email);
     // Простір адрес анонімізованих акаунтів (див. deleted-account.ts)
     if (isReservedEmail(email)) {
-      throw new BadRequestException('Email domain is not allowed');
+      throw new BadRequestException(EMAIL_DOMAIN_NOT_ALLOWED);
     }
     // Пошта видаленого акаунта (admin — назавжди, self — 30 днів). Окремий код, а не 409 — рішення 2d
     if (await this.emailBlocklist.isBlocked(email, new Date())) {
@@ -78,7 +86,7 @@ export class AuthService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Email already in use');
+        throw new ConflictException(EMAIL_TAKEN);
       }
       throw error;
     }
@@ -108,7 +116,7 @@ export class AuthService {
       !passwordMatches ||
       credentials.status === UserStatus.DELETED
     ) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
     // Статус блокування розкриваємо лише тому, хто знає пароль.
@@ -126,7 +134,7 @@ export class AuthService {
     }
 
     const account = await this.userRepository.findAccountById(credentials.id);
-    if (!account) throw new UnauthorizedException('Invalid credentials');
+    if (!account) throw new UnauthorizedException(INVALID_CREDENTIALS);
 
     await this.sessionService.endSession(previousRefreshToken);
     const tokens = await this.sessionService.startSession(account, client);

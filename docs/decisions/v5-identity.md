@@ -98,7 +98,7 @@
   - `cookies.txt` — у публічній історії git (прибрано з індексу, `.gitignore`). Рішення: не чистимо (тестовий адмін). На прод — **новий випадковий `JWT_SECRET`** (`openssl rand -base64 48`), не dev-фраза
   - `JWT_REFRESH_SECRET` не використовується з 2b — прибрати з `.env` і `CLAUDE.md` (Фаза 6)
   - Ліміти в пам'яті процесу: на проді з кількома інстансами — Redis-сховище для throttler; за reverse proxy — задати `TRUST_PROXY`
-  - `register` → `409 Email already in use` (і `403 EMAIL_BLOCKED`) розкривають, чи відома адреса (enumeration). Повністю закривається лише підтвердженням email (відповідь «перевірте пошту» в усіх випадках) — перед продом
+  - `register` → `409 EMAIL_TAKEN` (і `403 EMAIL_BLOCKED`) розкривають, чи відома адреса (enumeration). Повністю закривається лише підтвердженням email (відповідь «перевірте пошту» в усіх випадках) — перед продом
   - Admin-розблокування пошти (ввести адресу → видалити її `BlockedEmail`) — коли з'явиться адмінка користувачів
   - Для 2e: 429 (`TOO_MANY_REQUESTS`) від `/auth/refresh` — **не** розлогінювати (повторити пізніше за `Retry-After-ip`); 403 `EMAIL_BLOCKED` / `INVALID_PASSWORD` — помилки форми
   - Перевірено й **без проблем**: `email` / `passwordHash` не потрапляють у жодну публічну відповідь (v4-селекти авторів — лише `id, name, avatar`; `PUBLIC_AUTHOR_SELECT` — без email; лайки віддають лише лічильники й власну реакцію); логи 2d — лише id; помилки Prisma → 500 без деталей; `DELETE` з JSON — preflight, CORS пускає лише localhost:3000/3001, cookies `sameSite=lax` (CSRF закритий)

@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   commentFormSchema,
   type CommentFormValues,
 } from '@football-portal/validation/forms';
 import { useTranslations } from 'next-intl';
 import { useCommentErrorMessage } from '@/hooks/useCommentErrorMessage';
+import { useFormResolver } from '@/hooks/useFormResolver';
 
 /** Кому відповідаємо (чип над полем); без `onRemove` прибрати не можна — відповісти в саму гілку нікуди (заглушка). */
 export type ComposerAddressee = { name: string; onRemove?: () => void };
@@ -43,13 +43,14 @@ export function CommentComposer({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isEditing = initialContent !== undefined;
+  const resolver = useFormResolver(commentFormSchema);
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CommentFormValues>({
-    resolver: zodResolver(commentFormSchema),
+    resolver,
     defaultValues: { content: initialContent ?? '' },
   });
   const { ref: registerContentRef, ...contentField } = register('content');

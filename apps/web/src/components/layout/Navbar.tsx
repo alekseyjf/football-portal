@@ -9,7 +9,7 @@ export async function Navbar() {
   return (
     <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-2 sm:gap-4">
-        {/* Вузький екран (< 640 px) — лише ⚽: з назвою правий блок виходив за екран (бургер — M1.9 плану) */}
+        {/* Вузький екран (< 640 px) — лише ⚽: з назвою правий блок виходив за екран (бургер — M1.13 плану) */}
         <Link
           href="/"
           aria-label={t('brand')}
@@ -19,14 +19,15 @@ export async function Navbar() {
           <span className="hidden sm:inline">{t('brand')}</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6 text-sm text-gray-400">
+        {/* Проміжок 24 px — від 1280 px: з Geist рядок не влазив на 768 px (/uk, гість) і 1024 px (адмін з іменем) */}
+        <nav className="hidden md:flex items-center gap-4 xl:gap-6 text-sm text-gray-400">
           <Link href="/news" className="hover:text-white transition-colors">
             {t('news')}
           </Link>
           <Link href="/matches" className="hover:text-white transition-colors">
             {t('matches')}
           </Link>
-          {/* Сторінок ліг / клубів ще немає (M2.2 / M2.4 плану; до того посилання ховаємо — M1.9) → 404. Prefetch 404-маршруту в Chrome
+          {/* Сторінок ліг / клубів ще немає (M2.2 / M2.4 плану) → 404; посилання лишаються до них — видно, що сторінки будуть. Prefetch 404-маршруту в Chrome
               лишається «незавершеним» (клієнт Next не дочитує тіло) на кожній сторінці —
               `prefetch={false}` прибрати разом із появою сторінок */}
           <Link

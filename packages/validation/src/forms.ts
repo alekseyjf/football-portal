@@ -1,13 +1,12 @@
 /**
  * Zod-схеми форм web / admin. Числа — з `./index` (ті самі, що в DTO API),
- * тож клієнтська і серверна валідація не розходяться.
+ * тож клієнтська і серверна валідація не розходяться. Помилка — ключ, а не текст (`./form-errors`, M1.9).
  */
 import { z } from 'zod';
+import type { FormErrorKey } from './form-errors';
 import {
   COMMENT_MAX_LENGTH,
   COMMENT_MIN_LENGTH,
-  COVER_IMAGE_HOSTS,
-  coverImageUrlExample,
   DISPLAY_NAME_MAX_LENGTH,
   DISPLAY_NAME_MIN_LENGTH,
   EMAIL_MAX_LENGTH,
@@ -37,54 +36,66 @@ import {
 } from './index';
 import { parseYouTubeVideoId } from './youtube';
 
+export {
+  EDITOR_FORM_ERRORS,
+  formErrorParams,
+  formFieldErrors,
+  isFormErrorKey,
+  isSiteFormErrorKey,
+  SITE_FORM_ERRORS,
+  type FormErrorKey,
+  type FormErrorParams,
+  type FormIssue,
+  type SiteFormErrorKey,
+} from './form-errors';
+
+/** Ключ з каталогу помилок: друкарську помилку в ньому ловить TypeScript, а не читач, що побачив би загальну. */
+const errorKey = (key: FormErrorKey) => key;
+
 // ─── Поля ───
 
 export const emailSchema = z
   .string()
   .trim()
-  .max(EMAIL_MAX_LENGTH, `Email must be at most ${EMAIL_MAX_LENGTH} characters`)
-  .email('Invalid email address');
+  .max(EMAIL_MAX_LENGTH, errorKey('validation.email.tooLong'))
+  .email(errorKey('validation.email.invalid'));
 
 /** Новий пароль — політика довжини. */
 export const newPasswordSchema = z
   .string()
-  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
-  .refine(
-    (password) => utf8ByteLength(password) <= PASSWORD_MAX_BYTES,
-    `Password is too long: at most ${PASSWORD_MAX_BYTES} bytes (a non-Latin letter takes 2)`,
-  );
+  .min(PASSWORD_MIN_LENGTH, errorKey('validation.password.tooShort'))
+  .refine((password) => utf8ByteLength(password) <= PASSWORD_MAX_BYTES, {
+    message: errorKey('validation.password.tooManyBytes'),
+    params: { maxBytes: PASSWORD_MAX_BYTES },
+  });
 
 /** Введений пароль (логін): без мінімуму — старі акаунти мають коротші паролі. */
 export const currentPasswordSchema = z
   .string()
-  .min(1, 'Password is required')
-  .max(PASSWORD_INPUT_MAX_LENGTH, 'Password is too long');
+  .min(1, errorKey('validation.password.required'))
+  .max(PASSWORD_INPUT_MAX_LENGTH, errorKey('validation.password.tooLong'));
 
 export const displayNameSchema = z
   .string()
   .trim()
-  .min(DISPLAY_NAME_MIN_LENGTH, `Name must be at least ${DISPLAY_NAME_MIN_LENGTH} characters`)
-  .max(DISPLAY_NAME_MAX_LENGTH, `Name must be at most ${DISPLAY_NAME_MAX_LENGTH} characters`);
+  .min(DISPLAY_NAME_MIN_LENGTH, errorKey('validation.name.tooShort'))
+  .max(DISPLAY_NAME_MAX_LENGTH, errorKey('validation.name.tooLong'));
 
 export const commentContentSchema = z
   .string()
   .trim()
-  .min(COMMENT_MIN_LENGTH, `Comment must be at least ${COMMENT_MIN_LENGTH} characters`)
-  .max(COMMENT_MAX_LENGTH, `Comment must be at most ${COMMENT_MAX_LENGTH} characters`);
+  .min(COMMENT_MIN_LENGTH, errorKey('validation.comment.tooShort'))
+  .max(COMMENT_MAX_LENGTH, errorKey('validation.comment.tooLong'));
 
 /** Адреса обкладинки — лише https (як `@IsMediaUrl()` у DTO постів). */
 export const mediaUrlSchema = z
   .string()
   .trim()
-  .max(URL_MAX_LENGTH, `URL must be at most ${URL_MAX_LENGTH} characters`)
+  .max(URL_MAX_LENGTH, errorKey('validation.url.tooLong'))
   .refine(
     (value) => hasAllowedProtocol(value, MEDIA_URL_PROTOCOLS),
-    'Must be an https:// URL',
+    errorKey('validation.mediaUrl.notHttps'),
   );
-
-const COVER_IMAGE_SOURCES = new Intl.ListFormat('en', { type: 'disjunction' }).format(
-  COVER_IMAGE_HOSTS.map((host) => `${host.name} (${coverImageUrlExample(host)})`),
-);
 
 /**
  * Нова адреса обкладинки (M1.8.3a): https і фото з фотобанку зі списку — та сама перевірка, що в API
@@ -93,7 +104,7 @@ const COVER_IMAGE_SOURCES = new Intl.ListFormat('en', { type: 'disjunction' }).f
  */
 export const coverImageUrlSchema = mediaUrlSchema.refine(
   isAllowedCoverImageUrl,
-  `Use a photo from ${COVER_IMAGE_SOURCES} — right-click the photo → Copy image address`,
+  errorKey('validation.coverImageUrl.notPhotoBank'),
 );
 
 /**
@@ -103,30 +114,30 @@ export const coverImageUrlSchema = mediaUrlSchema.refine(
 export const youtubeVideoUrlSchema = z
   .string()
   .trim()
-  .max(URL_MAX_LENGTH, `URL must be at most ${URL_MAX_LENGTH} characters`)
+  .max(URL_MAX_LENGTH, errorKey('validation.url.tooLong'))
   .refine(
     (value) => parseYouTubeVideoId(value) !== null,
-    'Paste a YouTube video link: youtube.com/watch?v=…, youtu.be/…, youtube.com/shorts/… or /embed/…',
+    errorKey('validation.videoUrl.notYouTube'),
   );
 
 /** Поля перекладу поста (форма адмінки). */
 export const postTitleSchema = z
   .string()
   .trim()
-  .min(POST_TITLE_MIN_LENGTH, `Title must be at least ${POST_TITLE_MIN_LENGTH} characters`)
-  .max(POST_TITLE_MAX_LENGTH, `Title must be at most ${POST_TITLE_MAX_LENGTH} characters`);
+  .min(POST_TITLE_MIN_LENGTH, errorKey('validation.title.tooShort'))
+  .max(POST_TITLE_MAX_LENGTH, errorKey('validation.title.tooLong'));
 
 export const postExcerptSchema = z
   .string()
   .trim()
-  .min(POST_EXCERPT_MIN_LENGTH, `Excerpt must be at least ${POST_EXCERPT_MIN_LENGTH} characters`)
-  .max(POST_EXCERPT_MAX_LENGTH, `Excerpt must be at most ${POST_EXCERPT_MAX_LENGTH} characters`);
+  .min(POST_EXCERPT_MIN_LENGTH, errorKey('validation.excerpt.tooShort'))
+  .max(POST_EXCERPT_MAX_LENGTH, errorKey('validation.excerpt.tooLong'));
 
 export const postContentSchema = z
   .string()
   .trim()
-  .min(POST_CONTENT_MIN_LENGTH, `Content must be at least ${POST_CONTENT_MIN_LENGTH} characters`)
-  .max(POST_CONTENT_MAX_LENGTH, `Content must be at most ${POST_CONTENT_MAX_LENGTH} characters`);
+  .min(POST_CONTENT_MIN_LENGTH, errorKey('validation.content.tooShort'))
+  .max(POST_CONTENT_MAX_LENGTH, errorKey('validation.content.tooLong'));
 
 /**
  * Опис обкладинки для незрячих і підпис автора фото (D44). Порожні — можна: обов'язкові вони лише
@@ -135,49 +146,49 @@ export const postContentSchema = z
 export const postCoverImageAltSchema = z
   .string()
   .trim()
-  .max(POST_COVER_IMAGE_ALT_MAX_LENGTH, `Alt text must be at most ${POST_COVER_IMAGE_ALT_MAX_LENGTH} characters`);
+  .max(POST_COVER_IMAGE_ALT_MAX_LENGTH, errorKey('validation.coverImageAlt.tooLong'));
 
 export const postCoverImageCreditSchema = z
   .string()
   .trim()
-  .max(POST_COVER_IMAGE_CREDIT_MAX_LENGTH, `Credit must be at most ${POST_COVER_IMAGE_CREDIT_MAX_LENGTH} characters`);
+  .max(POST_COVER_IMAGE_CREDIT_MAX_LENGTH, errorKey('validation.coverImageCredit.tooLong'));
 
 /** Явний slug новини (D24) — як `@Matches(SLUG_PATTERN)` у DTO API. */
 export const postSlugSchema = z
   .string()
   .trim()
-  .max(POST_SLUG_MAX_LENGTH, `Slug must be at most ${POST_SLUG_MAX_LENGTH} characters`)
-  .regex(SLUG_PATTERN, 'Use lowercase latin letters and digits, words joined by single hyphens');
+  .max(POST_SLUG_MAX_LENGTH, errorKey('validation.slug.tooLong'))
+  .regex(SLUG_PATTERN, errorKey('validation.slug.invalid'));
 
 /** Посилання на джерело новини (D26) — http(s), як `@IsSourceUrl()` у DTO. */
 export const sourceUrlSchema = z
   .string()
   .trim()
-  .max(URL_MAX_LENGTH, `URL must be at most ${URL_MAX_LENGTH} characters`)
+  .max(URL_MAX_LENGTH, errorKey('validation.url.tooLong'))
   .refine(
     (value) => hasAllowedProtocol(value, SOURCE_URL_PROTOCOLS),
-    'Must be an http:// or https:// URL',
+    errorKey('validation.sourceUrl.notHttp'),
   );
 
 /** Назва джерела («BBC Sport», D26). Порожня — можна: сайт покаже домен адреси. */
 export const postSourceNameSchema = z
   .string()
   .trim()
-  .max(POST_SOURCE_NAME_MAX_LENGTH, `Source name must be at most ${POST_SOURCE_NAME_MAX_LENGTH} characters`);
+  .max(POST_SOURCE_NAME_MAX_LENGTH, errorKey('validation.sourceName.tooLong'));
 
 /** Назва тегу однією мовою (D45) — як `@Length(TAG_NAME_*)` у DTO API. */
 export const tagNameSchema = z
   .string()
   .trim()
-  .min(TAG_NAME_MIN_LENGTH, `Name must be at least ${TAG_NAME_MIN_LENGTH} characters`)
-  .max(TAG_NAME_MAX_LENGTH, `Name must be at most ${TAG_NAME_MAX_LENGTH} characters`);
+  .min(TAG_NAME_MIN_LENGTH, errorKey('validation.tagName.tooShort'))
+  .max(TAG_NAME_MAX_LENGTH, errorKey('validation.tagName.tooLong'));
 
 /** Явний slug тегу (D45) — як `@Matches(SLUG_PATTERN)` у `CreateTagDto`. */
 export const tagSlugSchema = z
   .string()
   .trim()
-  .max(TAG_SLUG_MAX_LENGTH, `Slug must be at most ${TAG_SLUG_MAX_LENGTH} characters`)
-  .regex(SLUG_PATTERN, 'Use lowercase latin letters and digits, words joined by single hyphens');
+  .max(TAG_SLUG_MAX_LENGTH, errorKey('validation.slug.tooLong'))
+  .regex(SLUG_PATTERN, errorKey('validation.slug.invalid'));
 
 /** Необов'язкове поле форми: порожнє чи з самих пробілів — «не задано», інакше — за схемою. */
 function optionalFormField(schema: z.ZodType<string, string>) {
@@ -208,7 +219,7 @@ export const registerFormSchema = z
     confirmPassword: z.string(),
   })
   .refine((values) => values.password === values.confirmPassword, {
-    message: "Passwords don't match",
+    message: errorKey('validation.confirmPassword.mismatch'),
     path: ['confirmPassword'],
   });
 export type RegisterFormValues = z.infer<typeof registerFormSchema>;
@@ -239,7 +250,7 @@ export const tagFormSchema = tagNamesFormSchema
     ctx.addIssue({
       code: 'custom',
       path: ['slug'],
-      message: 'The English name has no latin letters or digits — type the address',
+      message: errorKey('validation.tagSlug.required'),
     });
   });
 export type TagFormValues = z.infer<typeof tagFormSchema>;

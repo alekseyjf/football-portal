@@ -36,6 +36,15 @@
 // Ніяких useState для кожного поля форми
 ```
 
+> ⭐ **Доповнення до Rule 5** (2026-11-05, M1.9): помилка в спільній схемі — ключ, текст — у застосунку:
+> ```typescript
+> // ✅ .min(DISPLAY_NAME_MIN_LENGTH, errorKey('validation.name.tooShort'))  — ключ з каталогу form-errors.ts, числа — в issue
+> // ✅ useForm({ resolver: useFormResolver(schema) })  — web (messages, ICU plural); адмінка — formResolver(schema) (англійська мапа)
+> // ✅ Новий ключ форми сайту — у SITE_FORM_ERRORS + en.json і uk.json (тест); форми редактора — EDITOR_FORM_ERRORS + мапа адмінки
+> // ❌ zodResolver — лишає від issue лише message: числа меж губляться
+> // ❌ Текст помилки API на екрані (error.message) — лише за кодом, невідомий — загальна помилка мовою сторінки
+> ```
+
 **Rule 6 — Locale передається через URL**
 ```typescript
 // /en/news/{slug}-{number}
