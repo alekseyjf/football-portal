@@ -7,7 +7,7 @@
 - Кожен файл починає з `resetE2eData(e2e.prisma)`; файли йдуть по одному (`maxWorkers: 1`) і не залежать один від одного.
 - Схему не чіпати через `prisma migrate` / `db push` — її перебудовує `globalSetup` з `prisma/migrations` на кожен прогін.
 - Користувачі — `createUser` / `loginAs` (`support/e2e-auth.ts`): ≤ 5 реєстрацій на файл (ліміт з IP). Ключа football-data немає — синк відповідає 503.
-- Підключення — `E2E_DATABASE_URL` або `DIRECT_URL` (session pooler); transaction pooler не підходить (`search_path`).
+- Підключення — `E2E_DATABASE_URL` або `DIRECT_URL` (session pooler); transaction pooler не підходить (`search_path`). CI (job `e2e-api`, `.github/workflows/ci.yml`) — сервіс `postgres:17` (як Supabase) і `E2E_DATABASE_URL`, пояс раннера — UTC: тест не має залежати від поясу процесу (перевірка — `TZ=UTC pnpm test:e2e`).
 - Файли — `test/<модуль>/*.e2e-spec.ts`; запуск модуля з кореня — `pnpm test:e2e -- test/<модуль>/`: шаблон шукає в повному шляху, і `-- football` запустить усі файли (шлях репозиторію — `…/football-portal/…`).
 - Контракт ([D28](../../../docs/decisions/D28-openapi-contract.md)): відповідь ендпоінта — `expectMatchesContract(response, 'get', '/posts/{number}')` (`support/openapi-contract.ts`): статус описаний у `packages/types/openapi.json`, тіло — за схемою, без незадокументованих полів. Змінив DTO чи роут — спершу `pnpm gen:api-types`.
 - Покриття контракту: повний прогін (без шаблону) падає в `globalTeardown`, якщо в операції `openapi.json` немає жодної 2xx-відповіді, перевіреної `expectMatchesContract` (`support/contract-coverage.ts`). Новий ендпоінт — з e2e успіху; 2xx, яку e2e не відтворити, — у `OPERATIONS_WITHOUT_SUCCESS_E2E` з причиною.

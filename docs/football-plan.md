@@ -747,23 +747,50 @@
 
 **Мета:** кожен PR перевіряється автоматично ще до тестового деплою. 👤 Налаштовуємо разом, з поясненням кожного кроку. 👤 2026-11-02: тут — лише потрібне для деплою (базовий CI); Lighthouse CI, E2E у браузері й стенд — M1.12, після деплою й демо.
 
-**M1.10.1 CI — GitHub Actions** (у репозиторії ще немає `.github/workflows`)
-- [ ] 👤 `.github/workflows/ci.yml` на PR і push у `master`: встановлення (pnpm, кеш) → збірка пакетів → lint → typecheck → unit (jest, Vitest) → build (api, web, admin).
-- [ ] 👤 E2E API на тимчасовому Postgres у GitHub Actions (👤 У18): міграції + `constraints.sql` + мінімальний seed.
-  - *З M1.3.3:* схему `e2e` з міграцій (у них і `constraints.sql`) і мови каркас будує сам — у CI лишається сервіс Postgres і `E2E_DATABASE_URL`; глобальний setup друкує ціль і зупиняє прогін, якщо з'єднання не в схемі `e2e` (M1.8.3a). Ключа football-data в CI немає — синк відповідає 503, як локально; фейковий провайдер — з першим e2e синку (M1.11.7).
-- [ ] ⭐ Перевірка контракту: згенеровані типи API актуальні. *З M1.3.5:* типи не в git — CI генерує їх з коду (`pnpm install` → `prepare`), розходження API ↔ web ловлять `pnpm typecheck` і контрактні e2e (`expectMatchesContract`); окремий `git diff`-крок не потрібен.
-- [ ] 👤 2026-11-01 (приймання M1.8.3): страж frontend Rule 15 — `pnpm --filter @football-portal/web test:runtime-env` (окрема збірка web + два `next start`, ~1 хв) — *чому:* маршрут sitemap чи `robots.ts`, що пререндерився зі змінними збірки, unit-тести не бачать, а на тест-сервері це закрита / відкрита індексація.
-- [ ] ⭐ Захист `master`: злиття лише через PR із зеленим CI — *чому:* правило «не мержити без CI» має виконувати GitHub, а не пам'ять.
+**M1.10.1 CI — GitHub Actions** (`.github/workflows/ci.yml`; 👤 2026-11-06 — відповіді на ❓ брифу: усі ⭐)
+- [x] 👤 Workflow на PR і push у `master`, два паралельні job-и:
+  - `verify`: встановлення → lint → typecheck → unit (Jest, Vitest) → build (api, web, admin) → `test:runtime-env`;
+  - `e2e-api`: сервіс Postgres.
+  - *Чому два:* e2e найдовший і незалежний; ціна — друге встановлення залежностей, його прискорює кеш pnpm.
+  - 👤 **Назви job-ів стабільні:** на них посилаються ruleset `master`, Deployment Checks Vercel і Render ([D58](decisions/D58-test-hosting.md)). Перейменувати job — змінити й ці три місця.
+  - ⭐ Без фільтрів `paths` / `paths-ignore` — *чому:* обов'язкова перевірка, що не запустилась, назавжди блокує PR, а коміт без перевірок Render не деплоїть (D58).
+  - ⭐ `concurrency` скасовує старий прогін того самого PR; у `master` — ні, бо кожен коміт `master` має отримати свої перевірки.
+  - ⭐ `timeout-minutes: 20` на job — завислий прогін не висить 6 год.
+  - Кеш — лише сховище pnpm (`setup-node`, `cache: pnpm`): ні кешу Turbo (віддалений кеш — акаунт Vercel), ні `.next/cache`.
+- [x] 👤 E2E API на тимчасовому Postgres (👤 У18): сервіс `postgres:17` — основна версія, як у Supabase (`SHOW server_version` — 17.6), підключення — `E2E_DATABASE_URL`.
+  - Схему `e2e` з міграцій і `constraints.sql`, а також мови будує каркас (з M1.3.3), тож окремий seed не потрібен. globalSetup друкує ціль і зупиняє прогін, якщо з'єднання потрапило не в схему `e2e`.
+  - Ключа football-data в CI немає — синк відповідає 503. Фейковий провайдер — з першим e2e синку (M1.11.7).
+- [x] ⭐ Перевірка контракту — без окремого кроку (з M1.3.5): типи API генерує `prepare` під час `pnpm install`, а розходження API ↔ web ловлять `pnpm typecheck` і контрактні e2e (`expectMatchesContract`).
+- [x] 👤 2026-11-01 Страж frontend Rule 15 (`pnpm --filter @football-portal/web test:runtime-env`) — останній крок `verify`, ~1 хв.
+- [x] 👤 Безпека workflow:
+  - сторонні actions — за повним SHA коміту, версія — у коментарі: `actions/checkout` v7.0.1, `actions/setup-node` v7.1.0, `pnpm/action-setup` v6.1.0;
+  - ⭐ `pnpm/action-setup` — v6.1.0, а не v6.1.1: та вийшла 2026-11-03, менше ніж 7 днів тому (правило `minimumReleaseAge`, [`rules/security.md`](rules/security.md));
+  - `permissions: contents: read`; подія `pull_request` (не `pull_request_target`); ⭐ `persist-credentials: false` — токен не лишається в `.git/config`;
+  - ⭐ образ Postgres — офіційний, за тегом основної версії, без SHA — *чому:* патчі безпеки приходять самі, а контейнер-сервіс не має доступу ні до токена, ні до коду;
+  - оновлення SHA — вручну; Dependabot — [`backlog.md`](backlog.md).
+- [x] ⭐ Фіктивний `DATABASE_URL` у CI не знадобився. На брифі встановлення без змінної падало (`PrismaConfigEnvError`), і план був передати фіктивний рядок. Під час роботи з'ясувалось, що він не допоміг би: Turbo 2 у строгому режимі не передає задачам змінних, яких немає в `turbo.json`, тож `prisma generate` у `prebuild` API падав би при `pnpm build` (перевірено).
+  - Виправлено в корені: `prisma.config.ts` бере `process.env.DIRECT_URL || process.env.DATABASE_URL` замість `env("DATABASE_URL")`, який кидає помилку без змінної. Генерації клієнта БД не потрібна, а `migrate` без адреси зупиняється сам («The datasource.url property is required…»).
+  - Заодно `pnpm install` і збірка не потребуватимуть `DATABASE_URL` на Vercel (M1.11.2): установка Vercel теж запускає `prepare` кореня.
+- [ ] 👤 Перший прогін на GitHub: власник пушить гілку й відкриває PR → `verify` і `e2e-api` зелені. Голий Postgres 17 (не Supabase) e2e бачать уперше саме тут.
+- [ ] 👤 Захист `master` — ruleset (налаштовує власник після першого зеленого прогону, бо лише тоді назви перевірок з'являються у виборі; кроки — у звіті M1.10):
+  - ціль — гілка за замовчуванням; Enforcement — Active; Bypass list — порожній;
+  - Restrict deletions, Block force pushes;
+  - Require a pull request before merging — 0 схвалень;
+  - Require status checks to pass: `verify` і `e2e-api`, джерело — **GitHub Actions**. ⭐ *Чому джерело:* інакше перевірку з тією самою назвою може «закрити» статус від іншої інтеграції.
+  - ⭐ «Require branches to be up to date» — ні: розробник один, PR-и йдуть по черзі, а push у `master` однаково проганяє CI.
+  - Відомий флейк e2e (`apps/api/test/CLAUDE.md`) — без автоповтору: червоний — «Re-run failed jobs» вручну й рядок у журнал флейку.
+- [ ] 👤 Контрольний прогін: тимчасова помилка lint у PR → `verify` ❌, кнопка злиття заблокована; повернути.
 - *Знайдено перед брифом (2026-11-06):*
-  - ✅ Кінці рядків: `.gitattributes` немає, `core.autocrlf` не задано — файли лежать у git з CRLF, і checkout на Linux їх не змінить: `pnpm lint:eol` у CI працюватиме, як локально.
-  - ⚠️ `pnpm install` запускає `prepare` → `prisma generate`, а `prisma.config.ts` читає `env("DATABASE_URL")` — без змінної встановлення падає (перевірено: `PrismaConfigEnvError`). ⭐ У workflow — фіктивний `DATABASE_URL` (не секрет: генерація до БД не ходить; з ним `prisma generate` — успішно).
-  - Версії: Node — з `engines` / `.nvmrc` (24.18.0), pnpm — з `packageManager` (10.33.0; `minimumReleaseAge` працює так само). Секрети CI не потрібні: e2e — свій Postgres, ключа football-data немає.
-  - ⏰ Рядок бэклогу «Один Prettier і ESLint на весь репозиторій» має тригер «не пізніше M1.10 CI».
-- ❓ Порядок з уніфікацією Prettier / ESLint: ⭐ після M1.10, окремим PR — *чому:* CI запускає те, що робить `pnpm lint`, тож від конфігів не залежить; масове форматування (~100 файлів адмінки) тоді пройде через CI, а не повз нього.
-- ❓ Структура: ⭐ два паралельні job-и — `verify` (lint → typecheck → unit → build → `test:runtime-env`) і `e2e-api` (сервіс Postgres) — *чому:* e2e найдовший і незалежний; ціна — друге встановлення залежностей (кеш pnpm). `concurrency` скасовує старий прогін того самого PR. Кеш Turbo в CI — ні (віддалений кеш — акаунт Vercel), лише кеш pnpm.
-- ❓ Postgres у CI: ⭐ та сама основна версія, що в Supabase (на старті — `SELECT version()` dev-БД).
-- ❓ Сторонні actions: ⭐ закріпити повним SHA з коментарем версії, а не тегом `@v4` — *чому:* репозиторій публічний, а тег можна перевісити на інший код (так зламали `tj-actions/changed-files`, 2025); `permissions: contents: read`, подія `pull_request` (не `pull_request_target`).
-- ❓ Захист `master` (налаштовує власник у GitHub, кроки дасть AI): ⭐ ruleset — лише через PR, обов'язкові перевірки `verify` і `e2e-api`, без обов'язкового схвалення (розробник один — власний PR схвалити не можна), без обходу для адміна; термінове — тимчасово вимкнути ruleset. Відомий флейк e2e (`apps/api/test/CLAUDE.md`) — без автоповтору: червоний — «Re-run failed jobs» вручну й рядок у журнал флейку.
+  - ✅ Кінці рядків: `.gitattributes` немає, `core.autocrlf` не задано — файли лежать у git з CRLF, і checkout на Linux їх не змінить: `pnpm lint:eol` у CI працює, як локально.
+  - Версії: Node — з `.nvmrc` (24.18.0), pnpm — з `packageManager` (10.33.0). Секрети CI не потрібні: e2e — свій Postgres, ключа football-data немає.
+  - pnpm 10 не запускає install-скрипти залежностей (`bcrypt`, `prisma` — «Ignored build scripts»): `bcrypt` 6 несе готові збірки (`prebuilds/linux-x64`), Prisma 7 генерує клієнт у `prepare` — CI це не заважає.
+- *Перевірка (2026-11-06, до push):* чистий клон без `.env` і змінних (`env -i`, `CI=true`) — кроки `verify` по черзі:
+  - install (15 с), lint, typecheck, build, `test:runtime-env` — зелені;
+  - unit: API 301, web — 29 файлів, admin — 14, validation — 8, ui — 1; ще й з `TZ=UTC` (пояс раннера);
+  - e2e з `TZ=UTC` на схемі `e2e` dev-БД — 235 / 235;
+  - CLI Prisma з `.env` — як раніше: `migrate status` — up to date (через `DIRECT_URL`);
+  - контроль: зламане форматування файлу web → `pnpm lint` повертає код 1;
+  - YAML розібрано, SHA трьох actions — коміти (GitHub API).
 
 **Готово, коли:** PR показує ✅ / ❌ по кожному кроку; червоний CI блокує злиття.
 
