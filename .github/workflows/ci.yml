@@ -1,0 +1,116 @@
+# CI (M1.10, D58): кожен PR у master і кожен push у master.
+#
+# Назви job-ів `verify` і `e2e-api` — стабільні: за ними шукають перевірки ruleset гілки master (без зелених —
+# злиття заблоковано) і Vercel (Deployment Checks); Render деплоїть API лише тоді, коли зелені всі перевірки коміту.
+# Фільтрів `paths` / `paths-ignore` немає свідомо: обов'язкова перевірка, що не запустилась, назавжди блокує PR,
+# а коміт без перевірок Render не деплоїть.
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+# Токен job-а — лише читання коду: workflow нічого не пише в репозиторій
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # Новий коміт у PR скасовує старий прогін; у master — ні: кожен коміт master має отримати свої перевірки
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Сторонні actions — за повним SHA коміту, а не за тегом (тег можна перевісити на інший код — так у 2025 зламали
+# tj-actions/changed-files); версія — у коментарі. Нова версія — не раніше ніж через 7 днів після релізу, як і
+# пакети npm (`minimumReleaseAge`).
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Токен не лишається в .git/config: наступним крокам git-доступ не потрібен
+          persist-credentials: false
+
+      # pnpm — версії з `packageManager` кореневого package.json
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      # Node — з .nvmrc; кеш сховища pnpm за хешем pnpm-lock.yaml (наступне встановлення — без завантажень)
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # Точно за lock-файлом; `prepare` — клієнт Prisma, збірка packages/validation, типи API для web і admin
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # ESLint усіх пакетів, Prettier web, кінці рядків (CRLF)
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Jest (API) і Vitest (web, admin, пакети)
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # Страж frontend Rule 15: robots.txt, sitemap і X-Robots-Tag ідуть за SITE_INDEXING старту, а не збірки
+      - name: Runtime env guard (web)
+        run: pnpm --filter @football-portal/web test:runtime-env
+
+  e2e-api:
+    name: e2e-api
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Тимчасовий Postgres поруч із job-ом; після прогону зникає. Основна версія — як у Supabase (17).
+    # Образ — офіційний, за тегом основної версії (патчі безпеки приходять самі): до токена й коду він доступу не має
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: e2e
+          POSTGRES_PASSWORD: e2e
+          POSTGRES_DB: football_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U e2e -d football_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Не секрет: БД живе лише в цьому job-і. Схему `e2e` з міграцій (і constraints.sql) будує globalSetup
+      E2E_DATABASE_URL: postgresql://e2e:e2e@localhost:5432/football_e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # `prepare` генерує й openapi.json — за ним e2e перевіряють контракт відповідей
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Повний прогін: ще й покриття контракту (кожна операція openapi.json має перевірену 2xx-відповідь)
+      - name: E2E API
+        run: pnpm test:e2e

@@ -747,57 +747,131 @@
 
 **Мета:** кожен PR перевіряється автоматично ще до тестового деплою. 👤 Налаштовуємо разом, з поясненням кожного кроку. 👤 2026-11-02: тут — лише потрібне для деплою (базовий CI); Lighthouse CI, E2E у браузері й стенд — M1.12, після деплою й демо.
 
-**M1.10.1 CI — GitHub Actions** (у репозиторії ще немає `.github/workflows`)
-- [ ] 👤 `.github/workflows/ci.yml` на PR і push у `master`: встановлення (pnpm, кеш) → збірка пакетів → lint → typecheck → unit (jest, Vitest) → build (api, web, admin).
-- [ ] 👤 E2E API на тимчасовому Postgres у GitHub Actions (👤 У18): міграції + `constraints.sql` + мінімальний seed.
-  - *З M1.3.3:* схему `e2e` з міграцій (у них і `constraints.sql`) і мови каркас будує сам — у CI лишається сервіс Postgres і `E2E_DATABASE_URL`; глобальний setup друкує ціль і зупиняє прогін, якщо з'єднання не в схемі `e2e` (M1.8.3a). Ключа football-data в CI немає — синк відповідає 503, як локально; фейковий провайдер — з першим e2e синку (M1.11.7).
-- [ ] ⭐ Перевірка контракту: згенеровані типи API актуальні. *З M1.3.5:* типи не в git — CI генерує їх з коду (`pnpm install` → `prepare`), розходження API ↔ web ловлять `pnpm typecheck` і контрактні e2e (`expectMatchesContract`); окремий `git diff`-крок не потрібен.
-- [ ] 👤 2026-11-01 (приймання M1.8.3): страж frontend Rule 15 — `pnpm --filter @football-portal/web test:runtime-env` (окрема збірка web + два `next start`, ~1 хв) — *чому:* маршрут sitemap чи `robots.ts`, що пререндерився зі змінними збірки, unit-тести не бачать, а на тест-сервері це закрита / відкрита індексація.
-- [ ] ⭐ Захист `master`: злиття лише через PR із зеленим CI — *чому:* правило «не мержити без CI» має виконувати GitHub, а не пам'ять.
+**M1.10.1 CI — GitHub Actions** (`.github/workflows/ci.yml`; 👤 2026-11-06 — відповіді на ❓ брифу: усі ⭐)
+- [x] 👤 Workflow на PR і push у `master`, два паралельні job-и:
+  - `verify`: встановлення → lint → typecheck → unit (Jest, Vitest) → build (api, web, admin) → `test:runtime-env`;
+  - `e2e-api`: сервіс Postgres.
+  - *Чому два:* e2e найдовший і незалежний; ціна — друге встановлення залежностей, його прискорює кеш pnpm.
+  - 👤 **Назви job-ів стабільні:** на них посилаються ruleset `master`, Deployment Checks Vercel і Render ([D58](decisions/D58-test-hosting.md)). Перейменувати job — змінити й ці три місця.
+  - ⭐ Без фільтрів `paths` / `paths-ignore` — *чому:* обов'язкова перевірка, що не запустилась, назавжди блокує PR, а коміт без перевірок Render не деплоїть (D58).
+  - ⭐ `concurrency` скасовує старий прогін того самого PR; у `master` — ні, бо кожен коміт `master` має отримати свої перевірки.
+  - ⭐ `timeout-minutes: 20` на job — завислий прогін не висить 6 год.
+  - Кеш — лише сховище pnpm (`setup-node`, `cache: pnpm`): ні кешу Turbo (віддалений кеш — акаунт Vercel), ні `.next/cache`.
+- [x] 👤 E2E API на тимчасовому Postgres (👤 У18): сервіс `postgres:17` — основна версія, як у Supabase (`SHOW server_version` — 17.6), підключення — `E2E_DATABASE_URL`.
+  - Схему `e2e` з міграцій і `constraints.sql`, а також мови будує каркас (з M1.3.3), тож окремий seed не потрібен. globalSetup друкує ціль і зупиняє прогін, якщо з'єднання потрапило не в схему `e2e`.
+  - Ключа football-data в CI немає — синк відповідає 503. Фейковий провайдер — з першим e2e синку (M1.11.7).
+- [x] ⭐ Перевірка контракту — без окремого кроку (з M1.3.5): типи API генерує `prepare` під час `pnpm install`, а розходження API ↔ web ловлять `pnpm typecheck` і контрактні e2e (`expectMatchesContract`).
+- [x] 👤 2026-11-01 Страж frontend Rule 15 (`pnpm --filter @football-portal/web test:runtime-env`) — останній крок `verify`, ~1 хв.
+- [x] 👤 Безпека workflow:
+  - сторонні actions — за повним SHA коміту, версія — у коментарі: `actions/checkout` v7.0.1, `actions/setup-node` v7.1.0, `pnpm/action-setup` v6.1.0;
+  - ⭐ `pnpm/action-setup` — v6.1.0, а не v6.1.1: та вийшла 2026-11-03, менше ніж 7 днів тому (правило `minimumReleaseAge`, [`rules/security.md`](rules/security.md));
+  - `permissions: contents: read`; подія `pull_request` (не `pull_request_target`); ⭐ `persist-credentials: false` — токен не лишається в `.git/config`;
+  - ⭐ образ Postgres — офіційний, за тегом основної версії, без SHA — *чому:* патчі безпеки приходять самі, а контейнер-сервіс не має доступу ні до токена, ні до коду;
+  - оновлення SHA — вручну; Dependabot — [`backlog.md`](backlog.md).
+- [x] ⭐ Фіктивний `DATABASE_URL` у CI не знадобився. На брифі встановлення без змінної падало (`PrismaConfigEnvError`), і план був передати фіктивний рядок. Під час роботи з'ясувалось, що він не допоміг би: Turbo 2 у строгому режимі не передає задачам змінних, яких немає в `turbo.json`, тож `prisma generate` у `prebuild` API падав би при `pnpm build` (перевірено).
+  - Виправлено в корені: `prisma.config.ts` бере `process.env.DIRECT_URL || process.env.DATABASE_URL` замість `env("DATABASE_URL")`, який кидає помилку без змінної. Генерації клієнта БД не потрібна, а `migrate` без адреси зупиняється сам («The datasource.url property is required…»).
+  - Заодно `pnpm install` і збірка не потребуватимуть `DATABASE_URL` на Vercel (M1.11.2): установка Vercel теж запускає `prepare` кореня.
+- [ ] 👤 Перший прогін на GitHub: власник пушить гілку й відкриває PR → `verify` і `e2e-api` зелені. Голий Postgres 17 (не Supabase) e2e бачать уперше саме тут.
+- [ ] 👤 Захист `master` — ruleset (налаштовує власник після першого зеленого прогону, бо лише тоді назви перевірок з'являються у виборі; кроки — у звіті M1.10):
+  - ціль — гілка за замовчуванням; Enforcement — Active; Bypass list — порожній;
+  - Restrict deletions, Block force pushes;
+  - Require a pull request before merging — 0 схвалень;
+  - Require status checks to pass: `verify` і `e2e-api`, джерело — **GitHub Actions**. ⭐ *Чому джерело:* інакше перевірку з тією самою назвою може «закрити» статус від іншої інтеграції.
+  - ⭐ «Require branches to be up to date» — ні: розробник один, PR-и йдуть по черзі, а push у `master` однаково проганяє CI.
+  - Відомий флейк e2e (`apps/api/test/CLAUDE.md`) — без автоповтору: червоний — «Re-run failed jobs» вручну й рядок у журнал флейку.
+- [ ] 👤 Контрольний прогін: тимчасова помилка lint у PR → `verify` ❌, кнопка злиття заблокована; повернути.
 - *Знайдено перед брифом (2026-11-06):*
-  - ✅ Кінці рядків: `.gitattributes` немає, `core.autocrlf` не задано — файли лежать у git з CRLF, і checkout на Linux їх не змінить: `pnpm lint:eol` у CI працюватиме, як локально.
-  - ⚠️ `pnpm install` запускає `prepare` → `prisma generate`, а `prisma.config.ts` читає `env("DATABASE_URL")` — без змінної встановлення падає (перевірено: `PrismaConfigEnvError`). ⭐ У workflow — фіктивний `DATABASE_URL` (не секрет: генерація до БД не ходить; з ним `prisma generate` — успішно).
-  - Версії: Node — з `engines` / `.nvmrc` (24.18.0), pnpm — з `packageManager` (10.33.0; `minimumReleaseAge` працює так само). Секрети CI не потрібні: e2e — свій Postgres, ключа football-data немає.
-  - ⏰ Рядок бэклогу «Один Prettier і ESLint на весь репозиторій» має тригер «не пізніше M1.10 CI».
-- ❓ Порядок з уніфікацією Prettier / ESLint: ⭐ після M1.10, окремим PR — *чому:* CI запускає те, що робить `pnpm lint`, тож від конфігів не залежить; масове форматування (~100 файлів адмінки) тоді пройде через CI, а не повз нього.
-- ❓ Структура: ⭐ два паралельні job-и — `verify` (lint → typecheck → unit → build → `test:runtime-env`) і `e2e-api` (сервіс Postgres) — *чому:* e2e найдовший і незалежний; ціна — друге встановлення залежностей (кеш pnpm). `concurrency` скасовує старий прогін того самого PR. Кеш Turbo в CI — ні (віддалений кеш — акаунт Vercel), лише кеш pnpm.
-- ❓ Postgres у CI: ⭐ та сама основна версія, що в Supabase (на старті — `SELECT version()` dev-БД).
-- ❓ Сторонні actions: ⭐ закріпити повним SHA з коментарем версії, а не тегом `@v4` — *чому:* репозиторій публічний, а тег можна перевісити на інший код (так зламали `tj-actions/changed-files`, 2025); `permissions: contents: read`, подія `pull_request` (не `pull_request_target`).
-- ❓ Захист `master` (налаштовує власник у GitHub, кроки дасть AI): ⭐ ruleset — лише через PR, обов'язкові перевірки `verify` і `e2e-api`, без обов'язкового схвалення (розробник один — власний PR схвалити не можна), без обходу для адміна; термінове — тимчасово вимкнути ruleset. Відомий флейк e2e (`apps/api/test/CLAUDE.md`) — без автоповтору: червоний — «Re-run failed jobs» вручну й рядок у журнал флейку.
+  - ✅ Кінці рядків: `.gitattributes` немає, `core.autocrlf` не задано — файли лежать у git з CRLF, і checkout на Linux їх не змінить: `pnpm lint:eol` у CI працює, як локально.
+  - Версії: Node — з `.nvmrc` (24.18.0), pnpm — з `packageManager` (10.33.0). Секрети CI не потрібні: e2e — свій Postgres, ключа football-data немає.
+  - pnpm 10 не запускає install-скрипти залежностей (`bcrypt`, `prisma` — «Ignored build scripts»): `bcrypt` 6 несе готові збірки (`prebuilds/linux-x64`), Prisma 7 генерує клієнт у `prepare` — CI це не заважає.
+- *Перевірка (2026-11-06, до push):* чистий клон без `.env` і змінних (`env -i`, `CI=true`) — кроки `verify` по черзі:
+  - install (15 с), lint, typecheck, build, `test:runtime-env` — зелені;
+  - unit: API 301, web — 29 файлів, admin — 14, validation — 8, ui — 1; ще й з `TZ=UTC` (пояс раннера);
+  - e2e з `TZ=UTC` на схемі `e2e` dev-БД — 235 / 235;
+  - CLI Prisma з `.env` — як раніше: `migrate status` — up to date (через `DIRECT_URL`);
+  - контроль: зламане форматування файлу web → `pnpm lint` повертає код 1;
+  - YAML розібрано, SHA трьох actions — коміти (GitHub API).
 
 **Готово, коли:** PR показує ✅ / ❌ по кожному кроку; червоний CI блокує злиття.
 
 ### M1.11 Тестовий деплой
 
-**Мета:** сайт «у світі» на безкоштовному хостингу, за паролем і без індексації (👤 1.6, У20, У21; [D31](decisions/D31-test-environment.md)). Під-етапи — по черзі.
+**Мета:** сайт «у світі» на безкоштовному хостингу, за паролем і без індексації (👤 1.6, У20, У21; [D31](decisions/D31-test-environment.md)). Хостинг — [D58](decisions/D58-test-hosting.md): web і admin — Vercel Hobby, API — Render Free, деплой — лише після зеленого CI. Під-етапи — по черзі.
 
-**M1.11.1 Хостинг** — ❓ вибір на старті (OQ-7)
-- [ ] ⭐ Рекомендація: web і admin — Vercel (Hobby, безкоштовно; для тесту дозволено); API — Docker-образ на інстансі, що не засинає (cron синку!), безкоштовно або ~$5/міс. Якщо строго $0 і інстанс засинає — cron через зовнішній планувальник (GitHub Actions `schedule`) і захищений внутрішній ендпоінт.
-- [ ] 👤 2026-10-26: при виборі — чи віддає хостинг гео-пояс відвідувача (`x-vercel-ip-timezone`, `cf-timezone`): від цього залежить пояс першого візиту й вибір кешу сторінок (M2.12).
+**M1.11.1 Хостинг** — ✅ 👤 2026-11-06 (OQ-7 → [D58](decisions/D58-test-hosting.md))
+- [x] 👤 web і admin — Vercel Hobby: два проєкти з одного репозиторію, Root Directory `apps/web` і `apps/admin`. API — Render Free, нативний Node без Docker; конфіг — `render.yaml` у репозиторії.
+- [x] 👤 Регіон — як у Supabase (`eu-central-1`, Франкфурт): Render — `frankfurt`, функції Vercel — `fra1`.
+- [x] 👤 2026-10-26 Гео-пояс відвідувача: Vercel передає `x-vercel-ip-timezone` → пояс першого візиту й кеш сторінок — M2.12.
 
-**M1.11.2 Docker** (👤 [D30](decisions/D30-testing-and-local-env.md): лише для деплою)
-- [ ] ⭐ Багатоетапний `Dockerfile` API: збірка в pnpm workspace (`pnpm deploy --prod`), `prisma generate` під час збірки, запуск від не-root користувача, `HEALTHCHECK` на `/health`, `.dockerignore`.
-- [ ] ⭐ Міграції — окремий крок релізу (`prisma migrate deploy` перед запуском нової версії), а не при старті контейнера — *чому:* два контейнери не запустять міграцію двічі; невдала міграція не покладе робочу версію.
+**M1.11.2 Деплой: Render і Vercel** (👤 2026-11-06: Docker — у M3.1, [D58](decisions/D58-test-hosting.md))
+- [ ] 👤 `render.yaml` (Blueprint) — сервіс API:
+  - `runtime: node`, `plan: free`, `region: frankfurt` (після створення сервісу не змінюється), `branch: master`, `autoDeployTrigger: checksPass`, `healthCheckPath: /api/v1/health`;
+  - Build Filters `paths`: `apps/api/**`, `packages/**`, `pnpm-lock.yaml` (⭐ і кореневі `package.json`, `pnpm-workspace.yaml`, `.nvmrc` — вони теж змінюють збірку);
+  - секрети — `sync: false`: значення вводимо в панелі Render, у git їх немає.
+  - ⭐ Без `rootDir` — *чому:* файлів поза ним Render не дає ні збірці, ні процесу, а API потрібні `packages/*`.
+  - ❓ Команди збірки й запуску — визначити на старті. ⚠️ `NODE_ENV=production` у змінних Render діє й під час збірки, а pnpm з ним не ставить `devDependencies` (Nest CLI, TypeScript) → ⭐ `pnpm install --frozen-lockfile --prod=false`. ⚠️ `prepare` у корені ще й генерує типи для web і admin — API вони не потрібні. pnpm — версії з `packageManager` (10.33.0, через Corepack), а не та, що встановлена на машині Render.
+  - 👤 2026-11-06 Термінала на Render Free немає (Shell — лише на платних). Команда збірки (`pnpm install --frozen-lockfile --prod=false` …) живе в `buildCommand` у `render.yaml`, тобто в git, і виконується на кожен деплой. ⭐ Окремий скрипт `package.json` для неї — лише якщо `render.yaml` посилатиметься на нього: тоді ту саму збірку можна повторити локально.
+  - Render збирає на Linux (x64, glibc), а розробка — на macOS. `node_modules` з Мака не переносимо: залежності ставляться на Linux самі, разом з нативними збірками для нього (`bcrypt` — `prebuilds/linux-x64`, glibc і musl). Різниці платформ ловить CI, бо він теж на Linux: ⚠️ на Linux регістр у шляхах має значення (`import './Foo'` при файлі `foo.ts` на Маку працює, на Linux — ні).
+  - ❓ `.nvmrc` — CRLF (`24.18.0\r\n`): `setup-node` у CI бере `24.18.0` (перевірено його розбором), Render — подивитись у журналі першої збірки.
+  - ⚠️ `engines.node` — `>=24.18.0`, без верхньої межі. Render бере `.nvmrc` (вищий пріоритет), а Vercel — `engines`, і з `>=` перейде на нову основну версію Node, щойно вона вийде → ⭐ `^24.18.0`.
+- [ ] 👤 Vercel — два проєкти (`apps/web`, `apps/admin`):
+  - регіон функцій — `fra1` (⭐ у `vercel.json` застосунку: конфіг у git, як `render.yaml`);
+  - ⭐ увімкнути «Skip deployments when there are no changes to the root directory or its dependencies»;
+  - ❓ щоб Vercel узяв pnpm з `packageManager` — змінна `ENABLE_EXPERIMENTAL_COREPACK=1`.
+  - ❓ Preview-деплої PR: ⭐ лишити — їх закриває Vercel Authentication (бачить лише власник), а API в них — той самий тестовий.
+- [ ] 👤 Деплой — лише після зеленого CI:
+  - Render — `autoDeployTrigger: checksPass`: деплой, коли всі перевірки коміту зелені; якщо перевірок немає зовсім — деплою немає;
+  - Vercel — Deployment Checks `verify` і `e2e-api` (Settings → Build and Deployment → Deployment Checks): збірка стартує одразу, а production-домен Vercel призначає після зелених перевірок; обхід — Force Promote.
+  - 👤 Перевірено 2026-11-06: документація тарифів не називає, а changelog пише «для всіх проєктів, підключених до GitHub» → на Hobby доступно. ⭐ Підтвердити в налаштуваннях.
+  - Контрольний прогін: коміт з ❌ CI не викочують ні Render, ні Vercel. ❓ Чи зараховує Render статуси самого Vercel до «всіх перевірок» — подивитись на першому деплої.
+- [ ] 👤 Пінг `/api/v1/health` з GitHub Actions кожні 10 хв (`.github/workflows/keep-alive.yml`, `schedule`).
+  - *Навіщо:* Render Free засинає через 15 хв без запитів; сплячий процес не виконує cron-и (синк, воркер розкладу D57), а SSR чекає холодного старту ~1 хв.
+  - ⭐ Хвилини зі зсувом (`7,17,…`), а не `*/10`: на початку години GitHub затримує запуски. ⭐ `curl` — з таймаутом ≥ 90 с і повтором.
+  - ⚠️ Безкоштовних годин Render — 750 на workspace на місяць. Один сервіс без сну витрачає ~744 год, тож другого безкоштовного сервісу в тому ж workspace не заводимо.
+  - ⚠️ Workflow за розкладом запускається лише з `master`; у публічному репозиторії GitHub вимикає його після 60 днів без активності.
+  - Платний інстанс — 👤 рішення в M3.1.
 
 **M1.11.3 Один сайт для браузера**
-- [ ] ⭐ API через rewrites Next: браузер ходить лише на домен web, Next проксіює `/api/v1/*` на API; admin — так само на своєму домені; SSR ходить на API напряму — *чому:* безкоштовні домени хостингів (`*.vercel.app`, `*.onrender.com` …) для браузера — різні сайти, тож cookies `SameSite=Lax` на окремий домен API не підуть, і «додати хедери й origin» тут не допоможе.
+- [ ] ⭐ API через rewrites Next: браузер ходить лише на домен web, Next проксіює `/api/v1/*` на API (на Vercel — rewrite на зовнішню адресу `*.onrender.com`); admin — так само на своєму домені; SSR ходить на API напряму — *чому:* безкоштовні домени хостингів (`*.vercel.app`, `*.onrender.com` …) для браузера — різні сайти, тож cookies `SameSite=Lax` на окремий домен API не підуть, і «додати хедери й origin» тут не допоможе.
 - [ ] ⭐ `TRUST_PROXY` — перевірити наживо: два різні клієнти мають різні `req.ip` — *чому:* інакше всі користувачі отримають один IP, і ліміт логіну (10 / хв) стане спільним для всіх.
+  - ⚠️ До API є кілька шляхів, і кількість проксі в них різна: браузер → Vercel (rewrite) → проксі Render → API; SSR → проксі Render → API; запит на `*.onrender.com` напряму, і в ньому `X-Forwarded-For` можна підробити. ❓ Значення `TRUST_PROXY` і чи пускати до API лише запити з Vercel — визначити на старті. Ліміт спроб на акаунт від IP не залежить.
 
 **M1.11.4 Середовища й секрети**
 - [ ] ⭐ `APP_ENV=test` (окремо від `NODE_ENV=production`) вмикає `noindex`, Basic Auth і Swagger. 👤 2026-10-30: індексацію web вмикає своя `SITE_INDEXING` (M1.8.3; на тесті — не задавати або `false`); тут — лише API й admin.
   - Перелік змінних для хостингу — `apps/{api,web,admin}/.env.example`; `APP_ENV` — нове поле схеми `env.schema.ts` і рядок у `.env.example` ([Rule 13](rules/backend.md)).
-- [ ] 👤 2026-11-01 (приймання M1.8.3) Кеш даних web: `.next/cache` доступний для запису процесу web (у Docker — не read-only, власник — користувач процесу) і **один інстанс web**, поки немає спільного cache handler ([`backlog.md`](backlog.md)) — *чому:* вебхук API оновлює кеш лише того інстансу, куди потрапив, решта показували б старе до TTL. На Vercel кеш даних і `revalidateTag` — платформи, спільні для інстансів. Змінні: web — `SITE_URL`, `REVALIDATE_SECRET` (той самий, що в API), `SITE_INDEXING` — не задавати; API — `WEB_REVALIDATE_URL` (https або приватна мережа, D57). Перевірити наживо: правка новини в адмінці → сторінка свіжа з першого запиту.
-- [ ] 👤 2026-11-02 (M1.8.3a) Оптимізатор фото web: `.next/cache/images` — так само доступний для запису (стиснені обкладинки фотобанків), ⭐ ліміт диска — `images.maximumDiskCacheSize`, якщо тома мало (за замовчуванням — половина вільного місця); reverse proxy передає заголовок `Accept` — інакше `/_next/image` не знає, що браузер приймає WebP, і віддає JPEG (документація Next). Перевірити наживо: обкладинка новини — `content-type: image/webp` з `/_next/image`.
+- [ ] 👤 2026-11-01 (приймання M1.8.3) Кеш даних web.
+  - 👤 2026-11-06: на Vercel неактуально ([D58](decisions/D58-test-hosting.md)) — `.next/cache` з правом запису й «один інстанс web» (вебхук оновлює кеш лише того інстансу, куди потрапив). На Vercel кеш даних і `revalidateTag` належать платформі й спільні для інстансів. Для власного сервера (M3.1, якщо прод не на Vercel) — [`backlog.md`](backlog.md), спільний cache handler.
+  - Лишається. Змінні: web — `SITE_URL`, `REVALIDATE_SECRET` (той самий, що в API), `SITE_INDEXING` не задавати; API — `WEB_REVALIDATE_URL` (https, D57). Перевірка наживо: правка новини в адмінці → сторінка свіжа з першого запиту.
+- [ ] 👤 2026-11-02 (M1.8.3a) Оптимізатор фото web.
+  - 👤 2026-11-06: на Vercel неактуально — `.next/cache/images` з правом запису, `images.maximumDiskCacheSize` і заголовок `Accept` від reverse proxy: оптимізатор на Vercel — платформи.
+  - ⚠️ Ліміт Hobby — 5 000 перетворень на місяць; понад нього нові фото — 402, без оплати.
+  - Лишається перевірка наживо: обкладинка новини — `content-type: image/webp` з `/_next/image`.
 - [ ] ⭐ Нові секрети для тесту (`JWT_SECRET`, `EMAIL_HASH_SECRET`), не з dev — *чому:* секрет, що «гуляв» локально, не має відчиняти сервер.
 
-**M1.11.5 БД**
-- [ ] 👤 Тест-сервер працює з поточною БД Supabase; для проду — нова чиста (👤 10.9).
-- [ ] ⭐ ❓ Розділити dev і test (OQ-8): поточна БД з даними лишається тестовою, для локальної розробки — новий безкоштовний проєкт Supabase або локальний Postgres — *чому:* інакше локальна міграція чи експеримент ламає сервер, яким користуються тестувальники.
-- [ ] ⭐ `pg_dump` перед кожною міграцією на тесті.
-- [ ] 👤 (M1.4.5) З першим деплоєм dev-БД стає БД тест-сервера — міграції з того моменту за backend Rule 16 (expand → backfill → contract), як після релізу: міграція не має ламати запущений на тесті код ([D26](decisions/D26-post-sources.md) — перенос джерела в `PostSource`).
+**M1.11.5 БД** (👤 2026-11-06, [D58](decisions/D58-test-hosting.md))
+- [x] 👤 Тест-сервер і локальна розробка — на одній поточній Supabase; розділення (OQ-8) — відкладено. Для проду — нова чиста БД (👤 10.9).
+- [x] 👤 Правила діють одразу, не «після першого деплою» (backend Rule 16, [`rules/process.md`](rules/process.md)):
+  - на цій БД ніколи `prisma migrate dev` / `migrate reset` — лише `migrate deploy`;
+  - нові міграції — `--create-only`;
+  - expand → contract;
+  - `pg_dump` перед кожною міграцією.
+  - Застосовуємо з локальної машини (`pnpm db:migrate`, `DIRECT_URL`). Окремого кроку міграцій у релізі тесту немає (pre-deploy команди Render Free однаково не має).
+  - ⭐ Порядок: expand — до злиття коду, якому він потрібен; contract — коли на тесті вже працює код, що старого не використовує.
+- [x] ⭐ Нову міграцію генеруємо без БД, як 0006–0012: `prisma migrate diff --from-schema <schema.prisma з master> --to-schema prisma/schema.prisma --script` → `prisma/migrations/<NNNN>_<назва>/migration.sql`. *Чому не `migrate dev --create-only`:* це той самий `migrate dev` — він ходить у спільну БД і на розбіжності пропонує скинути схему.
+  - [x] 👤 2026-11-06 (зроблено в M1.10) Одна команда — `pnpm db:migration:new <назва>` (`apps/api/scripts/new-migration.mjs`):
+    - база — схема, з якої почалась гілка (`git merge-base HEAD origin/master`); інша — `--base <ref>`;
+    - номер — наступний за останньою міграцією; SQL — LF;
+    - відмова, якщо схема не змінилась або в гілці є міграція, якої немає в базі (її SQL повторився б: другу міграцію гілки — після коміту першої, `--base HEAD`);
+    - наприкінці — що перевірити: SQL, `constraints.sql`, expand → contract, e2e, ворота перед `pnpm db:migrate`.
+    - Перевірено: погана назва, схема без змін, тимчасова колонка (`ALTER TABLE "Language" ADD COLUMN …`, без CR), повторний запуск з незакоміченою міграцією; з `DIRECT_URL` / `DATABASE_URL` на закритий порт — працює (до БД не ходить).
+- [x] 👤 Підключення: `DATABASE_URL` — transaction pooler (`:6543`, `pgbouncer=true`); `DIRECT_URL` — session pooler (`:5432`), лише для міграцій з локальної машини; на Render — лише `DATABASE_URL`.
+  - Перевірено 2026-11-06: поля `directUrl` у Prisma 7 немає (`datasource` конфігу має лише `url` і `shadowDatabaseUrl`). Те саме вже зроблено інакше: CLI бере `DIRECT_URL || DATABASE_URL` (`prisma.config.ts`), застосунок — `PrismaPg(DATABASE_URL)`.
+  - `pgbouncer=true` адаптеру не потрібен (prepared statements без імені), але й не шкодить.
+  - ⚠️ ⭐ Зависання на `:6543` ([OQ-11](open-questions.md)) на тесті виглядатиме як сторінки, що не відкриваються. Якщо таке з'явиться — `DATABASE_URL` на session pooler (`:5432`): одна змінна, без коду. Для сервера, що працює постійно, Supabase радить саме його.
 
 **M1.11.6 Закритий доступ і без індексації** (👤 У21)
 - [ ] 👤 Спільний логін / пароль (HTTP Basic Auth) на web і admin; Swagger — за тим самим паролем (👤 У17).
+  - ⚠️ Password Protection Vercel є лише на Pro, тож Basic Auth робимо в `proxy.ts` web і admin (в адмінці `proxy.ts` ще немає). Вебхук `/api/revalidate` під Basic Auth не потрапляє: `api/` уже поза matcher, а запит має підпис (D57).
 - [ ] 👤 `X-Robots-Tag: noindex, nofollow` на web, admin і API + `robots.txt` `Disallow: /`. *З M1.8.3:* у web обидва дає відсутня (чи `false`) `SITE_INDEXING` ✅ — лишаються admin і API.
 - [ ] ⭐ `/health` — без пароля (для моніторингу); перевірити `curl -I`, що без пароля сторінку не відкрити.
 
@@ -805,16 +879,20 @@
 - [ ] 👤 Прапорець `FOOTBALL_SYNC_CRON_ENABLED`: локально `false` (синк — кнопкою в адмінці), на тесті `true` (👤 У19) — *чому:* один ключ football-data на двох серверах = спільний ліміт 10 / хв і помилки 429.
 - [ ] 👤 Cron пропускає завершені турніри (WC 2026, EC 2024): сезон закінчився й незавершених матчів немає (👤 6.4).
   - ⚠️ 👤 2026-10-22 ([D48](decisions/D48-competition-in-play.md)) Правило «турнір у грі» (M1.4.8.2) — **не для cron**: CL після ліга-фази за ним, щойно мине запас, стала б «завершеною» й перестала б синхронізуватися, а матчі плей-оф приносить саме синк. Те саме — і з правилом вище в теперішньому вигляді: після ліга-фази CL (`endDate` сезону на dev-БД — її кінець, 2027-01-27) «сезон закінчився й незавершених матчів немає». Як cron відрізнить такий турнір від справді завершеного — вирішити на старті M1.11.7.
-- [ ] ⭐ Graceful shutdown (`enableShutdownHooks`) — *чому:* кожен деплой — це SIGTERM; без нього `SyncRun` лишається `RUNNING`, і наступний синк турніру блокується до 10 хв.
+- [ ] ⭐ Graceful shutdown (`enableShutdownHooks`) — *чому:* кожен деплой — це SIGTERM; без нього `SyncRun` лишається `RUNNING`, і наступний синк турніру блокується до 10 хв. Render Free ще й може перезапустити сервіс будь-коли ([D58](decisions/D58-test-hosting.md)).
 - [ ] ⭐ LIVE-cron на тесті вимкнено (квота); LIVE оновлює `live-touch`.
 
 **M1.11.8 Бекапи й моніторинг-мінімум**
 - [ ] 👤 Бекап раз на тиждень: уся БД без службових журналів (`SyncRun`, `RateLimitEvent`) (👤 9.4, У22; [D32](decisions/D32-backups.md)).
   - ⚠️ ⭐ Репозиторій публічний: артефакти GitHub Actions бачать усі → дамп (email-и, хеші паролів) лише зашифрованим і в приватному сховищі.
-- [ ] ⭐ Uptime-монітор на `/health` (UptimeRobot або Better Stack, безкоштовно) → 👤 Telegram (👤 10.6).
+- [ ] ⭐ Uptime-монітор на `/health` (UptimeRobot або Better Stack, безкоштовно) → 👤 Telegram (👤 10.6). Заодно це ще один пінг, що не дає Render заснути (M1.11.2).
 
 **M1.11.9 Реліз на тест**
-- [ ] ⭐ Runbook `docs/runbooks/deploy-test.md`: як задеплоїти, відкотити, змінити секрет, відновити бекап — *чому:* перший деплой — найкращий момент записати кроки, поки вони свіжі.
+- [ ] ⭐ Runbook `docs/runbooks/deploy-test.md` — *чому:* перший деплой — найкращий момент записати кроки, поки вони свіжі. Зміст:
+  - як задеплоїти (злиття PR → зелений CI → Render і Vercel);
+  - міграція з локальної машини і її порядок відносно злиття ([D58](decisions/D58-test-hosting.md));
+  - відкат (Render Free — до двох попередніх деплоїв; Vercel — Instant Rollback);
+  - як змінити секрет і відновити бекап.
 - [ ] ⭐ Смоук-сценарій на сервері: відкрити за паролем → реєстрація → вхід → коментар → лайк → адмінка: новина → вона на сайті → синк → журнал синків.
 - [ ] ❓ CSRF — повернутися перед деплоєм (👤 9.1, OQ-6).
 - [ ] 👤 2026-11-02 **Демо замовнику** на тест-сервері — мета M1.11; після нього — M1.12.
@@ -946,7 +1024,7 @@
   - [ ] 👤 Повторний замір — таблиця до / після поруч з таблицею M1.8.4; пороги — ті самі (SEO = 100, Best Practices ≥ 90; LCP і CLS — попередження).
 - [ ] 👤 2026-11-06 (з M1.9): `NextIntlClientProvider` у `[locale]/layout.tsx` передає клієнту **всі** `messages` — кожна сторінка несе тексти всіх сторінок (тож ключі помилок редактора лишились у мапі адмінки, M1.9). Передавати лише простори імен, які потрібні клієнтським компонентам (`pick` у layout чи свій провайдер у сегменті — next-intl, «Internationalization of Server & Client Components»); ⚠️ простір, якого не передали, — помилка `MISSING_MESSAGE` у браузері, тож перелік — з тестом. Замір — розмір HTML і JS сторінки до / після.
 - [ ] 👤 2026-10-26 (M1.6.4, крок 0): головна при повному збої API — зараз 500 (`noindex`; сторінка Next 16 503 віддати не може); з CDN / кешем (тут і M3.1) — 503 з `Retry-After` або сторінка-заглушка CDN.
-- [ ] 👤 2026-10-26 (бриф M1.6.3): пояс першого візиту — з гео-заголовка хостингу, якщо він є (`x-vercel-ip-timezone` на Vercel, `cf-timezone` за Cloudflare): `proxy.ts` ставить cookie `tz` з нього вже на першому запиті, і сторінка одразу рендериться в цьому поясі — без `router.refresh()` у `TimeZoneSync`; порядок — cookie → заголовок (лише валідний IANA, `isValidTimeZone`) → `Europe/Kyiv`. Хостинг ще не вибрано (M1.11.1) — вирішити разом із вибором: кеш сторінок з `Vary` за поясом (cookie) чи пояс на клієнті після гідратації (`<LocalTime>`; сервер рендерить у `Europe/Kyiv`, ціна — підміна часу на кожному завантаженні не з Києва).
+- [ ] 👤 2026-10-26 (бриф M1.6.3): пояс першого візиту — з гео-заголовка хостингу, якщо він є (`x-vercel-ip-timezone` на Vercel, `cf-timezone` за Cloudflare): `proxy.ts` ставить cookie `tz` з нього вже на першому запиті, і сторінка одразу рендериться в цьому поясі — без `router.refresh()` у `TimeZoneSync`; порядок — cookie → заголовок (лише валідний IANA, `isValidTimeZone`) → `Europe/Kyiv`. Хостинг — Vercel ([D58](decisions/D58-test-hosting.md)): `x-vercel-ip-timezone` є; вирішити тут: кеш сторінок з `Vary` за поясом (cookie) чи пояс на клієнті після гідратації (`<LocalTime>`; сервер рендерить у `Europe/Kyiv`, ціна — підміна часу на кожному завантаженні не з Києва).
 - [ ] ⭐ Кеш головної й новин — on-demand (👤 2026-10-30: кеш даних з тегами й вебхук — уже в M1.8.3; тут — решта, `cacheComponents` і кеш на кількох інстансах — [`backlog.md`](backlog.md)): з M1.8.2 запланована новина виходить воркером з подією `post.published` ([D57](decisions/D57-scheduled-publishing.md)), тож строк життя до найближчої `publishedAt` (`cacheLife`) більше не потрібен — вистачає подій; інвалідовує API (адмінка — інший застосунок) вебхуком на Route Handler web із секретом — `revalidateTag(tag, { expire: 0 })`: у Next 16 `revalidateTag(tag, 'max')` — stale-while-revalidate, і перший відвідувач після публікації ще бачив би стару версію. Події — публікація, зняття, правка, закріплення (M1.6.4).
 
 ### M2.13 Сторінки тегів (👤 2026-10-24, [D51](decisions/D51-admin-tags.md))
@@ -973,7 +1051,13 @@
 - [ ] 👤 Прод-БД — нова, чиста, у США (👤 10.2, 10.9); ⭐ API в тому ж регіоні, що й БД — *чому:* кожен запит API → БД через океан додає ~100 мс.
 - [ ] ⭐ Прибрати тимчасовий редирект `/ua/*` → `/uk/*` з `proxy.ts` ([D22](decisions/D22-ukrainian-language-code.md)).
 - [ ] ⭐ Squash міграцій перед першим прод-деплоєм ([`decisions/v5-foundation.md`](decisions/v5-foundation.md), розділ 11).
+  - ⚠️ Процедура з розділу 11 починається з `migrate reset`, а на спільній dev / test БД це заборонено ([D58](decisions/D58-test-hosting.md)). Squash робимо на окремій БД; що далі з тестовою БД — вирішити разом з OQ-8.
 - [ ] ⭐ Платні плани там, де безкоштовні не тягнуть прод — OQ-22.
+- [ ] 👤 2026-11-06 ([D58](decisions/D58-test-hosting.md)) Vercel Hobby — лише некомерційне використання: для проду web і admin — Vercel Pro або інший хостинг.
+- [ ] 👤 2026-11-06 API: платний інстанс без сну замість пінгу з GitHub Actions (Render Free, M1.11.2) — вирішити тут.
+- [ ] 👤 2026-11-06 Docker (перенесено з M1.11.2) — якщо прод-хостинг API потребує образу.
+  - ⭐ Багатоетапний `Dockerfile` API: збірка в pnpm workspace (`pnpm deploy --prod`), `prisma generate` під час збірки, запуск від не-root користувача, `HEALTHCHECK` на `/health`, `.dockerignore`.
+  - ⭐ Міграції — окремий крок релізу (`prisma migrate deploy` перед запуском нової версії), а не при старті контейнера — *чому:* два контейнери не запустять міграцію двічі, а невдала міграція не покладе робочу версію.
 
 ### M3.2 Безпека
 - [ ] 👤 CSRF (OQ-6).

@@ -2,7 +2,7 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import type { PrismaConfig } from "prisma";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -13,7 +13,10 @@ export default defineConfig({
   },
   datasource: {
     // CLI (migrate) потребує прямого з’єднання; з pooler (Supabase) — DIRECT_URL, інакше DATABASE_URL.
-    // `||`, а не `??`: порожній `DIRECT_URL=` (як у .env.example) — те саме, що змінної немає
-    url: process.env.DIRECT_URL || env("DATABASE_URL"),
+    // `||`, а не `??`: порожній `DIRECT_URL=` (як у .env.example) — те саме, що змінної немає.
+    // Не `env("DATABASE_URL")`: той кидає помилку без змінної, а `prisma generate` (`pnpm install`, збірка API) БД
+    // не потрібна — у CI й на хостингу `.env` немає (M1.10). `migrate` без адреси зупиниться сам:
+    // «The datasource.url property is required in your Prisma config file…»
+    url: process.env.DIRECT_URL || process.env.DATABASE_URL,
   },
 } satisfies PrismaConfig);
