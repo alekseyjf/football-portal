@@ -1,7 +1,7 @@
 # ⚽ 12Yards — план розвитку
 
 > **Версія:** 5.0 · 2026-10-08 — перший план після переходу на схему v5. Попередні: [`archive/football-plan-v4.7.md`](archive/football-plan-v4.7.md), [`archive/football-plan-intermediate.md`](archive/football-plan-intermediate.md).
-> **Зараз:** M1 «Тестовий реліз» → **M1.10 CI для деплою** → M1.11 тестовий деплой і демо → M1.12 стенд, Lighthouse CI, E2E у браузері → M1.13 UI за дизайном · M1.9 UI-мінімум перед деплоєм ✅ (тексти входу й реєстрації, помилки форм мовою сторінки, шрифт з кирилицею) · M1.8 SEO-база ✅ (M1.8.1–M1.8.4, [D34](decisions/D34-seo-multilingual.md), [D57](decisions/D57-scheduled-publishing.md)) · M1.7 Коментарі як на YouTube ✅ (M1.7.1–M1.7.4, [D27](decisions/D27-youtube-style-comments.md)) · M1.6 Новини — web ✅ (M1.6.1–M1.6.4, [D52](decisions/D52-news-feed.md)–[D56](decisions/D56-pinned-lead-post.md)) · M1.5 Новини — адмінка ✅ (M1.5.1–M1.5.3, [D49](decisions/D49-shared-ui-package.md)–[D51](decisions/D51-admin-tags.md)) · M1.4 Новини — API ✅ (M1.4.1–M1.4.9) · M1.1 — власник перечитує `rules/`.
+> **Зараз:** M1 «Тестовий реліз» → **M1.11 тестовий деплой і демо** → M1.12 стенд, Lighthouse CI, E2E у браузері → M1.13 UI за дизайном · M1.10 CI для деплою ✅ (GitHub Actions `verify` і `e2e-api`, ruleset `master`) · M1.9 UI-мінімум перед деплоєм ✅ (тексти входу й реєстрації, помилки форм мовою сторінки, шрифт з кирилицею) · M1.8 SEO-база ✅ (M1.8.1–M1.8.4, [D34](decisions/D34-seo-multilingual.md), [D57](decisions/D57-scheduled-publishing.md)) · M1.7 Коментарі як на YouTube ✅ (M1.7.1–M1.7.4, [D27](decisions/D27-youtube-style-comments.md)) · M1.6 Новини — web ✅ (M1.6.1–M1.6.4, [D52](decisions/D52-news-feed.md)–[D56](decisions/D56-pinned-lead-post.md)) · M1.5 Новини — адмінка ✅ (M1.5.1–M1.5.3, [D49](decisions/D49-shared-ui-package.md)–[D51](decisions/D51-admin-tags.md)) · M1.4 Новини — API ✅ (M1.4.1–M1.4.9) · M1.1 — власник перечитує `rules/`.
 > **Карта документації:** [`docs/README.md`](README.md) · рішення — [`decisions/`](decisions/README.md) · відкладене — [`backlog.md`](backlog.md) · ідеї — [`ideas.md`](ideas.md) · питання — [`open-questions.md`](open-questions.md).
 
 ## Як читати план
@@ -743,7 +743,7 @@
 
 **Готово, коли:** на `/uk/…` немає англійських підписів інтерфейсу; українські літери — шрифтом сайту; шрифтів вантажиться не більше, ніж до зміни, плюс кирилиця; CLS < 0,1.
 
-### M1.10 CI для деплою
+### M1.10 CI для деплою ✅
 
 **Мета:** кожен PR перевіряється автоматично ще до тестового деплою. 👤 Налаштовуємо разом, з поясненням кожного кроку. 👤 2026-11-02: тут — лише потрібне для деплою (базовий CI); Lighthouse CI, E2E у браузері й стенд — M1.12, після деплою й демо.
 
@@ -771,15 +771,19 @@
 - [x] ⭐ Фіктивний `DATABASE_URL` у CI не знадобився. На брифі встановлення без змінної падало (`PrismaConfigEnvError`), і план був передати фіктивний рядок. Під час роботи з'ясувалось, що він не допоміг би: Turbo 2 у строгому режимі не передає задачам змінних, яких немає в `turbo.json`, тож `prisma generate` у `prebuild` API падав би при `pnpm build` (перевірено).
   - Виправлено в корені: `prisma.config.ts` бере `process.env.DIRECT_URL || process.env.DATABASE_URL` замість `env("DATABASE_URL")`, який кидає помилку без змінної. Генерації клієнта БД не потрібна, а `migrate` без адреси зупиняється сам («The datasource.url property is required…»).
   - Заодно `pnpm install` і збірка не потребуватимуть `DATABASE_URL` на Vercel (M1.11.2): установка Vercel теж запускає `prepare` кореня.
-- [ ] 👤 Перший прогін на GitHub: власник пушить гілку й відкриває PR → `verify` і `e2e-api` зелені. Голий Postgres 17 (не Supabase) e2e бачать уперше саме тут.
-- [ ] 👤 Захист `master` — ruleset (налаштовує власник після першого зеленого прогону, бо лише тоді назви перевірок з'являються у виборі; кроки — у звіті M1.10):
+- [x] 👤 Перший прогін на GitHub (2026-11-06, PR #49): з першого разу зелені обидва job-и — і на PR, і після злиття на `master`. Голий Postgres 17 (не Supabase) e2e бачили вперше саме тут — без жодної правки.
+  - `verify` — 2 хв 11 с … 2 хв 23 с: install ~22 с, lint ~20 с, typecheck ~15 с, unit ~9 с, build ~30 с, `test:runtime-env` ~19 с;
+  - `e2e-api` — 1 хв 22 с … 1 хв 35 с: контейнер Postgres ~15 с, install ~20 с, e2e ~35 с.
+- [x] 👤 Захист `master` — ruleset `master` (власник, 2026-11-06, після першого зеленого прогону: лише тоді назви перевірок з'являються у виборі). Перевірено через API (`GET /repos/…/rules/branches/master`) — діють усі правила нижче, перевірки — з `integration_id` GitHub Actions:
   - ціль — гілка за замовчуванням; Enforcement — Active; Bypass list — порожній;
   - Restrict deletions, Block force pushes;
   - Require a pull request before merging — 0 схвалень;
   - Require status checks to pass: `verify` і `e2e-api`, джерело — **GitHub Actions**. ⭐ *Чому джерело:* інакше перевірку з тією самою назвою може «закрити» статус від іншої інтеграції.
   - ⭐ «Require branches to be up to date» — ні: розробник один, PR-и йдуть по черзі, а push у `master` однаково проганяє CI.
   - Відомий флейк e2e (`apps/api/test/CLAUDE.md`) — без автоповтору: червоний — «Re-run failed jobs» вручну й рядок у журнал флейку.
-- [ ] 👤 Контрольний прогін: тимчасова помилка lint у PR → `verify` ❌, кнопка злиття заблокована; повернути.
+- [x] 👤 2026-11-06 Контрольний прогін з поломкою — пропущено (рішення власника): що `pnpm lint` на поломці повертає код 1, перевірено локально (нижче), а що злиття вимагає саме цих перевірок — у налаштуваннях ruleset (вище). Наживо червоний CI побачимо на першому справжньому збої.
+- [x] 👤 2026-11-06 Власник увімкнув у налаштуваннях репозиторію (Settings → Actions → General) вимогу закріплювати actions повним SHA. ⚠️ Наслідок: workflow з action за тегом (`@v4`) GitHub не запустить зовсім — і нові (`keep-alive.yml` у M1.11.2), і приклади з документації копіюємо лише з SHA.
+- [x] 👤 2026-11-06 Ручний запуск — `workflow_dispatch` (Actions → CI → Run workflow, будь-яка гілка): перевірити коміт без нового push — після збою раннера чи перед деплоєм старого `master`. Перевірки пишуться на коміт — їх зараховують і PR (ruleset), і Render (`checksPass`).
 - *Знайдено перед брифом (2026-11-06):*
   - ✅ Кінці рядків: `.gitattributes` немає, `core.autocrlf` не задано — файли лежать у git з CRLF, і checkout на Linux їх не змінить: `pnpm lint:eol` у CI працює, як локально.
   - Версії: Node — з `.nvmrc` (24.18.0), pnpm — з `packageManager` (10.33.0). Секрети CI не потрібні: e2e — свій Postgres, ключа football-data немає.
@@ -797,6 +801,8 @@
 ### M1.11 Тестовий деплой
 
 **Мета:** сайт «у світі» на безкоштовному хостингу, за паролем і без індексації (👤 1.6, У20, У21; [D31](decisions/D31-test-environment.md)). Хостинг — [D58](decisions/D58-test-hosting.md): web і admin — Vercel Hobby, API — Render Free, деплой — лише після зеленого CI. Під-етапи — по черзі.
+- ⭐ 2026-11-06 Порядок першого деплою: спершу код — `render.yaml`, `vercel.json`, rewrites (M1.11.3), `APP_ENV` (M1.11.4), Basic Auth (M1.11.6) — одним PR через CI, і лише потім створюємо сервіси (Render — New → Blueprint, Vercel — Import). *Чому:* перший Deploy у Vercel одразу відкриває production-адресу, а Render з форми — це конфіг поза git. Деплой без Basic Auth показав би сайт і адмінку кожному, хто має адресу, а вхід без rewrites однаково не працював би (cookies на чужий домен API).
+- Змінні для панелей Render і Vercel — `apps/{api,web,admin}/.env.example`; секрети генерує власник на своїй машині (`openssl rand -base64 48 | tr -d '\n' | pbcopy` — одразу в буфер, без виводу на екран) і зберігає в менеджері паролів.
 
 **M1.11.1 Хостинг** — ✅ 👤 2026-11-06 (OQ-7 → [D58](decisions/D58-test-hosting.md))
 - [x] 👤 web і admin — Vercel Hobby: два проєкти з одного репозиторію, Root Directory `apps/web` і `apps/admin`. API — Render Free, нативний Node без Docker; конфіг — `render.yaml` у репозиторії.
@@ -847,12 +853,14 @@
   - ⚠️ Ліміт Hobby — 5 000 перетворень на місяць; понад нього нові фото — 402, без оплати.
   - Лишається перевірка наживо: обкладинка новини — `content-type: image/webp` з `/_next/image`.
 - [ ] ⭐ Нові секрети для тесту (`JWT_SECRET`, `EMAIL_HASH_SECRET`), не з dev — *чому:* секрет, що «гуляв» локально, не має відчиняти сервер.
+  - ⚠️ ❓ 2026-11-06: `EMAIL_HASH_SECRET` прив'язаний не до сервера, а до даних — HMAC пошт у `BlockedEmail`, а таблиця одна на тест і локальну розробку ([D58](decisions/D58-test-hosting.md)). З різними значеннями пошту, заблоковану на тесті, локальна реєстрація не впізнає, і навпаки. ⭐ Новий секрет — на Render **і** в локальному `.env` (старі рядки `BlockedEmail` — дані розробки — перестануть збігатися). `JWT_SECRET` — різні: токен локального API на тесті недійсний.
+- [x] Виправлено 2026-11-06: у `apps/web/.env.example` значенням `REVALIDATE_SECRET` стояв текст команди `openssl rand -base64 48` (23 символи < 32) — скопійований як є файл не давав web стартувати; тепер порожньо, як в API.
 
 **M1.11.5 БД** (👤 2026-11-06, [D58](decisions/D58-test-hosting.md))
 - [x] 👤 Тест-сервер і локальна розробка — на одній поточній Supabase; розділення (OQ-8) — відкладено. Для проду — нова чиста БД (👤 10.9).
 - [x] 👤 Правила діють одразу, не «після першого деплою» (backend Rule 16, [`rules/process.md`](rules/process.md)):
   - на цій БД ніколи `prisma migrate dev` / `migrate reset` — лише `migrate deploy`;
-  - нові міграції — `--create-only`;
+  - нові міграції — `pnpm db:migration:new` (SQL без БД, нижче);
   - expand → contract;
   - `pg_dump` перед кожною міграцією.
   - Застосовуємо з локальної машини (`pnpm db:migrate`, `DIRECT_URL`). Окремого кроку міграцій у релізі тесту немає (pre-deploy команди Render Free однаково не має).

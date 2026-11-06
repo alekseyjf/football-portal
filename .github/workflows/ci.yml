@@ -1,4 +1,4 @@
-# CI (M1.10, D58): кожен PR у master і кожен push у master.
+# CI (M1.10, D58): кожен PR у master, кожен push у master і ручний запуск.
 #
 # Назви job-ів `verify` і `e2e-api` — стабільні: за ними шукають перевірки ruleset гілки master (без зелених —
 # злиття заблоковано) і Vercel (Deployment Checks); Render деплоїть API лише тоді, коли зелені всі перевірки коміту.
@@ -11,6 +11,9 @@ on:
     branches: [master]
   push:
     branches: [master]
+  # Ручний запуск (Actions → CI → Run workflow) на будь-якій гілці: перевірити коміт без нового push — після збою
+  # раннера, перед деплоєм старого master. Перевірки пишуться на коміт, тож зарахуються і PR, і Render
+  workflow_dispatch:
 
 # Токен job-а — лише читання коду: workflow нічого не пише в репозиторій
 permissions:
