@@ -4,9 +4,9 @@
  * змінною старту. Зламається, якщо маршрут sitemap чи `robots.ts` знову пререндериться при `next build` (без
  * `await connection()`).
  *
- * API — фейковий (`GET /posts/sitemap` — один місяць): адресу збірка вбудовує (`NEXT_PUBLIC_API_URL`), тож збірка — в
- * окрему теку `.next/runtime-env-check` (`NEXT_DIST_DIR`), а не в `.next` розробника. Збірка з іншою текою дописує
- * її шляхи типів у `tsconfig.json` і `next-env.d.ts` — страж повертає обидва файли як були. Запуск:
+ * API — фейковий (`GET /posts/sitemap` — один місяць): його адресу сервер читає під час роботи (`API_ORIGIN`, D59).
+ * Збірка — в окрему теку `.next/runtime-env-check` (`NEXT_DIST_DIR`), а не в `.next` розробника. Збірка з іншою текою
+ * дописує її шляхи типів у `tsconfig.json` і `next-env.d.ts` — страж повертає обидва файли як були. Запуск:
  * `pnpm test:runtime-env`.
  */
 import { spawn } from 'node:child_process';
@@ -33,6 +33,9 @@ const UNSET = {
   SITE_INDEXING: '',
   REVALIDATE_SECRET: '',
   REVALIDATE_SECRET_PREVIOUS: '',
+  API_ORIGIN_SECRET: '',
+  BASIC_AUTH_USER: '',
+  BASIC_AUTH_PASSWORD: '',
 };
 
 const failures = [];
@@ -153,12 +156,13 @@ async function readSite(origin) {
 
 async function main() {
   const fakeApi = await startFakeApi();
-  const apiUrl = `http://127.0.0.1:${fakeApi.address().port}/api/v1`;
   const env = {
     ...process.env,
     ...UNSET,
     NEXT_DIST_DIR: DIST_DIR,
-    NEXT_PUBLIC_API_URL: apiUrl,
+    // `next start` — NODE_ENV=production: середовище обов'язкове; машина розробника — без пароля й секрету API
+    APP_ENV: 'development',
+    API_ORIGIN: `http://127.0.0.1:${fakeApi.address().port}`,
   };
   try {
     console.log(`next build → ${DIST_DIR} (без SITE_INDEXING)…`);

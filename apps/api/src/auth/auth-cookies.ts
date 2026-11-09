@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import type { CookieOptions, Request, Response } from 'express';
 import { API_GLOBAL_PREFIX } from '../app.constants';
 import { envConfig } from '../config/env.config';
@@ -15,10 +16,18 @@ const REFRESH_TOKEN_COOKIE_PATH = `/${API_GLOBAL_PREFIX}/auth`;
 const LEGACY_REFRESH_TOKEN_COOKIE_PATH = '/';
 const ACCESS_TOKEN_COOKIE_PATH = '/';
 
+/**
+ * `SameSite` за роллю (D60): cookies адміна — `strict`, решти — `lax`. Cookies читає лише `fetch` зі сторінки того самого
+ * сайту (SSR іде без них), тож `strict` нічого не ламає, а сесія адміна не йде навіть з переходом з чужого сайту.
+ */
+function sameSiteFor(role: AuthTokens['role']): CookieOptions['sameSite'] {
+  return role === Role.ADMIN ? 'strict' : 'lax';
+}
+
 /** Cookies з токенами для відповідей контролерів; `secure` — на проді (локально API на http). */
 @Injectable()
 export class AuthCookieService {
-  /** JS на фронті не бачить токенів; cross-site POST не несе cookies (`lax`). */
+  /** JS на фронті не бачить токенів; cross-site POST не несе cookies (`lax` / `strict`). */
   private readonly baseOptions: CookieOptions;
 
   constructor(@Inject(envConfig.KEY) env: AppEnv) {
@@ -30,20 +39,24 @@ export class AuthCookieService {
   }
 
   set(res: Response, tokens: AuthTokens): void {
-    res.cookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
+    const sessionOptions: CookieOptions = {
       ...this.baseOptions,
+      sameSite: sameSiteFor(tokens.role),
+    };
+    res.cookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
+      ...sessionOptions,
       path: ACCESS_TOKEN_COOKIE_PATH,
       maxAge: ACCESS_TOKEN_TTL_SECONDS * 1000,
     });
     res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
-      ...this.baseOptions,
+      ...sessionOptions,
       path: REFRESH_TOKEN_COOKIE_PATH,
       expires: tokens.refreshExpiresAt,
     });
     this.clearLegacyRefreshCookie(res);
   }
 
-  /** `clearCookie` спрацьовує лише з тим самим `path`, що й при встановленні. */
+  /** `clearCookie` спрацьовує лише з тим самим `path`, що й при встановленні (`SameSite` — не важливий). */
   clear(res: Response): void {
     res.clearCookie(ACCESS_TOKEN_COOKIE, {
       ...this.baseOptions,

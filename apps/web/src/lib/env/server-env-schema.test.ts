@@ -5,20 +5,53 @@ import {
   validateServerEnv,
 } from './server-env-schema';
 
+/** `next start` на сервері: шлюз до API задано (D59) — тести нижче про решту змінних */
+const PRODUCTION = {
+  NODE_ENV: 'production',
+  APP_ENV: 'production',
+  API_ORIGIN: 'https://api.portal.test',
+  API_ORIGIN_SECRET: 'origin-secret-origin-secret-origin-secret',
+};
+
 describe('Перевірка при старті сервера (validateServerEnv)', () => {
   it('SITE_URL є — проблем немає', () => {
     expect(
-      validateServerEnv({
-        NODE_ENV: 'production',
-        SITE_URL: 'https://portal.test',
-      }),
+      validateServerEnv({ ...PRODUCTION, SITE_URL: 'https://portal.test' }),
     ).toEqual([]);
   });
 
   it('у production SITE_URL немає — одна проблема з назвою змінної', () => {
-    expect(validateServerEnv({ NODE_ENV: 'production' })).toEqual([
+    expect(validateServerEnv(PRODUCTION)).toEqual([
       'SITE_URL: is required in production: site origin, e.g. https://example.com',
     ]);
+  });
+
+  it('шлюз до API (D59): production без APP_ENV, адреси й секрету API — проблеми з назвами змінних', () => {
+    expect(
+      validateServerEnv({
+        NODE_ENV: 'production',
+        SITE_URL: 'https://portal.test',
+      }).map((problem) => problem.split(':')[0]),
+    ).toEqual(['APP_ENV', 'API_ORIGIN', 'API_ORIGIN_SECRET']);
+  });
+
+  it('тест-сервер без пароля — сервер не стартує; з ним — пароль у конфігу', () => {
+    const testServer = {
+      ...PRODUCTION,
+      APP_ENV: 'test',
+      SITE_URL: 'https://portal.test',
+    };
+    expect(validateServerEnv(testServer)).toEqual([
+      'BASIC_AUTH_USER: is required with APP_ENV=test: the test server is closed with a shared login and password',
+      'BASIC_AUTH_PASSWORD: is required with APP_ENV=test: the test server is closed with a shared login and password',
+    ]);
+    expect(
+      parseServerEnv({
+        ...testServer,
+        BASIC_AUTH_USER: 'tester',
+        BASIC_AUTH_PASSWORD: 'long-enough-password',
+      }).gateway.basicAuth,
+    ).toEqual({ user: 'tester', password: 'long-enough-password' });
   });
 
   it('невалідна адреса — проблема з назвою змінної, без значення', () => {
@@ -51,16 +84,12 @@ describe('Серверні змінні web', () => {
 
   it('адреса — origin без `/` у кінці; порт лишається', () => {
     expect(
-      parseServerEnv({
-        NODE_ENV: 'production',
-        SITE_URL: ' https://Example.com/ ',
-      }).SITE_URL,
+      parseServerEnv({ ...PRODUCTION, SITE_URL: ' https://Example.com/ ' })
+        .SITE_URL,
     ).toBe('https://example.com');
     expect(
-      parseServerEnv({
-        NODE_ENV: 'production',
-        SITE_URL: 'http://localhost:3000',
-      }).SITE_URL,
+      parseServerEnv({ ...PRODUCTION, SITE_URL: 'http://localhost:3000' })
+        .SITE_URL,
     ).toBe('http://localhost:3000');
   });
 

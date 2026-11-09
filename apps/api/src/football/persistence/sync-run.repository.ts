@@ -128,6 +128,22 @@ export class SyncRunRepository {
     });
   }
 
+  /** Свої запуски, які процес не закриє (зупинка): `FAILED` лише тим, що досі `RUNNING`. Повертає, скільки закрито. */
+  async failInterrupted(
+    runIds: readonly string[],
+    errorMessage: string,
+  ): Promise<number> {
+    const { count } = await this.prisma.syncRun.updateMany({
+      where: { id: { in: [...runIds] }, status: SyncStatus.RUNNING },
+      data: {
+        status: SyncStatus.FAILED,
+        finishedAt: new Date(),
+        errorMessage: errorMessage.slice(0, ERROR_MESSAGE_MAX_LENGTH),
+      },
+    });
+    return count;
+  }
+
   findRecent(limit: number): Promise<SyncRunRow[]> {
     return this.prisma.syncRun.findMany({
       select: SYNC_RUN_PUBLIC_SELECT,

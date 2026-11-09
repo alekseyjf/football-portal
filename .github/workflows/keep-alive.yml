@@ -1,0 +1,41 @@
+# Пінг API тест-сервера (M1.11.2, D58): Render Free засинає через 15 хв без запитів, а сплячий процес не виконує cron-и
+# (синк, публікація за розкладом) і змушує SSR чекати холодного старту ~1 хв.
+#
+# Адреса — змінна репозиторію API_HEALTH_URL (Settings → Secrets and variables → Actions → Variables), напр.
+# https://football-portal-api.onrender.com/api/v1/health — /health відповідає без секрету шлюзу (D59). Поки змінної
+# немає (сервіс ще не створено), job пропускається — без червоних прогонів.
+#
+# Розклад запускається лише з master; у публічному репозиторії GitHub вимикає його після 60 днів без активності.
+# Прогін завжди зелений: червоний позначив би останній коміт master, а Render деплоїть лише коміт, де всі перевірки
+# зелені (checksPass). Стежити за доступністю — справа монітора (M1.11.8).
+name: Keep API awake
+
+on:
+  schedule:
+    # Кожні 10 хв, але зі зсувом: на початку години GitHub затримує запуски найбільше
+    - cron: '7,17,27,37,47,57 * * * *'
+  # Ручний запуск — перевірити адресу після створення сервісу
+  workflow_dispatch:
+
+# Токен не потрібен: лише запит назовні
+permissions: {}
+
+jobs:
+  ping:
+    name: ping
+    if: vars.API_HEALTH_URL != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Прокидання Render — ~1 хв: таймаут спроби 100 с і три повтори; не дочекались — попередження, не помилка
+      - name: Ping /health
+        env:
+          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+        run: |
+          if curl --fail --silent --show-error --max-time 100 \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --output /dev/null --write-out 'HTTP %{http_code} in %{time_total} s\n' \
+            "$API_HEALTH_URL"; then
+            exit 0
+          fi
+          echo "::warning title=API did not answer::$API_HEALTH_URL did not return 2xx after retries"

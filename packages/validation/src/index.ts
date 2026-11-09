@@ -6,6 +6,12 @@
 import { slugify } from './slug';
 
 export { SLUG_PATTERN, slugify } from './slug';
+export {
+  API_BASE_PATH,
+  CLIENT_IP_HEADER,
+  LOCAL_API_ORIGIN,
+  ORIGIN_SECRET_HEADER,
+} from './api-access';
 export { publicTagPath } from './public-paths';
 export { normalizeYouTubeUrl, parseYouTubeVideoId } from './youtube';
 export { commentEditWindowStart, isCommentEditWindowOpen } from './comment-edit';

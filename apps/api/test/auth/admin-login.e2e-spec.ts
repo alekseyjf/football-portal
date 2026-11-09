@@ -4,6 +4,7 @@ import { apiPath, createE2eApp, type E2eApp } from '../support/e2e-app';
 import {
   createUser,
   loginAs,
+  readSetCookie,
   readSetCookieAttributes,
   type E2eUser,
 } from '../support/e2e-auth';
@@ -12,7 +13,7 @@ import { expectMatchesContract } from '../support/openapi-contract';
 
 /*
  * P2-29: роль перевіряється після пароля (без нього роль не розкриваємо) і до `endSession` / `startSession`
- * (не-адмін не отримує cookies і не втрачає сесії сайту). Спроб входу у файлі — 7 (з невалідним тілом:
+ * (не-адмін не отримує cookies і не втрачає сесії сайту). Спроб входу у файлі — 9 (з невалідним тілом:
  * throttler рахує запит до валідації); `login` і `login/admin` ділять ліміт — 10 за хвилину з IP, сам
  * спільний ліміт тут не перевіряємо.
  */
@@ -82,7 +83,7 @@ describe('POST /auth/login/admin: вхід в адмінку лише для ADM
     expect(await sessionsOf(user.id)).toEqual(sessionsBefore);
   });
 
-  it('ADMIN → 200: користувач, сесія й httpOnly cookies; відповідь не кешується', async () => {
+  it('ADMIN → 200: користувач, сесія й httpOnly cookies `SameSite=Strict` (D60); відповідь не кешується', async () => {
     const response = await adminLogin({
       email: admin.email,
       password: admin.password,
@@ -93,19 +94,48 @@ describe('POST /auth/login/admin: вхід в адмінку лише для ADM
     });
     expect(response.headers['cache-control']).toContain('no-store');
     expect(readSetCookieAttributes(response, 'access_token')).toEqual(
-      expect.arrayContaining(['Path=/', 'HttpOnly', 'SameSite=Lax']),
+      expect.arrayContaining(['Path=/', 'HttpOnly', 'SameSite=Strict']),
     );
     // Refresh-cookie — лише на `/auth/*` (refresh, logout, me), не на кожен запит
     expect(readSetCookieAttributes(response, 'refresh_token')).toEqual(
       expect.arrayContaining([
         `Path=${apiPath('/auth')}`,
         'HttpOnly',
-        'SameSite=Lax',
+        'SameSite=Strict',
       ]),
     );
     const sessions = await sessionsOf(admin.id);
     expect(sessions).toHaveLength(1);
     expect(sessions[0].revokedAt).toBeNull();
+  });
+
+  it('refresh сесії адміна — знову `SameSite=Strict`; сесія USER — `Lax` (D60)', async () => {
+    const server = e2e.app.getHttpServer();
+    const adminSession = await adminLogin({
+      email: admin.email,
+      password: admin.password,
+    }).expect(200);
+    const refreshed = await request(server)
+      .post(apiPath('/auth/refresh'))
+      .set(
+        'Cookie',
+        `refresh_token=${readSetCookie(adminSession, 'refresh_token')}`,
+      )
+      .expect(200);
+    expect(readSetCookieAttributes(refreshed, 'access_token')).toContain(
+      'SameSite=Strict',
+    );
+    expect(readSetCookieAttributes(refreshed, 'refresh_token')).toContain(
+      'SameSite=Strict',
+    );
+
+    const userSession = await request(server)
+      .post(apiPath('/auth/login'))
+      .send({ email: user.email, password: user.password })
+      .expect(200);
+    expect(readSetCookieAttributes(userSession, 'access_token')).toContain(
+      'SameSite=Lax',
+    );
   });
 
   it('невалідне тіло → 400', async () => {

@@ -1,5 +1,16 @@
+import {
+  API_BASE_PATH,
+  LOCAL_API_ORIGIN,
+  ORIGIN_SECRET_HEADER,
+} from '@football-portal/validation';
+
 /**
  * HTTP-клієнт до API (cookies, JSON).
+ *
+ * Куди йде запит (M1.11.3, D59): браузер — лише на домен сайту (`/api/v1/*`), далі його пересилає сервер сайту
+ * (`app/api/[...path]`) — cookies сесії живуть на домені сайту. Сервер (SSR) — на API напряму (`API_ORIGIN`), із секретом
+ * сайту (`API_ORIGIN_SECRET`): без нього API на тесті відповідає 403. Серверні змінні перевіряє старт сервера
+ * (`instrumentation-node.ts`); у браузері їх немає — ні адреси, ні секрету.
  *
  * Кеш даних Next на сервері (M1.8.3): запит у кеш — лише явно публічний (`{ cache: 'public', tags, revalidate }`):
  * однаковий для всіх читачів, без cookies й токена. Решта — `no-store`: персональна відповідь (`/auth/me`,
@@ -10,13 +21,24 @@
  * Паралельні запити чекають один спільний refresh (single-flight).
  * Та сама логіка — в `apps/admin/src/lib/api/http.ts`: змінюєш одну — зміни й іншу.
  *
- * CSRF / SameSite (перед продом):
- * — Див. `apps/api/docs/csrf-samesite-checklist.md`.
- * — Після впровадження CSRF-токена: додати заголовок (або double-submit cookie)
- *   у всіх мутаціях (`apiPost` / `apiPut` / `apiDelete`) і перевірку на Nest.
+ * CSRF (D60): токена немає — API перевіряє `Origin` / `Sec-Fetch-Site` мутації, які браузер ставить сам, і тіло лише JSON.
  */
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+function isServer(): boolean {
+  return typeof window === 'undefined';
+}
+
+function apiBaseUrl(): string {
+  if (!isServer()) return API_BASE_PATH;
+  return `${process.env.API_ORIGIN || LOCAL_API_ORIGIN}${API_BASE_PATH}`;
+}
+
+/** Секрет — лише із сервера сайту; локально без нього (API без `API_ORIGIN_SECRET` його не перевіряє). */
+function withServerHeaders(headers: HeadersInit | undefined): Headers {
+  const requestHeaders = new Headers(headers);
+  const originSecret = isServer() ? process.env.API_ORIGIN_SECRET : undefined;
+  if (originSecret) requestHeaders.set(ORIGIN_SECRET_HEADER, originSecret);
+  return requestHeaders;
+}
 
 /**
  * Чи можна відповідь покласти в кеш даних Next. `public` — та сама для всіх: `tags` — що оновлює вебхук,
@@ -139,7 +161,7 @@ function endpointPath(endpoint: string): string {
 }
 
 function canRefreshSessionFor(endpoint: string): boolean {
-  if (typeof window === 'undefined') return false;
+  if (isServer()) return false;
   return !ENDPOINTS_WITHOUT_REFRESH.has(endpointPath(endpoint));
 }
 
@@ -200,9 +222,13 @@ export function apiFetch(
   cache: ApiCache,
 ): Promise<Response> {
   if (cache.cache === 'public') assertNotPersonal(endpoint, init.headers);
-  return fetch(`${API_URL}${endpoint}`, {
+  return fetch(`${apiBaseUrl()}${endpoint}`, {
     credentials: 'include',
     ...init,
+    headers: withServerHeaders(init.headers),
+    // API не редиректить, тож 3xx — збій, а не запит за `Location`: `fetch` переносить туди свої заголовки, а з ними
+    // й секрет сайту (D59). Після `...init` — виклик цього не перевизначить
+    redirect: 'error',
     ...fetchCacheOptions(cache),
   });
 }
@@ -213,7 +239,7 @@ function fetchCacheOptions(
   | Pick<RequestInit, 'cache'>
   | { next: { tags: string[]; revalidate: number } } {
   // У браузері кешу даних Next немає: там і публічний — `no-store`, як було
-  if (cache.cache === 'private' || typeof window !== 'undefined') {
+  if (cache.cache === 'private' || !isServer()) {
     return { cache: 'no-store' };
   }
   return { next: { tags: [...cache.tags], revalidate: cache.revalidate } };

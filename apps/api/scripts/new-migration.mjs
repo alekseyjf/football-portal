@@ -1,7 +1,6 @@
-// Нова міграція — SQL з різниці `schema.prisma` проти схеми, з якої почалась гілка; БД не потрібна (D58).
-// На спільній dev / test БД `prisma migrate dev` (і з `--create-only`) заборонено: він працює з цією БД і на
-// розбіжності пропонує скинути схему. `prisma migrate diff` між двома файлами схеми до БД не звертається —
-// так створено 0006–0012.
+// Нова міграція — SQL з різниці `schema.prisma` проти схеми, з якої почалась гілка; БД не потрібна (D58, D61).
+// Простіше за `prisma migrate dev --create-only`: тому потрібні БД розробки й тіньова БД, а на розбіжності він
+// пропонує скинути схему. `prisma migrate diff` між двома файлами схеми до БД не звертається — так створено 0006–0012.
 //
 // `pnpm db:migration:new <назва>` з кореня; назва — snake_case → `prisma/migrations/<NNNN>_<назва>/migration.sql`.
 // База — `git merge-base HEAD origin/master`; інша — `--base <ref>` (друга міграція в тій самій гілці: першу
@@ -125,9 +124,9 @@ function printNextSteps(migrationFile) {
   console.log(`Створено ${migrationFile}. Далі:
   1. Прочитати SQL: DROP + ADD замість RENAME, втрата даних, блокування таблиць (backend Rule 16).
   2. CHECK чи частковий індекс, яких Prisma не виражає, — дописати сюди і в prisma/sql/constraints.sql.
-  3. Expand → contract: міграція не має ламати код, що зараз працює на тесті (D58).
+  3. Expand → contract: тестову БД мігрує збірка Render, і ~1 хв деплою з новою схемою працює старий код (D61).
   4. pnpm test:e2e — схема e2e перебудується з нею.
-  5. На спільну БД — лише після воріт rules/process.md («Міграція на dev-БД»): pnpm db:migrate.`);
+  5. БД розробки — pnpm db:migrate; тестова — сама, у збірці Render після злиття (rules/process.md).`);
 }
 
 function createMigration({ name, baseRef }) {

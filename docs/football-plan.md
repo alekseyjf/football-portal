@@ -800,9 +800,33 @@
 
 ### M1.11 Тестовий деплой
 
-**Мета:** сайт «у світі» на безкоштовному хостингу, за паролем і без індексації (👤 1.6, У20, У21; [D31](decisions/D31-test-environment.md)). Хостинг — [D58](decisions/D58-test-hosting.md): web і admin — Vercel Hobby, API — Render Free, деплой — лише після зеленого CI. Під-етапи — по черзі.
-- ⭐ 2026-11-06 Порядок першого деплою: спершу код — `render.yaml`, `vercel.json`, rewrites (M1.11.3), `APP_ENV` (M1.11.4), Basic Auth (M1.11.6) — одним PR через CI, і лише потім створюємо сервіси (Render — New → Blueprint, Vercel — Import). *Чому:* перший Deploy у Vercel одразу відкриває production-адресу, а Render з форми — це конфіг поза git. Деплой без Basic Auth показав би сайт і адмінку кожному, хто має адресу, а вхід без rewrites однаково не працював би (cookies на чужий домен API).
-- Змінні для панелей Render і Vercel — `apps/{api,web,admin}/.env.example`; секрети генерує власник на своїй машині (`openssl rand -base64 48 | tr -d '\n' | pbcopy` — одразу в буфер, без виводу на екран) і зберігає в менеджері паролів.
+**Мета:** сайт «у світі» на безкоштовному хостингу, за паролем і без індексації (👤 1.6, У20, У21; [D31](decisions/D31-test-environment.md)). Хостинг — [D58](decisions/D58-test-hosting.md): web і admin — Vercel Hobby, API — Render Free, деплой — лише після зеленого CI.
+
+**Порядок** (👤 2026-11-06, бриф M1.11):
+1. **PR 1 — код до створення сервісів** ✅ (гілка `feat/m1-11-deploy-config`):
+   - M1.11.2 — `render.yaml`, `vercel.json`, `engines`, `keep-alive.yml`;
+   - M1.11.3 — шлюз до API ([D59](decisions/D59-site-gateway.md));
+   - M1.11.4 — `APP_ENV` і `.env.example`;
+   - M1.11.6 — Basic Auth і `noindex`;
+   - CSRF — перенесено з M1.11.9 ([D60](decisions/D60-csrf.md)): деплой — раніше;
+   - з M1.11.7 — прапорець `FOOTBALL_SYNC_CRON_ENABLED` і graceful shutdown;
+   - 👤 після рев'ю (2026-11-07): окрема БД тесту ([D61](decisions/D61-separate-test-database.md)) — міграції в збірці Render, копія `pnpm db:copy-to-test`; ротація секрету шлюзу без простою (`API_ORIGIN_SECRET_PREVIOUS`) і SSR без редиректів ([D59](decisions/D59-site-gateway.md)).
+   - *Чому код спершу:* перший Deploy у Vercel одразу відкриває production-адресу, а Render з форми — конфіг поза git. Деплой без Basic Auth показав би сайт і адмінку кожному, хто має адресу, а вхід без шлюзу однаково не працював би (cookies на чужий домен API).
+2. **Створення сервісів** (👤 власник, після злиття PR 1), по черзі:
+   1. Новий проєкт Supabase — регіон Frankfurt (`eu-central-1`), у «Advanced Options» — Data API вимкнено. У проєкті розробки — теж: Integrations → Data API → Enable Data API ([D61](decisions/D61-separate-test-database.md)).
+   2. `pnpm db:copy-to-test` (спершу зупинити локальний API): адресу тестової БД — Connect → Session pooler (`:5432`) — скрипт питає приховано; наприкінці — рядки «джерело | ціль» і `prisma migrate status`.
+   3. Змінити пароль адміна на тесті — у копії він той самий, що в розробці. Зміни пароля в адмінці ще немає ([`backlog.md`](backlog.md)), тож вручну:
+      - хеш — локально, пароль не видно на екрані й не лишається в історії shell: `read -rs NEW_ADMIN_PASSWORD && NEW_ADMIN_PASSWORD="$NEW_ADMIN_PASSWORD" pnpm --silent --filter @football-portal/api exec node -e "require('bcrypt').hash(process.env.NEW_ADMIN_PASSWORD, 10).then(console.log)"; unset NEW_ADMIN_PASSWORD` (пароль — 8…72 байти UTF-8; перевірено 2026-11-07: `$2b$10$…`, `compare` — `true`);
+      - SQL Editor тестового проєкту: `UPDATE "User" SET "passwordHash" = '<хеш>' WHERE email = '<пошта адміна>' AND role = 'ADMIN';` → `UPDATE 1`. Сесій у копії немає — відкликати нічого.
+   4. Render — New → Blueprint: `DATABASE_URL` (transaction pooler, `:6543`) і `DIRECT_URL` (session pooler, `:5432`) **тестової** БД, решта — `apps/api/.env.example`. У журналі першої збірки — `prisma migrate deploy`: «No pending migrations to apply».
+   5. Vercel ×2 (web, адмінка) — M1.11.2.
+   6. ⭐ UptimeRobot: `/api/v1/health` кожні 5 хв + сповіщення в Telegram (👤 10.6) — **тут**, а не в M1.11.8. *Чому:* GitHub затримує, а під навантаженням і пропускає запуски за розкладом — один пропуск, і Render засне (15 хв без запитів): воркер розкладу й синк стоять, перший відвідувач чекає ~1 хв. `keep-alive.yml` лишається другим, незалежним пінгом. ⚠️ Безкоштовний план UptimeRobot — звірити з ToS щодо комерційного використання (у 2024–2025 він був лише некомерційним).
+   7. Перевірки «⏳ наживо» нижче.
+3. M1.11.7 — стани турнірів для cron → M1.11.8 бекапи й монітор → M1.11.9 реліз на тест і демо.
+
+- Змінні для панелей Render і Vercel — `apps/{api,web,admin}/.env.example`.
+  - Секрети генерує власник на своїй машині (`openssl rand -base64 48 | tr -d '\n' | pbcopy` — одразу в буфер, без виводу на екран) і зберігає в менеджері паролів.
+  - Змінні Vercel — для **Production і Preview**: без них сервер не стартує ([D59](decisions/D59-site-gateway.md)).
 
 **M1.11.1 Хостинг** — ✅ 👤 2026-11-06 (OQ-7 → [D58](decisions/D58-test-hosting.md))
 - [x] 👤 web і admin — Vercel Hobby: два проєкти з одного репозиторію, Root Directory `apps/web` і `apps/admin`. API — Render Free, нативний Node без Docker; конфіг — `render.yaml` у репозиторії.
@@ -810,103 +834,185 @@
 - [x] 👤 2026-10-26 Гео-пояс відвідувача: Vercel передає `x-vercel-ip-timezone` → пояс першого візиту й кеш сторінок — M2.12.
 
 **M1.11.2 Деплой: Render і Vercel** (👤 2026-11-06: Docker — у M3.1, [D58](decisions/D58-test-hosting.md))
-- [ ] 👤 `render.yaml` (Blueprint) — сервіс API:
-  - `runtime: node`, `plan: free`, `region: frankfurt` (після створення сервісу не змінюється), `branch: master`, `autoDeployTrigger: checksPass`, `healthCheckPath: /api/v1/health`;
-  - Build Filters `paths`: `apps/api/**`, `packages/**`, `pnpm-lock.yaml` (⭐ і кореневі `package.json`, `pnpm-workspace.yaml`, `.nvmrc` — вони теж змінюють збірку);
-  - секрети — `sync: false`: значення вводимо в панелі Render, у git їх немає.
-  - ⭐ Без `rootDir` — *чому:* файлів поза ним Render не дає ні збірці, ні процесу, а API потрібні `packages/*`.
-  - ❓ Команди збірки й запуску — визначити на старті. ⚠️ `NODE_ENV=production` у змінних Render діє й під час збірки, а pnpm з ним не ставить `devDependencies` (Nest CLI, TypeScript) → ⭐ `pnpm install --frozen-lockfile --prod=false`. ⚠️ `prepare` у корені ще й генерує типи для web і admin — API вони не потрібні. pnpm — версії з `packageManager` (10.33.0, через Corepack), а не та, що встановлена на машині Render.
-  - 👤 2026-11-06 Термінала на Render Free немає (Shell — лише на платних). Команда збірки (`pnpm install --frozen-lockfile --prod=false` …) живе в `buildCommand` у `render.yaml`, тобто в git, і виконується на кожен деплой. ⭐ Окремий скрипт `package.json` для неї — лише якщо `render.yaml` посилатиметься на нього: тоді ту саму збірку можна повторити локально.
-  - Render збирає на Linux (x64, glibc), а розробка — на macOS. `node_modules` з Мака не переносимо: залежності ставляться на Linux самі, разом з нативними збірками для нього (`bcrypt` — `prebuilds/linux-x64`, glibc і musl). Різниці платформ ловить CI, бо він теж на Linux: ⚠️ на Linux регістр у шляхах має значення (`import './Foo'` при файлі `foo.ts` на Маку працює, на Linux — ні).
-  - ❓ `.nvmrc` — CRLF (`24.18.0\r\n`): `setup-node` у CI бере `24.18.0` (перевірено його розбором), Render — подивитись у журналі першої збірки.
-  - ⚠️ `engines.node` — `>=24.18.0`, без верхньої межі. Render бере `.nvmrc` (вищий пріоритет), а Vercel — `engines`, і з `>=` перейде на нову основну версію Node, щойно вона вийде → ⭐ `^24.18.0`.
-- [ ] 👤 Vercel — два проєкти (`apps/web`, `apps/admin`):
-  - регіон функцій — `fra1` (⭐ у `vercel.json` застосунку: конфіг у git, як `render.yaml`);
-  - ⭐ увімкнути «Skip deployments when there are no changes to the root directory or its dependencies»;
-  - ❓ щоб Vercel узяв pnpm з `packageManager` — змінна `ENABLE_EXPERIMENTAL_COREPACK=1`.
-  - ❓ Preview-деплої PR: ⭐ лишити — їх закриває Vercel Authentication (бачить лише власник), а API в них — той самий тестовий.
+- [x] 👤 `render.yaml` (Blueprint) — сервіс API:
+  - `runtime: node`, `plan: free`, `region: frankfurt` (після створення сервісу не змінюється), `branch: master`, `autoDeployTrigger: checksPass`, `healthCheckPath: /api/v1/health` (без секрету шлюзу);
+  - Build Filters `paths`: `apps/api/**`, `packages/**`, `pnpm-lock.yaml`, кореневі `package.json`, `pnpm-workspace.yaml`, `.nvmrc`;
+  - ⭐ без `rootDir` — *чому:* файлів поза ним Render не дає ні збірці, ні процесу, а API потрібні `packages/*`;
+  - змінні: сталі значення — у файлі (`NODE_ENV=production`, `APP_ENV=test`, `TRUST_PROXY=false`, `FOOTBALL_SYNC_CRON_ENABLED=true`, `FOOTBALL_LIVE_CRON_ENABLED=false`); секрети й адреси — `sync: false`, значення — у панелі при створенні Blueprint. ⭐ `JWT_SECRET` — `generateValue: true`: тестовий секрет генерує Render, і він ніде більше не потрібен.
+  - 👤 2026-11-07 ([D61](decisions/D61-separate-test-database.md)): збірка — `pnpm build:api && pnpm db:migrate` (міграції тестової БД, лише після успішної збірки); змінна `DIRECT_URL` — session pooler тестової БД, лише для міграцій (M1.11.5).
+- [x] 👤 Збірка — `--prod=false`, кореневим скриптом `pnpm build:api`, на який посилається `render.yaml`: ту саму збірку можна повторити локально.
+  - `pnpm install --frozen-lockfile --prod=false --ignore-scripts && pnpm --filter @football-portal/api... build`.
+  - `--prod=false` — бо `NODE_ENV=production` діє й під час збірки, а з ним pnpm не ставить `devDependencies` (Nest CLI, TypeScript).
+  - ⭐ `--ignore-scripts` — *чому:* `prepare` кореня генерує ще й типи для web і admin (друга збірка API). Скриптів залежностей pnpm 10 однаково не запускає, а клієнт Prisma генерує `prebuild` API.
+  - ⭐ pnpm — з `packageManager` через Corepack, ярлики — у свою теку (`corepack enable --install-directory "$HOME/.corepack-bin" pnpm`). *Чому:* документація Render не каже, як він обирає версію pnpm, а запис у теку Node може бути заборонений. `node --version` і `pnpm --version` — у журналі збірки.
+  - ⭐ Запуск — `node apps/api/dist/main.js`, без pnpm — *чому:* SIGTERM деплою доходить до процесу API, а не до обгортки (graceful shutdown, M1.11.7).
+  - *Перевірено 2026-11-06:*
+    - збірка в копії робочого дерева без `node_modules` і `.env`, з `NODE_ENV=production` — dev-залежності встановились, pnpm 10.33.0, `dist/main.js` є;
+    - частина з Corepack — з `PATH` без глобального pnpm: 10.33.0;
+    - зібраний API з налаштуваннями тесту (БД — закритий порт): `/health` без секрету — 503, решта без секрету — 403, Swagger із секретом — 200, CSRF — 403, `X-Robots-Tag` є; після SIGTERM процес завершився;
+    - обидва YAML розбираються (`js-yaml`).
+  - Render збирає на Linux (x64, glibc), розробка — на macOS: різниці платформ ловить CI (теж Linux). ⚠️ На Linux регістр у шляхах має значення.
+- [x] ⭐ `engines.node` — `^24.18.0` (було `>=`): Vercel бере основну версію з `engines` і з `>=` перейшов би на нову основну версію Node, щойно вона вийде. Render бере `.nvmrc` (вищий пріоритет).
+- [x] ⭐ `vercel.json` у `apps/web` і `apps/admin` — `"regions": ["fra1"]`: конфіг у git, як `render.yaml`.
+- [ ] 👤 Vercel — два проєкти (`apps/web`, `apps/admin`), налаштування в панелі:
+  - Root Directory;
+  - ⭐ «Skip deployments when there are no changes to the root directory or its dependencies»;
+  - ⭐ `ENABLE_EXPERIMENTAL_COREPACK=1` — *чому:* без неї Vercel обирає pnpm за `lockfileVersion` (для 9.0 — «pnpm 9 або 10»), а з нею — точну версію з `packageManager`;
+  - змінні — з `.env.example` (Production і Preview).
+- [x] 👤 Preview-деплої PR — лишаємо (їх закриває Vercel Authentication, бачить лише власник).
+  - ⚠️ Preview ходить на той самий тестовий API (`master`), тож він валідний лише для змін **без змін API**.
+  - Ще й мутації з preview (вхід, коментар) — 403 CSRF: origin preview немає в `CORS_ORIGINS` ([D60](decisions/D60-csrf.md)). Preview — для перегляду сторінок.
 - [ ] 👤 Деплой — лише після зеленого CI:
-  - Render — `autoDeployTrigger: checksPass`: деплой, коли всі перевірки коміту зелені; якщо перевірок немає зовсім — деплою немає;
+  - Render — `autoDeployTrigger: checksPass` (у `render.yaml` ✅): деплой, коли всі перевірки коміту зелені; якщо перевірок немає зовсім — деплою немає;
   - Vercel — Deployment Checks `verify` і `e2e-api` (Settings → Build and Deployment → Deployment Checks): збірка стартує одразу, а production-домен Vercel призначає після зелених перевірок; обхід — Force Promote.
   - 👤 Перевірено 2026-11-06: документація тарифів не називає, а changelog пише «для всіх проєктів, підключених до GitHub» → на Hobby доступно. ⭐ Підтвердити в налаштуваннях.
   - Контрольний прогін: коміт з ❌ CI не викочують ні Render, ні Vercel. ❓ Чи зараховує Render статуси самого Vercel до «всіх перевірок» — подивитись на першому деплої.
-- [ ] 👤 Пінг `/api/v1/health` з GitHub Actions кожні 10 хв (`.github/workflows/keep-alive.yml`, `schedule`).
+- [x] 👤 Пінг `/api/v1/health` з GitHub Actions кожні 10 хв — `.github/workflows/keep-alive.yml`.
   - *Навіщо:* Render Free засинає через 15 хв без запитів; сплячий процес не виконує cron-и (синк, воркер розкладу D57), а SSR чекає холодного старту ~1 хв.
-  - ⭐ Хвилини зі зсувом (`7,17,…`), а не `*/10`: на початку години GitHub затримує запуски. ⭐ `curl` — з таймаутом ≥ 90 с і повтором.
+  - 👤 Адреса — змінна репозиторію `API_HEALTH_URL` (Settings → Secrets and variables → Actions → Variables). Поки її немає, job пропускається — без червоних прогонів до створення сервісу.
+  - ⭐ Хвилини зі зсувом (`7,17,…`), а не `*/10`: на початку години GitHub затримує запуски. `curl` — 100 с на спробу, 3 повтори.
+  - ⭐ Прогін завжди зелений (не відповів — попередження) — *чому:* перевірки workflow за розкладом пишуться на останній коміт `master`, а Render деплоїть лише коміт, де зелені всі перевірки; за доступністю стежить монітор (UptimeRobot — «Порядок», крок 2).
+  - ⚠️ 2026-11-07 (рев'ю M1.11): розклад GitHub — не гарантія (затримки, а під навантаженням — пропуски), тож основний пінг — UptimeRobot кожні 5 хв, а цей workflow — другий.
+  - `permissions: {}` — токен не потрібен; actions немає зовсім (лише `curl`), тож і SHA закріплювати нічого.
   - ⚠️ Безкоштовних годин Render — 750 на workspace на місяць. Один сервіс без сну витрачає ~744 год, тож другого безкоштовного сервісу в тому ж workspace не заводимо.
   - ⚠️ Workflow за розкладом запускається лише з `master`; у публічному репозиторії GitHub вимикає його після 60 днів без активності.
   - Платний інстанс — 👤 рішення в M3.1.
+- [ ] 👤 ⏳ Після створення сервісу: змінна `API_HEALTH_URL` → Actions → Keep API awake → Run workflow → зелений прогін з `HTTP 200`.
+- [ ] ❓ ⏳ Журнал першої збірки Render: `node --version` — 24.18.0 (`.nvmrc` у CRLF; якщо Render його не прочитав — `.nvmrc` у винятки LF, `scripts/line-endings.mjs`), `pnpm --version` — 10.33.0.
 
-**M1.11.3 Один сайт для браузера**
-- [ ] ⭐ API через rewrites Next: браузер ходить лише на домен web, Next проксіює `/api/v1/*` на API (на Vercel — rewrite на зовнішню адресу `*.onrender.com`); admin — так само на своєму домені; SSR ходить на API напряму — *чому:* безкоштовні домени хостингів (`*.vercel.app`, `*.onrender.com` …) для браузера — різні сайти, тож cookies `SameSite=Lax` на окремий домен API не підуть, і «додати хедери й origin» тут не допоможе.
-- [ ] ⭐ `TRUST_PROXY` — перевірити наживо: два різні клієнти мають різні `req.ip` — *чому:* інакше всі користувачі отримають один IP, і ліміт логіну (10 / хв) стане спільним для всіх.
-  - ⚠️ До API є кілька шляхів, і кількість проксі в них різна: браузер → Vercel (rewrite) → проксі Render → API; SSR → проксі Render → API; запит на `*.onrender.com` напряму, і в ньому `X-Forwarded-For` можна підробити. ❓ Значення `TRUST_PROXY` і чи пускати до API лише запити з Vercel — визначити на старті. Ліміт спроб на акаунт від IP не залежить.
+**M1.11.3 Один сайт для браузера** ([D59](decisions/D59-site-gateway.md))
+- [x] 👤 Шлюз: браузер ходить лише на домен web / адмінки (`/api/v1/*`, Swagger — `/api/docs`), запит пересилає **Route Handler** `app/api/[...path]/route.ts` (`forwardToApi`, `@football-portal/validation/site-gateway`); SSR — на API напряму (`API_ORIGIN`).
+  - Перевірено: rewrites `next.config` заголовок запиту не додають (полів для цього немає — документація Next 16.4); `NextResponse.rewrite` у `proxy.ts` на зовнішню адресу з заголовками не задокументовано → ⭐ Route Handler.
+  - До API — лише потрібні заголовки браузера (cookie, тип, мова, `origin`, `sec-fetch-site`); пароль Basic Auth — ні. Відповідь — з кожним `Set-Cookie`; API не відповів — 502, 90 с — 504 `API_UNAVAILABLE`.
+  - ⭐ `NEXT_PUBLIC_API_URL` прибрано: адреса API не вбудовується в збірку, а локально — та сама схема, що на тесті (`next dev` проксіює на `localhost:4000`).
+- [x] 👤 Секрет сервера сайту `x-origin-secret` (`API_ORIGIN_SECRET`, новий): API без нього — 403 `DIRECT_API_ACCESS_FORBIDDEN`, крім `/health`. Поза `APP_ENV=development` змінна обов'язкова.
+  - [x] 👤 2026-11-07 (рев'ю M1.11) Ротація без простою — `API_ORIGIN_SECRET_PREVIOUS` (старий секрет, лише разом з новим і не рівний йому): API приймає обидва, порівнює з усіма без раннього виходу. Unit — схема env; e2e — новий і старий 200, інший 403; контрольний прогін без `…_PREVIOUS` — червоний (старий — 403). `render.yaml` не чіпаємо: змінна — у панелі Render лише на час ротації (порядок — runbook, M1.11.9).
+  - [x] 👤 2026-11-07 (рев'ю M1.11) SSR — `redirect: 'error'` (`apiFetch` web, після `...init`): `fetch` за замовчуванням переніс би секрет на адресу з `Location`. Тест — справжній HTTP-сервер з 302: чужий сервер не отримує жодного запиту; без виправлення — червоний. Адмінка на сервері до API не ходить — їй не потрібно.
+- [x] 👤 IP клієнта — `x-client-ip` від сервера сайту (перший у `x-forwarded-for`, який Vercel переписує сам); API бере його в `req.ip` **лише** з правильним секретом.
+  - ⚠️ 2026-11-07 (рев'ю M1.11): так — лише на Vercel; `next start` лишає `x-forwarded-for` клієнта (`??=`, Next 16.4) — коментар `clientIpOf` і [`backlog.md`](backlog.md) (M3.1).
+- [x] ⭐ `TRUST_PROXY=false` на Render — *чому:* `X-Forwarded-For` не довіряємо зовсім — запит без секрету однаково 403, а SSR IP не передає (браузера там немає, лімітів на IP він не зачіпає).
+- *Перевірено 2026-11-06:*
+  - e2e `test/security/request-gate.e2e-spec.ts`: без секрету — 403, `/health` — 200; підроблений `X-Forwarded-For` без секрету — 403; два IP — свої ліміти входу; IP — у `AuthSession`;
+  - unit шлюзу — пакет `validation`: заголовки, `Set-Cookie`, 502 / 504;
+  - стенд (API на схемі `e2e` + `next start` web і адмінки з `APP_ENV=test`):
+    - вхід через `/api/v1` — cookies на домені сайту;
+    - SSR головної — дані з API;
+    - API напряму — 403;
+    - 10 спроб входу клієнта A — 401, 11-та — 429, клієнт B — 401.
+  - Chrome: пароль сайту, введений один раз, браузер сам додає до `fetch` сторінки — вхід, `me`, дашборд адмінки працюють.
+  - ⚠️ Пароль в адресі (`user:pass@…`) Chrome підзапитам не дає — тестувальникам надсилати адресу без пароля, пароль — окремо.
+  - Контрольний прогін (без підстановки IP) — червоний.
+- [ ] ⏳ наживо (👤 бриф): два клієнти (телефон через мобільну мережу й ноутбук) — різні `req.ip` (сесії в `AuthSession.ipAddress` або ліміт входу); напряму на `*.onrender.com` без секрету — 403, `/api/v1/health` — 200.
 
 **M1.11.4 Середовища й секрети**
-- [ ] ⭐ `APP_ENV=test` (окремо від `NODE_ENV=production`) вмикає `noindex`, Basic Auth і Swagger. 👤 2026-10-30: індексацію web вмикає своя `SITE_INDEXING` (M1.8.3; на тесті — не задавати або `false`); тут — лише API й admin.
-  - Перелік змінних для хостингу — `apps/{api,web,admin}/.env.example`; `APP_ENV` — нове поле схеми `env.schema.ts` і рядок у `.env.example` ([Rule 13](rules/backend.md)).
+- [x] ⭐ `APP_ENV` (`development` | `test` | `production`) — окремо від `NODE_ENV`, однаковий у трьох застосунках ([D59](decisions/D59-site-gateway.md)):
+  - з `NODE_ENV=production` обов'язковий: забута змінна — помилка старту, а не тест-сервер без пароля; локальний `next start` — `APP_ENV=development`;
+  - API — Swagger усюди, крім `production`;
+  - web і адмінка — `test` вмикає Basic Auth і вимагає `API_ORIGIN` (https), `API_ORIGIN_SECRET`, `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` (≥ 12 символів);
+  - індексацію web, як і раніше, вирішує `SITE_INDEXING` (на тесті — не задавати).
+  - Схеми: API — `env.schema.ts`; web і адмінка — спільні правила `siteGatewayEnvShape` / `resolveSiteGatewayEnv` (адмінка вперше перевіряє змінні при старті — `instrumentation-node.ts`). `.env.example` — у кожному застосунку.
 - [ ] 👤 2026-11-01 (приймання M1.8.3) Кеш даних web.
   - 👤 2026-11-06: на Vercel неактуально ([D58](decisions/D58-test-hosting.md)) — `.next/cache` з правом запису й «один інстанс web» (вебхук оновлює кеш лише того інстансу, куди потрапив). На Vercel кеш даних і `revalidateTag` належать платформі й спільні для інстансів. Для власного сервера (M3.1, якщо прод не на Vercel) — [`backlog.md`](backlog.md), спільний cache handler.
-  - Лишається. Змінні: web — `SITE_URL`, `REVALIDATE_SECRET` (той самий, що в API), `SITE_INDEXING` не задавати; API — `WEB_REVALIDATE_URL` (https, D57). Перевірка наживо: правка новини в адмінці → сторінка свіжа з першого запиту.
+  - Змінні: web — `SITE_URL`, `REVALIDATE_SECRET` (той самий, що в API), `SITE_INDEXING` не задавати; API — `WEB_REVALIDATE_URL` (https, D57).
+  - ⏳ наживо: правка новини в адмінці → сторінка свіжа з першого запиту.
 - [ ] 👤 2026-11-02 (M1.8.3a) Оптимізатор фото web.
   - 👤 2026-11-06: на Vercel неактуально — `.next/cache/images` з правом запису, `images.maximumDiskCacheSize` і заголовок `Accept` від reverse proxy: оптимізатор на Vercel — платформи.
   - ⚠️ Ліміт Hobby — 5 000 перетворень на місяць; понад нього нові фото — 402, без оплати.
-  - Лишається перевірка наживо: обкладинка новини — `content-type: image/webp` з `/_next/image`.
-- [ ] ⭐ Нові секрети для тесту (`JWT_SECRET`, `EMAIL_HASH_SECRET`), не з dev — *чому:* секрет, що «гуляв» локально, не має відчиняти сервер.
-  - ⚠️ ❓ 2026-11-06: `EMAIL_HASH_SECRET` прив'язаний не до сервера, а до даних — HMAC пошт у `BlockedEmail`, а таблиця одна на тест і локальну розробку ([D58](decisions/D58-test-hosting.md)). З різними значеннями пошту, заблоковану на тесті, локальна реєстрація не впізнає, і навпаки. ⭐ Новий секрет — на Render **і** в локальному `.env` (старі рядки `BlockedEmail` — дані розробки — перестануть збігатися). `JWT_SECRET` — різні: токен локального API на тесті недійсний.
+  - ⏳ наживо: обкладинка новини — `content-type: image/webp` з `/_next/image`.
+- [ ] 👤 Нові секрети для тесту (генерує власник):
+  - `EMAIL_HASH_SECRET` — новий, **лише на тесті** (Render); локальний `apps/api/.env` не чіпаємо. 🔁 2026-11-07 ([D61](decisions/D61-separate-test-database.md)): у тесту своя БД, а `BlockedEmail` у копію не потрапляє (HMAC з секретом розробки на тесті ні з чим не збігся б) — тож секрет не мусить збігатися з локальним, як вимагала спільна БД (D58). Після запуску тесту не змінювати;
+  - `JWT_SECRET` — новий, лише на тесті (`generateValue` у `render.yaml`): токен локального API на тесті недійсний;
+  - `REVALIDATE_SECRET` — новий для тесту, той самий на Render і у Vercel (web);
+  - `API_ORIGIN_SECRET` — новий, той самий на Render і у Vercel (web і адмінка);
+  - пароль Basic Auth (`BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`) — у Vercel (web і адмінка), тестувальникам — окремо від адреси.
 - [x] Виправлено 2026-11-06: у `apps/web/.env.example` значенням `REVALIDATE_SECRET` стояв текст команди `openssl rand -base64 48` (23 символи < 32) — скопійований як є файл не давав web стартувати; тепер порожньо, як в API.
 
-**M1.11.5 БД** (👤 2026-11-06, [D58](decisions/D58-test-hosting.md))
-- [x] 👤 Тест-сервер і локальна розробка — на одній поточній Supabase; розділення (OQ-8) — відкладено. Для проду — нова чиста БД (👤 10.9).
-- [x] 👤 Правила діють одразу, не «після першого деплою» (backend Rule 16, [`rules/process.md`](rules/process.md)):
-  - на цій БД ніколи `prisma migrate dev` / `migrate reset` — лише `migrate deploy`;
-  - нові міграції — `pnpm db:migration:new` (SQL без БД, нижче);
-  - expand → contract;
-  - `pg_dump` перед кожною міграцією.
-  - Застосовуємо з локальної машини (`pnpm db:migrate`, `DIRECT_URL`). Окремого кроку міграцій у релізі тесту немає (pre-deploy команди Render Free однаково не має).
-  - ⭐ Порядок: expand — до злиття коду, якому він потрібен; contract — коли на тесті вже працює код, що старого не використовує.
-- [x] ⭐ Нову міграцію генеруємо без БД, як 0006–0012: `prisma migrate diff --from-schema <schema.prisma з master> --to-schema prisma/schema.prisma --script` → `prisma/migrations/<NNNN>_<назва>/migration.sql`. *Чому не `migrate dev --create-only`:* це той самий `migrate dev` — він ходить у спільну БД і на розбіжності пропонує скинути схему.
+**M1.11.5 БД** (👤 2026-11-07, [D61](decisions/D61-separate-test-database.md); було 2026-11-06, [D58](decisions/D58-test-hosting.md) — одна БД для тесту й розробки)
+- [x] 👤 У тест-сервера — **окремий проєкт Supabase** (Free, Франкфурт), старт — копія всіх даних БД розробки; нинішня БД — лише для розробки (і схеми `e2e`). Для проду — нова чиста БД (👤 10.9).
+  - *Чому (рев'ю M1.11):* воркер розкладу (D57) локального API публікував би заплановані новини тесту й слав вебхук своєму web (сайт тесту — лише за TTL); `EMAIL_HASH_SECRET` не міг бути свій для тесту; у демо — дані розробки.
+- [x] ⭐ Копія — `pnpm db:copy-to-test` (`apps/api/scripts/copy-db-to-test.mjs`, стиль — як `new-migration.mjs`):
+  - джерело — `DIRECT_URL` з `apps/api/.env`; ціль — прихований запит (або `TEST_DIRECT_URL` у команді): адреса тестової БД не лишається ні у файлах, ні в історії shell; паролі — лише в змінних середовища `pg_dump` / `psql` / Prisma, у виводі — `***`;
+  - запобіжники: ціль ≠ джерело (хост, порт, БД і користувач — пулер Supabase один на регіон, проєкт видно з `postgres.<ref>`); у `public` цілі немає таблиць і типів (повторний запуск відмовить); `pg_dump` / `psql` ≥ 17 і не молодші за сервер (`brew install libpq` — знаходить і поза PATH); ціль — не старша версія Postgres;
+  - дамп лише `public` (`--no-owner --no-privileges`; схема `e2e` і службові схеми Supabase — ні), даних `AuthSession`, `RateLimitEvent`, `BlockedEmail` немає навіть у тимчасовому файлі (`--exclude-table-data`); розширення, від яких залежить `public` джерела, — у ціль у тих самих схемах (зараз — жодного); відновлення (`ON_ERROR_STOP`) і `SyncRun` `RUNNING` → `FAILED` «COPIED: …» — одна транзакція;
+  - ⭐ `pg_dump --schema=public` пише `CREATE SCHEMA public;` — скрипт його прибирає: у цілі схема вже є, і psql зупинився б на першому операторі;
+  - наприкінці — рядки кожної таблиці «джерело | ціль» (джерело — з дампу: один знімок БД) і `prisma migrate status` по цілі; нагадування — пароль адміна, Data API, новини для демо.
+  - *Перевірено 2026-11-07* — на справжній БД розробки; Docker на машині немає, тож ціль — недоступна (⏳ нижче):
+    - ціль = джерело — відмова до підключення; та сама БД через інший порт (`:6543`) — відмова: у `public` 36 таблиць і послідовностей, 18 enum-ів; недоступна ціль — помилка psql; не адреса, без цілі поза терміналом, `pg_dump` 16 першим у PATH — зрозумілі помилки; у жодному виводі немає пароля;
+    - справжній термінал (pty, `expect`): набрана адреса на екран не потрапляє, у виводі — `***`;
+    - на справжньому коді скрипту (лише таблиці без персональних даних і дамп без даних): `--exclude-table-data=public."Language"` — без даних, без нього — з даними; `CREATE SCHEMA public` прибрано (1 → 0), решта дампу — байт у байт; рядки з дампу = `count(*)` (`Language` 2, `Competition` 9); розширень `public` не потребує; SQL чистки — `EXPLAIN` на справжній схемі.
+  - [ ] ⏳ Повна репетиція — у локальний Postgres 17 (Docker `postgres:17` або `brew install postgresql@17`): вивід перевірки, повторний запуск у ту саму ціль — відмова; потім контейнер / кластер видалити.
+- [x] 👤 Міграції тестової БД — **у збірці Render**: `pnpm build:api && pnpm db:migrate` (`prisma migrate deploy` через `DIRECT_URL`), лише після успішної збірки. `.env` не потрібен — перевірено 2026-11-07: `migrate status` тим самим шляхом без файлу, лише зі змінною — «Database schema is up to date!».
+  - *Чому в збірці:* pre-deploy команди Render Free не має; при старті процесу міграцію запускав би кожен рестарт, і невдала не давала б стартувати серверу.
+  - Ціна: міграція застосується й тоді, коли новий процес потім не пройде health check; ~1 хв деплою старий код працює з новою схемою; відкат у Render (без збірки) міграцію не відкочує → **expand → contract** (backend Rule 16, [`rules/process.md`](rules/process.md)).
+  - Тестову БД з локальної машини не мігруємо; БД розробки — `prisma migrate dev` дозволено.
+- [x] ⭐ Нову міграцію генеруємо без БД, як 0006–0012: `prisma migrate diff --from-schema <schema.prisma з master> --to-schema prisma/schema.prisma --script` → `prisma/migrations/<NNNN>_<назва>/migration.sql`. *Чому не `migrate dev --create-only`:* йому потрібні БД і тіньова БД, а на розбіжності він пропонує скинути схему (з D61 на БД розробки дозволено, але `db:migration:new` простіший).
   - [x] 👤 2026-11-06 (зроблено в M1.10) Одна команда — `pnpm db:migration:new <назва>` (`apps/api/scripts/new-migration.mjs`):
     - база — схема, з якої почалась гілка (`git merge-base HEAD origin/master`); інша — `--base <ref>`;
     - номер — наступний за останньою міграцією; SQL — LF;
     - відмова, якщо схема не змінилась або в гілці є міграція, якої немає в базі (її SQL повторився б: другу міграцію гілки — після коміту першої, `--base HEAD`);
-    - наприкінці — що перевірити: SQL, `constraints.sql`, expand → contract, e2e, ворота перед `pnpm db:migrate`.
+    - наприкінці — що перевірити: SQL, `constraints.sql`, expand → contract, e2e; БД розробки — `pnpm db:migrate`, тестова — сама, у збірці (з 2026-11-07, D61).
     - Перевірено: погана назва, схема без змін, тимчасова колонка (`ALTER TABLE "Language" ADD COLUMN …`, без CR), повторний запуск з незакоміченою міграцією; з `DIRECT_URL` / `DATABASE_URL` на закритий порт — працює (до БД не ходить).
-- [x] 👤 Підключення: `DATABASE_URL` — transaction pooler (`:6543`, `pgbouncer=true`); `DIRECT_URL` — session pooler (`:5432`), лише для міграцій з локальної машини; на Render — лише `DATABASE_URL`.
+- [x] 👤 Підключення: `DATABASE_URL` — transaction pooler (`:6543`, `pgbouncer=true`); `DIRECT_URL` — session pooler (`:5432`), лише для міграцій. 🔁 2026-11-07 (D61): на Render — обидві, тестової БД (`DIRECT_URL` — для міграцій у збірці); застосунок читає лише `DATABASE_URL` (у `src/` `DIRECT_URL` немає).
+  - ⭐ `DIRECT_URL` на Render — session pooler (`*.pooler.supabase.com:5432`), не пряме з'єднання `db.<ref>.supabase.co`: воно лише IPv6, а з Render вихідного IPv6 немає.
   - Перевірено 2026-11-06: поля `directUrl` у Prisma 7 немає (`datasource` конфігу має лише `url` і `shadowDatabaseUrl`). Те саме вже зроблено інакше: CLI бере `DIRECT_URL || DATABASE_URL` (`prisma.config.ts`), застосунок — `PrismaPg(DATABASE_URL)`.
   - `pgbouncer=true` адаптеру не потрібен (prepared statements без імені), але й не шкодить.
   - ⚠️ ⭐ Зависання на `:6543` ([OQ-11](open-questions.md)) на тесті виглядатиме як сторінки, що не відкриваються. Якщо таке з'явиться — `DATABASE_URL` на session pooler (`:5432`): одна змінна, без коду. Для сервера, що працює постійно, Supabase радить саме його.
+- [ ] 👤 Data API вимкнено в обох проєктах («Порядок», крок 2.1) — *чому:* до таблиць ходить лише API через Prisma, а RLS у таблицях Prisma немає ([D61](decisions/D61-separate-test-database.md)).
+- [ ] ⏳ наживо: перша збірка Render — `prisma migrate deploy`: «No pending migrations to apply»; сайт тесту — з даними копії; у журналі синків — запуски копії з «COPIED: …» (якщо були `RUNNING`).
 
-**M1.11.6 Закритий доступ і без індексації** (👤 У21)
-- [ ] 👤 Спільний логін / пароль (HTTP Basic Auth) на web і admin; Swagger — за тим самим паролем (👤 У17).
-  - ⚠️ Password Protection Vercel є лише на Pro, тож Basic Auth робимо в `proxy.ts` web і admin (в адмінці `proxy.ts` ще немає). Вебхук `/api/revalidate` під Basic Auth не потрапляє: `api/` уже поза matcher, а запит має підпис (D57).
-- [ ] 👤 `X-Robots-Tag: noindex, nofollow` на web, admin і API + `robots.txt` `Disallow: /`. *З M1.8.3:* у web обидва дає відсутня (чи `false`) `SITE_INDEXING` ✅ — лишаються admin і API.
-- [ ] ⭐ `/health` — без пароля (для моніторингу); перевірити `curl -I`, що без пароля сторінку не відкрити.
+**M1.11.6 Закритий доступ і без індексації** (👤 У21, [D59](decisions/D59-site-gateway.md))
+- [x] 👤 Спільний логін / пароль (HTTP Basic Auth) на web і admin — у `proxy.ts` (Password Protection Vercel — лише на Pro); вмикає `APP_ENV=test`.
+  - Під паролем — сторінки й шлюз `/api/*`, тож і Swagger (👤 У17): на тесті його видно лише через сайт — `/api/docs`.
+  - Без пароля: вебхук `/api/revalidate` (свій підпис, D57), `robots.txt`, статика Next.
+  - Невалідні змінні тесту — не пускає нікого; з `NODE_ENV=production` без `APP_ENV` — пароль потрібен.
+  - Порівняння — за сталий час. В адмінці `proxy.ts` — новий.
+- [x] 👤 `noindex`:
+  - адмінка — `X-Robots-Tag: noindex, nofollow` (`next.config.ts`) і `robots.txt` `Disallow: /` у будь-якому середовищі;
+  - API — `X-Robots-Tag` на кожній відповіді (і на пересланих сайтом);
+  - web — `SITE_INDEXING` (M1.8.3 ✅).
+- [x] ⭐ `/health` — без пароля й без секрету (для моніторингу й хостингу).
+- *Перевірено:* unit `proxy.test.ts` web і адмінки (matcher, 401 з викликом, пароль, забуте `APP_ENV`); стенд — без пароля 401, з ним 200, `robots.txt` і `/api/revalidate` — повз пароль.
+- [ ] ⏳ наживо: `curl -I` сайту й адмінки без пароля — 401 з `X-Robots-Tag`; з паролем — 200; `/api/v1/health` на `*.onrender.com` — 200 без пароля.
 
 **M1.11.7 Синк на тесті** ([D36](decisions/D36-sync-operations.md))
-- [ ] 👤 Прапорець `FOOTBALL_SYNC_CRON_ENABLED`: локально `false` (синк — кнопкою в адмінці), на тесті `true` (👤 У19) — *чому:* один ключ football-data на двох серверах = спільний ліміт 10 / хв і помилки 429.
-- [ ] 👤 Cron пропускає завершені турніри (WC 2026, EC 2024): сезон закінчився й незавершених матчів немає (👤 6.4).
-  - ⚠️ 👤 2026-10-22 ([D48](decisions/D48-competition-in-play.md)) Правило «турнір у грі» (M1.4.8.2) — **не для cron**: CL після ліга-фази за ним, щойно мине запас, стала б «завершеною» й перестала б синхронізуватися, а матчі плей-оф приносить саме синк. Те саме — і з правилом вище в теперішньому вигляді: після ліга-фази CL (`endDate` сезону на dev-БД — її кінець, 2027-01-27) «сезон закінчився й незавершених матчів немає». Як cron відрізнить такий турнір від справді завершеного — вирішити на старті M1.11.7.
-- [ ] ⭐ Graceful shutdown (`enableShutdownHooks`) — *чому:* кожен деплой — це SIGTERM; без нього `SyncRun` лишається `RUNNING`, і наступний синк турніру блокується до 10 хв. Render Free ще й може перезапустити сервіс будь-коли ([D58](decisions/D58-test-hosting.md)).
-- [ ] ⭐ LIVE-cron на тесті вимкнено (квота); LIVE оновлює `live-touch`.
+- [x] 👤 Прапорець `FOOTBALL_SYNC_CRON_ENABLED` (за замовчуванням `false`): локально — синк кнопкою в адмінці, на тесті `true` (`render.yaml`, 👤 У19) — *чому:* один ключ football-data на двох серверах = спільний ліміт 10 / хв і помилки 429. Вимкнений — рядок у лозі старту.
+- [x] ⭐ Graceful shutdown — `app.enableShutdownHooks()` + `SyncRunTracker`: свої незакриті запуски при зупинці — `FAILED` («SHUTDOWN: …») одразу, а не `RUNNING` до 10 хв. *Чому лише свої:* при деплої без простою Render ~1 хв тримає старий і новий процес на одній БД, і чужий ще синкає (🔁 2026-11-07: до [D61](decisions/D61-separate-test-database.md) причиною була ще й спільна з розробкою БД). e2e `test/football/sync-shutdown.e2e-spec.ts`; контрольний прогін — червоний.
+  - ⏳ наживо: деплой посеред синку → у журналі синків адмінки `FAILED` з `SHUTDOWN`, наступний синк турніру стартує без 10 хв очікування.
+  - ⏳ 👤 2026-11-07 (рев'ю M1.11) Перший деплой: `maxShutdownDelaySeconds` у `render.yaml` не задаємо — 30 с за замовчуванням вистачає (синк турніру — медіана 21–26 с, а перерваний одразу стає `FAILED`; дані не псуються — дельта). Чи приймає його Free — перевіряти, лише якщо знадобиться.
+- [x] ⭐ LIVE-cron на тесті вимкнено (`render.yaml`, квота); LIVE оновлює `live-touch`.
+- [ ] 👤 2026-11-06 Cron пропускає завершені турніри (WC 2026, EC 2024) — **після деплою**, підходом зі станами турніру:
+  - **активний** — синк кожні 2 год;
+  - **пауза** — синк раз на добу;
+  - **завершений** — кінець сезону від провайдера + усі матчі зіграні + 7 днів; не синкається;
+  - ручне перемикання — пізніше.
+  - ⚠️ 👤 2026-10-22 ([D48](decisions/D48-competition-in-play.md)) Правило «турнір у грі» (M1.4.8.2) — **не для cron**: CL після ліга-фази за ним, щойно мине запас, стала б «завершеною» й перестала б синхронізуватися, а матчі плей-оф приносить саме синк.
+  - ❓ На старті — перевірити, звідки береться `endDate` сезону CL (на dev-БД — кінець ліга-фази, 2027-01-27): від цього залежить «кінець сезону від провайдера».
+  - Фейковий провайдер — з першим e2e синку (тут).
 
 **M1.11.8 Бекапи й моніторинг-мінімум**
-- [ ] 👤 Бекап раз на тиждень: уся БД без службових журналів (`SyncRun`, `RateLimitEvent`) (👤 9.4, У22; [D32](decisions/D32-backups.md)).
+- [ ] 👤 Бекап раз на тиждень — **тестової БД** ([D61](decisions/D61-separate-test-database.md); БД розробки — не потрібно): уся БД без службових журналів (`SyncRun`, `RateLimitEvent`) (👤 9.4, У22; [D32](decisions/D32-backups.md)).
+  - ⚠️ На Free Supabase автоматичних бекапів не робить: до першого тижневого бекапу тестова БД має одну страховку — БД розробки, з якої її скопійовано (а дані, створені вже на тесті, — без страховки).
   - ⚠️ ⭐ Репозиторій публічний: артефакти GitHub Actions бачать усі → дамп (email-и, хеші паролів) лише зашифрованим і в приватному сховищі.
-- [ ] ⭐ Uptime-монітор на `/health` (UptimeRobot або Better Stack, безкоштовно) → 👤 Telegram (👤 10.6). Заодно це ще один пінг, що не дає Render заснути (M1.11.2).
+- [x] 👤 2026-11-07 Uptime-монітор (UptimeRobot, `/health` кожні 5 хв → Telegram) — перенесено в «Порядок», крок 2.6: він же основний пінг, що не дає Render заснути.
 
 **M1.11.9 Реліз на тест**
 - [ ] ⭐ Runbook `docs/runbooks/deploy-test.md` — *чому:* перший деплой — найкращий момент записати кроки, поки вони свіжі. Зміст:
-  - як задеплоїти (злиття PR → зелений CI → Render і Vercel);
-  - міграція з локальної машини і її порядок відносно злиття ([D58](decisions/D58-test-hosting.md));
-  - відкат (Render Free — до двох попередніх деплоїв; Vercel — Instant Rollback);
-  - як змінити секрет і відновити бекап.
+  - як задеплоїти (злиття PR → зелений CI → Render: збірка й `prisma migrate deploy` → деплой; Vercel);
+  - 🔁 2026-11-07 ([D61](decisions/D61-separate-test-database.md)) **міграції в збірці** (замість «з локальної машини», D58): expand → contract і чому (міграція — до старту нового коду; ~1 хв деплою старий код з новою схемою; відкат Render міграцію не відкочує). **Міграція впала:** збірка червона, тест працює на старому коді, а кожна наступна збірка падає на тій самій (Prisma P3009), поки її не розв'язано: помилка — у журналі збірки Render; стан — `_prisma_migrations` (`finished_at IS NULL`, `logs`) у SQL Editor тестового проєкту; БД — до стану «до» (ідемпотентний SQL відкату) або «після»; тоді `prisma migrate resolve --rolled-back <назва>` чи `--applied <назва>` з локальної машини (`DIRECT_URL` тестової — лише в самій команді) → виправлена міграція новим комітом;
+  - відкат (Render Free — до двох попередніх деплоїв, без збірки: міграцію він не відкочує; Vercel — Instant Rollback);
+  - 👤 2026-11-07 **ротація `API_ORIGIN_SECRET`** без простою ([D59](decisions/D59-site-gateway.md)): Render — новий `API_ORIGIN_SECRET` + `API_ORIGIN_SECRET_PREVIOUS` = старий → Vercel (web і адмінка) — новий, передеплой → Render — прибрати `API_ORIGIN_SECRET_PREVIOUS`; `REVALIDATE_SECRET` — навпаки, спершу web (`REVALIDATE_SECRET_PREVIOUS`, [D57](decisions/D57-scheduled-publishing.md)); решта секретів — і як відновити бекап;
+  - 👤 2026-11-07 **повторна копія БД** розробки в тестову — лише в порожню ціль: скрипт відмовить, якщо в `public` тестової є таблиці чи типи; ⚠️ очистити тестову — значить стерти її дані (як — записати тут).
 - [ ] ⭐ Смоук-сценарій на сервері: відкрити за паролем → реєстрація → вхід → коментар → лайк → адмінка: новина → вона на сайті → синк → журнал синків.
-- [ ] ❓ CSRF — повернутися перед деплоєм (👤 9.1, OQ-6).
+- [x] 👤 2026-11-06 CSRF (OQ-6) — перенесено в перший PR M1.11 ([D60](decisions/D60-csrf.md)): мутації — Fetch Metadata і `Origin` (чужий сайт → 403), тіло лише JSON (415), жоден `GET` нічого не пише (перевірено), cookies адміна — `SameSite=Strict`.
 - [ ] 👤 2026-11-02 **Демо замовнику** на тест-сервері — мета M1.11; після нього — M1.12.
+  - ❓ 👤 2026-11-07 Vercel Hobby — лише некомерційне використання ([D58](decisions/D58-test-hosting.md)): чи можна на ньому показувати демо замовнику — вирішити до демо ([`backlog.md`](backlog.md), «Задачі власника»).
 - [ ] 👤 2026-11-02 (M1.8.3a) Фото в тексті новини — лише з фотобанків, як обкладинка ([`backlog.md`](backlog.md), «Безпека»): перший крок — рендерер на сайті показує зображення Markdown лише з дозволених хостів (`isAllowedCoverImageUrl`) і через `next/image` (оптимізатор, `remotePatterns` уже є), решту — посиланням з описом фото; перевірка в API при збереженні — пізніше.
   - 👤 2026-11-02 (прийнято ⭐) `MarkdownContent` — спільний для сайту й прев'ю адмінки (`packages/ui`, D49): компонент зображення передає застосунок (проп на кшталт `renderImage`) — *чому:* `next/image` з оптимізатором є лише в web (в адмінці `remotePatterns` немає), а прев'ю адмінки має показати редактору, що фото на сайті стане посиланням.
   - 👤 2026-11-02 (прийнято ⭐) Розмір фото в тексті невідомий (`next/image` вимагає `width` / `height` або `fill`): контейнер з пропорцією 16 : 9 і `fill` + `object-contain`, як обкладинка; справжні розміри — разом зі сховищем фото ([`backlog.md`](backlog.md)).
+
+*Перевірка PR 1 (2026-11-06):* `pnpm lint`, `pnpm typecheck`, unit — API 306, web 300, admin, validation 132, ui; `pnpm build` — без попереджень (`/api/[...path]` — динамічний, `robots.txt` адмінки — статичний); `test:runtime-env` — OK (адреса API — під час роботи сервера); e2e — 243 / 243 (нові: шлюз і CSRF, `SameSite=Strict` адміна, зупинка посеред синку). Контрольний прогін — чотири поломки (підстановка IP, `cross-site`, `Strict`, закриття синку) → 5 червоних тестів; файли відновлено.
+
+*Після рев'ю (2026-11-07):* `pnpm lint`, `pnpm typecheck`, unit — API 307, web 301, admin 135, validation 132, ui 11; `pnpm build`; `test:runtime-env` — OK; e2e — 244 / 244 (+ ротація секрету шлюзу). Контрольні прогони: e2e без `API_ORIGIN_SECRET_PREVIOUS` — старий секрет 403, тест червоний; тест SSR до `redirect: 'error'` — червоний (чужий сервер отримав запит). `render.yaml` розбирається (`js-yaml`); `prisma migrate status` тим самим шляхом, що й збірка, — без `.env`; копія БД — репетиція без цілі (M1.11.5).
 
 **Готово, коли:** смоук пройдено на сервері; `curl -I` показує `X-Robots-Tag: noindex`; бекап і монітор працюють; runbook записано; демо замовнику відбулось.
 
@@ -1059,7 +1165,7 @@
 - [ ] 👤 Прод-БД — нова, чиста, у США (👤 10.2, 10.9); ⭐ API в тому ж регіоні, що й БД — *чому:* кожен запит API → БД через океан додає ~100 мс.
 - [ ] ⭐ Прибрати тимчасовий редирект `/ua/*` → `/uk/*` з `proxy.ts` ([D22](decisions/D22-ukrainian-language-code.md)).
 - [ ] ⭐ Squash міграцій перед першим прод-деплоєм ([`decisions/v5-foundation.md`](decisions/v5-foundation.md), розділ 11).
-  - ⚠️ Процедура з розділу 11 починається з `migrate reset`, а на спільній dev / test БД це заборонено ([D58](decisions/D58-test-hosting.md)). Squash робимо на окремій БД; що далі з тестовою БД — вирішити разом з OQ-8.
+  - ⚠️ Процедура з розділу 11 починається з `migrate reset`, а на спільній dev / test БД це було заборонено ([D58](decisions/D58-test-hosting.md)). 🔁 2026-11-07 ([D61](decisions/D61-separate-test-database.md)): у тесту своя БД — squash можна робити на БД розробки; що з тестовою (`_prisma_migrations` під новий `0001_init`, інакше збірка Render спробує застосувати його поверх наявних таблиць) — вирішити тут.
 - [ ] ⭐ Платні плани там, де безкоштовні не тягнуть прод — OQ-22.
 - [ ] 👤 2026-11-06 ([D58](decisions/D58-test-hosting.md)) Vercel Hobby — лише некомерційне використання: для проду web і admin — Vercel Pro або інший хостинг.
 - [ ] 👤 2026-11-06 API: платний інстанс без сну замість пінгу з GitHub Actions (Render Free, M1.11.2) — вирішити тут.
@@ -1068,7 +1174,7 @@
   - ⭐ Міграції — окремий крок релізу (`prisma migrate deploy` перед запуском нової версії), а не при старті контейнера — *чому:* два контейнери не запустять міграцію двічі, а невдала міграція не покладе робочу версію.
 
 ### M3.2 Безпека
-- [ ] 👤 CSRF (OQ-6).
+- [x] 👤 CSRF (OQ-6) — ✅ 2026-11-06, перший PR M1.11 ([D60](decisions/D60-csrf.md)); на проді — перевірити `CORS_ORIGINS` під домен проду.
 - [ ] 👤 2FA для адміна (👤 5.8) — ⭐ TOTP + резервні коди.
 - [ ] 👤 Закрити адмінку від сторонніх (OQ-10) — ⭐ Cloudflare Access (безкоштовно до 50 людей) поверх входу ADMIN.
 - [ ] ❓ Captcha (OQ-13) — ⭐ Cloudflare Turnstile на реєстрації.

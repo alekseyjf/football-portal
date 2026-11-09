@@ -10,6 +10,12 @@ import { RATE_LIMIT_EVENT_RETENTION_MS } from '../security/abuse.constants';
  */
 
 const NODE_ENVS = ['development', 'production', 'test'] as const;
+/**
+ * `APP_ENV` — де працює API, окремо від `NODE_ENV` (той — `production` і на тесті, і на проді; D59):
+ * `development` — машина розробника, `test` — тест-сервер (Swagger — через сайт за паролем), `production` — прод.
+ * Ті самі значення — у web і адмінці (`@football-portal/validation/site-gateway`).
+ */
+const APP_ENVS = ['development', 'test', 'production'] as const;
 
 /** Коротший секрет HS256 / HMAC можна перебрати офлайн — маючи будь-який виданий токен або витік таблиці. */
 const SECRET_MIN_LENGTH = 32;
@@ -55,6 +61,8 @@ const secret = z
  * а `AuthSession.ipAddress` марний — тому на проді значення обов'язкове (свідоме рішення).
  * У dev порожньо: без проксі довіра до `X-Forwarded-For` дозволила б підробляти IP.
  * `true` заборонено: тоді `req.ip` — крайній лівий `X-Forwarded-For`, який підробляє клієнт.
+ * За шлюзом сайту (D59, тест-сервер на Render) — `false`: `X-Forwarded-For` не довіряємо зовсім, IP браузера дає лише
+ * сервер сайту (`x-client-ip` разом із секретом `API_ORIGIN_SECRET`), а без секрету API відповідає 403.
  */
 const trustProxy = z
   .string({
@@ -165,6 +173,75 @@ function revalidateWebhook(definedEnv: Readonly<Record<string, unknown>>) {
   };
 }
 
+/** Без `APP_ENV` поза production — машина розробника; у production — обов'язкова: забута — помилка старту, а не здогадка. */
+function appEnv(definedEnv: Readonly<Record<string, unknown>>) {
+  const appEnvs = APP_ENVS.join(' | ');
+  const rule = z.enum(APP_ENVS, {
+    error: (issue) =>
+      issue.input === undefined
+        ? `is required in production: ${appEnvs}`
+        : `must be one of: ${appEnvs}`,
+  });
+  return definedEnv.NODE_ENV === 'production'
+    ? rule
+    : rule.default('development');
+}
+
+/**
+ * `API_ORIGIN_SECRET` — секрет серверів web і адмінки (D59): з ним API приймає запит і бере IP браузера з
+ * `x-client-ip`; без нього — 403 (крім `/health`). Поза машиною розробника — обов'язковий: інакше API на
+ * `*.onrender.com` відкритий напряму, а `X-Forwarded-For` можна підробити.
+ */
+function originSecret(definedEnv: Readonly<Record<string, unknown>>) {
+  const rule = z
+    .string({
+      error: whenMissing(
+        'is required outside development: random, at least 32 characters (openssl rand -base64 48), the same in web and admin',
+      ),
+    })
+    .min(
+      SECRET_MIN_LENGTH,
+      `must be at least ${SECRET_MIN_LENGTH} characters (openssl rand -base64 48)`,
+    )
+    .refine(
+      (value) =>
+        ![
+          definedEnv.JWT_SECRET,
+          definedEnv.EMAIL_HASH_SECRET,
+          definedEnv.REVALIDATE_SECRET,
+        ].includes(value),
+      'must differ from JWT_SECRET, EMAIL_HASH_SECRET and REVALIDATE_SECRET: one secret per purpose',
+    );
+  const isDeveloperMachine =
+    definedEnv.APP_ENV === 'development' ||
+    (definedEnv.APP_ENV === undefined && definedEnv.NODE_ENV !== 'production');
+  return isDeveloperMachine ? rule.optional() : rule;
+}
+
+/**
+ * `API_ORIGIN_SECRET_PREVIOUS` — старий секрет на час ротації (D59): API приймає обидва, поки web і адмінка не
+ * передеплоєні з новим `API_ORIGIN_SECRET`; потім змінну прибрати. Як `REVALIDATE_SECRET_PREVIOUS` у web.
+ */
+function previousOriginSecret(definedEnv: Readonly<Record<string, unknown>>) {
+  if (definedEnv.API_ORIGIN_SECRET === undefined) {
+    return z.undefined({
+      error:
+        'only with API_ORIGIN_SECRET: the old value while web and admin switch to the new one',
+    });
+  }
+  return z
+    .string()
+    .min(
+      SECRET_MIN_LENGTH,
+      `must be at least ${SECRET_MIN_LENGTH} characters (openssl rand -base64 48)`,
+    )
+    .refine(
+      (value) => value !== definedEnv.API_ORIGIN_SECRET,
+      'must differ from API_ORIGIN_SECRET: it is the old value during rotation',
+    )
+    .optional();
+}
+
 /** Правила, що залежать від інших змінних (`NODE_ENV`, `JWT_SECRET`), беруть їх із сирого середовища. */
 function buildEnvSchema(definedEnv: Readonly<Record<string, unknown>>) {
   const nodeEnvs = NODE_ENVS.join(' | ');
@@ -175,6 +252,7 @@ function buildEnvSchema(definedEnv: Readonly<Record<string, unknown>>) {
           ? `is required: ${nodeEnvs}`
           : `must be one of: ${nodeEnvs}`,
     }),
+    APP_ENV: appEnv(definedEnv),
     PORT: wholeNumber
       .pipe(
         z
@@ -201,6 +279,8 @@ function buildEnvSchema(definedEnv: Readonly<Record<string, unknown>>) {
     CORS_ORIGINS: corsOrigins(definedEnv.NODE_ENV === 'production'),
     TRUST_PROXY:
       definedEnv.NODE_ENV === 'production' ? trustProxy : trustProxy.optional(),
+    API_ORIGIN_SECRET: originSecret(definedEnv),
+    API_ORIGIN_SECRET_PREVIOUS: previousOriginSecret(definedEnv),
     FOOTBALL_API_KEY: z.string().trim().optional(),
     FOOTBALL_API_URL: z
       .url({
@@ -208,6 +288,9 @@ function buildEnvSchema(definedEnv: Readonly<Record<string, unknown>>) {
         error: 'must be an https URL: the API key goes in a request header',
       })
       .default(DEFAULT_FOOTBALL_API_URL),
+    // Плановий синк (D36): на тесті й проді — true; локально — false, синк кнопкою в адмінці: один ключ football-data
+    // на два сервери ділив би ліміт 10 запитів / хв
+    FOOTBALL_SYNC_CRON_ENABLED: booleanFlag.default(false),
     FOOTBALL_LIVE_CRON_ENABLED: booleanFlag.default(false),
     // У development за замовчуванням увімкнено; явне значення перемагає
     FOOTBALL_HTTP_LOG: booleanFlag.default(

@@ -11,12 +11,15 @@
                                                     └──► football-data.org (лише синк, через порт FootballProvider)
 ```
 
+- **Шлюз** ([D59](decisions/D59-site-gateway.md)): браузер ходить лише на домен web чи адмінки — `/api/v1/*` пересилає Route Handler `app/api/[...path]` з секретом сервера (`x-origin-secret`) і IP браузера (`x-client-ip`); SSR web — на API напряму (`API_ORIGIN`). API з `API_ORIGIN_SECRET` без секрету відповідає 403 (крім `/health`). Мутації — перевірка CSRF ([D60](decisions/D60-csrf.md)). Тест-сервер: web і admin — Vercel, API — Render ([D58](decisions/D58-test-hosting.md)); пароль (Basic Auth) — у `proxy.ts` web і адмінки (`APP_ENV=test`).
+- **БД:** у тест-сервера — окремий проєкт Supabase (стартував копією даних розробки, `pnpm db:copy-to-test`), його міграції — `prisma migrate deploy` у збірці Render; локально — БД розробки (і схема `e2e` для тестів). Data API Supabase вимкнено: до таблиць ходить лише API через Prisma ([D61](decisions/D61-separate-test-database.md)).
+
 - **Наша БД — джерело правди.** Публічні `GET` читають лише Prisma; зовнішнє API викликає тільки синк (виняток — `live-touch`).
 - **Домени БД** (схема v5): identity · moderation · content · engagement · football · sync ([`decisions/v5-foundation.md`](decisions/v5-foundation.md), розділ 4). FOOTBALL-таблиці про провайдерів не знають — id провайдера лише в `*ExternalRef`.
 - **Auth:** access-JWT 15 хв (`sid`) + opaque refresh-сесії в БД, httpOnly cookies ([`decisions/v5-identity.md`](decisions/v5-identity.md)).
 - **Контракт API** ([D28](decisions/D28-openapi-contract.md)): OpenAPI-документ будується з коду API (`@nestjs/swagger` + CLI-плагін: схема відповіді — тип, який повертає метод контролера) → `packages/types/openapi.json` → `openapi-typescript` → типи web і admin. `pnpm gen:api-types` — без сервера й БД; контрактні e2e звіряють реальні відповіді з документом, повний прогін — ще й те, що в кожної операції перевірено успішну відповідь (M1.4.9). Swagger UI — `/api/docs` (не на проді).
 - **Один інстанс API**: ліміти, черга провайдера, кеш — у пам'яті процесу ([D41](decisions/D41-single-instance-scaling.md)).
-- **Спільні пакети:** `packages/types` — типи API з OpenAPI (лише типи); `packages/validation` — межі полів, zod-схеми форм, slug (`slugify`), адреси сторінок сайту (`publicTagPath`, [D51](decisions/D51-admin-tags.md)) і посилання YouTube (`parseYouTubeVideoId`, [D54](decisions/D54-post-video.md)), збирається в `dist`, бо його імпортує API (CommonJS); `packages/ui` — спільний UI web і admin (Markdown-рендерер `MarkdownContent`, [D25](decisions/D25-markdown-content.md)) без збірки: застосунки компілюють його джерела самі (`transpilePackages`), класи Tailwind бачать через `@source` ([D49](decisions/D49-shared-ui-package.md)).
+- **Спільні пакети:** `packages/types` — типи API з OpenAPI (лише типи); `packages/validation` — межі полів, zod-схеми форм, slug (`slugify`), адреси сторінок сайту (`publicTagPath`, [D51](decisions/D51-admin-tags.md)), посилання YouTube (`parseYouTubeVideoId`, [D54](decisions/D54-post-video.md)) і шлюз до API (`./site-gateway`: проксі, Basic Auth, змінні web і адмінки, [D59](decisions/D59-site-gateway.md)), збирається в `dist`, бо його імпортує API (CommonJS); `packages/ui` — спільний UI web і admin (Markdown-рендерер `MarkdownContent`, [D25](decisions/D25-markdown-content.md)) без збірки: застосунки компілюють його джерела самі (`transpilePackages`), класи Tailwind бачать через `@source` ([D49](decisions/D49-shared-ui-package.md)).
 
 ## Football: як це працює (для розбору коду)
 
@@ -62,6 +65,7 @@
 |--------|-------------|
 | `FOOTBALL_API_KEY` | **Токен** з football-data.org |
 | `FOOTBALL_API_URL` | За замовчуванням `https://api.football-data.org/v4`; лише https (ключ іде в заголовку) |
+| `FOOTBALL_SYNC_CRON_ENABLED` | `true` — повний синк активних турнірів кожні 2 год (тест, прод); за замовчуванням `false` — синк кнопкою в адмінці (D36) |
 | `FOOTBALL_LIVE_CRON_ENABLED` | `true` — кожні 5 хв LIVE-синк турнірів, де зараз є матч; інакше лише on-demand |
 | `FOOTBALL_HTTP_LOG` | `true` / `false` — логувати кожен запит до football-data; за замовчуванням `true` лише при `NODE_ENV=development` |
 
@@ -69,15 +73,20 @@
 
 | Змінна | Призначення |
 |--------|-------------|
-| `NEXT_PUBLIC_API_URL` | База API, напр. `http://localhost:4000/api/v1` |
 | `NEXT_PUBLIC_DEFAULT_LEAGUE_SLUG` | Ліга сайдбару без `?league=` (немає / неактивна — перша активна за `sortOrder`) |
+| `APP_ENV` | `development` / `test` / `production` (D59): з `NODE_ENV=production` обов'язкова; `test` — пароль на всьому сайті |
+| `API_ORIGIN` | API для сервера сайту (SSR і шлюз `/api/*`); `development` без неї — `http://localhost:4000` |
+| `API_ORIGIN_SECRET` | Секрет сервера сайту для API (`x-origin-secret`), той самий, що в API |
+| `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | Логін і пароль тест-сервера (`APP_ENV=test`) |
+
+Адреси API для браузера немає: браузер ходить на сам сайт (`/api/v1/*`), запит пересилає сервер сайту (D59).
 
 **`apps/admin/.env.local`**
 
 | Змінна | Призначення |
 |--------|-------------|
-| `NEXT_PUBLIC_API_URL` | Як у web |
 | `NEXT_PUBLIC_PUBLIC_WEB_URL` | URL публічного сайту для посилань «на сайт» (напр. `http://localhost:3000`) |
+| `APP_ENV`, `API_ORIGIN`, `API_ORIGIN_SECRET`, `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | Як у web: шлюз адмінки до API і пароль тест-сервера (D59) |
 
 ### Чому таблиця (standings) може бути порожня
 

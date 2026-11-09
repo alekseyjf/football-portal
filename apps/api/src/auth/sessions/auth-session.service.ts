@@ -32,6 +32,8 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   refreshExpiresAt: Date;
+  /** Роль власника сесії: від неї — `SameSite` cookies (адмін — `Strict`, D60) */
+  role: AccessTokenPayload['role'];
 }
 
 /** Один код на всі «невалідні» випадки — клієнту не кажемо, чи спрацювала reuse detection. */
@@ -74,6 +76,7 @@ export class AuthSessionService {
       accessToken: await this.signAccessToken(user, familyId),
       refreshToken,
       refreshExpiresAt: session.expiresAt,
+      role: user.role,
     };
   }
 
@@ -141,6 +144,7 @@ export class AuthSessionService {
       accessToken: await this.signAccessToken(session.user, session.familyId),
       refreshToken: successorToken,
       refreshExpiresAt: successor.expiresAt,
+      role: session.user.role,
     };
   }
 

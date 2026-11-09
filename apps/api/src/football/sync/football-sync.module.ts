@@ -6,10 +6,12 @@ import { FootballLiveSyncService } from './football-live-sync.service';
 import { FootballLiveThrottleService } from './football-live-throttle.service';
 import { FootballSyncService } from './football-sync.service';
 import { FootballSyncWriter } from './football-sync.writer';
+import { SyncRunTracker } from './sync-run-tracker';
 
 @Module({
   imports: [FootballIntegrationModule, FootballPersistenceModule],
   providers: [
+    SyncRunTracker,
     FootballSyncWriter,
     FootballLiveThrottleService,
     FootballSyncService,

@@ -1,4 +1,5 @@
 import 'server-only';
+import type { ApiProxyTarget } from '@football-portal/validation/site-gateway';
 import { parseServerEnv, type ServerEnv } from './server-env-schema';
 
 let cachedEnv: ServerEnv | undefined;
@@ -10,4 +11,13 @@ let cachedEnv: ServerEnv | undefined;
 export function serverEnv(): ServerEnv {
   cachedEnv ??= parseServerEnv(process.env);
   return cachedEnv;
+}
+
+/** Куди проксі сайту `app/api/[...path]` пересилає запит браузера (D59). */
+export function apiProxyTarget(): ApiProxyTarget {
+  const { gateway } = serverEnv();
+  return {
+    apiOrigin: gateway.apiOrigin,
+    originSecret: gateway.apiOriginSecret,
+  };
 }

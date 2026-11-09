@@ -14,10 +14,12 @@
     "db:generate": "pnpm --filter @football-portal/api exec prisma generate",
     "db:migrate": "pnpm --filter @football-portal/api exec prisma migrate deploy",
     "db:migration:new": "pnpm --filter @football-portal/api db:migration:new",
+    "db:copy-to-test": "pnpm --filter @football-portal/api db:copy-to-test",
     "db:seed": "pnpm --filter @football-portal/api db:seed",
     "gen:api-types": "pnpm --filter @football-portal/api openapi:generate && pnpm --filter @football-portal/types generate",
     "dev": "turbo dev",
     "build": "turbo build",
+    "build:api": "pnpm install --frozen-lockfile --prod=false --ignore-scripts && pnpm --filter @football-portal/api... build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "pnpm --filter @football-portal/api test:e2e",
@@ -31,7 +33,7 @@
     "turbo": "^2.9.1"
   },
   "engines": {
-    "node": ">=24.18.0",
+    "node": "^24.18.0",
     "pnpm": ">=10.33.0",
     "npm": "please-use-pnpm"
   }

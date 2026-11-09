@@ -1,3 +1,7 @@
+import {
+  resolveSiteGatewayEnv,
+  siteGatewayEnvShape,
+} from '@football-portal/validation/site-gateway';
 import { z } from 'zod';
 
 /*
@@ -95,9 +99,19 @@ const serverEnvSchema = z
     REVALIDATE_SECRET: revalidateSecret,
     // Ротація: попередній секрет приймаємо, поки API ще підписує ним
     REVALIDATE_SECRET_PREVIOUS: revalidateSecret,
+    // Шлюз до API і пароль тест-сервера (D59): APP_ENV, API_ORIGIN, API_ORIGIN_SECRET, BASIC_AUTH_* — спільні з адмінкою
+    ...siteGatewayEnvShape,
   })
   .transform((env, ctx) => {
-    let hasProblems = false;
+    const { gateway, problems: gatewayProblems } = resolveSiteGatewayEnv(env);
+    for (const problem of gatewayProblems) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [problem.variable],
+        message: problem.message,
+      });
+    }
+    let hasProblems = gatewayProblems.length > 0;
     if (!env.SITE_URL && env.NODE_ENV === 'production') {
       ctx.addIssue({
         code: 'custom',
@@ -117,7 +131,14 @@ const serverEnvSchema = z
       hasProblems = true;
     }
     if (hasProblems) return z.NEVER;
-    return { ...env, SITE_URL: env.SITE_URL ?? DEV_SITE_URL };
+    return {
+      NODE_ENV: env.NODE_ENV,
+      SITE_URL: env.SITE_URL ?? DEV_SITE_URL,
+      SITE_INDEXING: env.SITE_INDEXING,
+      REVALIDATE_SECRET: env.REVALIDATE_SECRET,
+      REVALIDATE_SECRET_PREVIOUS: env.REVALIDATE_SECRET_PREVIOUS,
+      gateway,
+    };
   });
 
 export type ServerEnv = z.output<typeof serverEnvSchema>;
