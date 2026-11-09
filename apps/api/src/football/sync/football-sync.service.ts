@@ -20,6 +20,7 @@ import {
   type SyncTargetCompetition,
 } from '../persistence/football-sync.repository';
 import { SyncRunRepository } from '../persistence/sync-run.repository';
+import { SyncRunTracker } from './sync-run-tracker';
 import {
   createSyncStats,
   describeSyncError,
@@ -58,6 +59,7 @@ export class FootballSyncService {
     @Inject(FOOTBALL_PROVIDER) private readonly provider: FootballProvider,
     private readonly syncRepository: FootballSyncRepository,
     private readonly syncRuns: SyncRunRepository,
+    private readonly syncRunTracker: SyncRunTracker,
     private readonly writer: FootballSyncWriter,
   ) {}
 
@@ -109,7 +111,7 @@ export class FootballSyncService {
     competition: SyncTargetCompetition,
     trigger: SyncTrigger,
   ): Promise<FullSyncOutcome> {
-    const runId = await this.syncRuns.tryStart(
+    const runId = await this.syncRunTracker.start(
       {
         provider: this.provider.provider,
         scope: SyncScope.COMPETITION_FULL,
@@ -132,7 +134,7 @@ export class FootballSyncService {
       this.log.warn(`Синк ${competition.slug}: ${errorMessage}`);
     }
     try {
-      await this.syncRuns.finish(runId, status, stats, errorMessage);
+      await this.syncRunTracker.finish(runId, status, stats, errorMessage);
     } catch (error) {
       // Не закритий запуск зніме `tryStart` як застарілий (P5-10)
       this.log.error(

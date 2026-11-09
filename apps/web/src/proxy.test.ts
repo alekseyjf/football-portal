@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import proxy, { config } from './proxy';
 
 const ORIGIN = 'http://localhost:3000';
@@ -79,8 +79,16 @@ describe('proxy: які адреси проходять (matcher, M1.8.3)', () =
     expect(passesProxy(path)).toBe(true);
   });
 
+  it.each(['/api/v1/posts/home?lang=uk', '/api/v1/auth/login', '/api/docs'])(
+    'шлюз до API %s — проходить (пароль тест-сервера, D59)',
+    (path) => {
+      expect(passesProxy(path)).toBe(true);
+    },
+  );
+
   it.each([
     '/api/revalidate',
+    '/api/docs/swagger-ui.css',
     '/_next/static/chunks/main.js',
     '/_next/image?url=%2Fx.png&w=640&q=75',
     '/favicon.ico',
@@ -115,5 +123,57 @@ describe('proxy: індексація сайту (SITE_INDEXING, M1.8.3)', () =>
     expect(proxy(requestTo('/en/news')).headers.has('X-Robots-Tag')).toBe(
       false,
     );
+  });
+});
+
+describe('proxy: пароль тест-сервера (Basic Auth, M1.11.6)', () => {
+  const PASSWORD = 'long-enough-password';
+
+  function withPassword(path: string, user: string, password: string) {
+    const encoded = Buffer.from(`${user}:${password}`).toString('base64');
+    return requestTo(path, { authorization: `Basic ${encoded}` });
+  }
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('локально (APP_ENV не задано, не production) — без пароля', () => {
+    expect(proxy(requestTo('/en/news')).status).not.toBe(401);
+  });
+
+  describe('APP_ENV=test', () => {
+    beforeEach(() => {
+      vi.stubEnv('APP_ENV', 'test');
+      vi.stubEnv('BASIC_AUTH_USER', 'tester');
+      vi.stubEnv('BASIC_AUTH_PASSWORD', PASSWORD);
+    });
+
+    it.each(['/en/news', '/', '/api/v1/auth/me', '/api/docs'])(
+      '%s без пароля чи з хибним — 401 з викликом',
+      (path) => {
+        for (const request of [
+          requestTo(path),
+          withPassword(path, 'tester', 'wrong-password'),
+        ]) {
+          const response = proxy(request);
+          expect(response.status).toBe(401);
+          expect(response.headers.get('www-authenticate')).toMatch(/^Basic /);
+        }
+      },
+    );
+
+    it('з паролем — сторінка далі до мови, шлюз до API — без мови в адресі', () => {
+      const page = proxy(withPassword('/', 'tester', PASSWORD));
+      expect(redirectTarget(page)).toBe('/en');
+      const api = proxy(withPassword('/api/v1/auth/me', 'tester', PASSWORD));
+      expect(api.status).toBe(200);
+      expect(redirectTarget(api)).toBeNull();
+    });
+  });
+
+  it('production без APP_ENV — пароль потрібен: забута змінна не відкриває тест-сервер', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(proxy(requestTo('/en/news')).status).toBe(401);
+    // Без облікових даних у змінних не пускає й «будь-який» пароль
+    expect(proxy(withPassword('/en/news', '', '')).status).toBe(401);
   });
 });

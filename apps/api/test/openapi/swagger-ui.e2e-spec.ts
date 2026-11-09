@@ -49,24 +49,34 @@ describe('Swagger UI (D28)', () => {
     });
   });
 
-  describe('на проді', () => {
+  describe('на проді (APP_ENV=production; NODE_ENV=production і на тесті, де Swagger є)', () => {
+    const originSecret = 'origin-secret-origin-secret-origin-secret';
     let e2e: E2eApp;
     beforeAll(async () => {
       e2e = await createE2eApp({
         envOverrides: {
           NODE_ENV: 'production',
+          APP_ENV: 'production',
           TRUST_PROXY: '1',
           CORS_ORIGINS: 'https://12yards.example',
+          API_ORIGIN_SECRET: originSecret,
         },
       });
     });
     afterAll(() => e2e.close());
 
-    it('UI і документа немає — 404, а API працює', async () => {
+    it('UI і документа немає — 404 і з секретом сайту, а API працює', async () => {
       const server = e2e.app.getHttpServer();
-      await request(server).get('/api/docs').expect(404);
-      await request(server).get('/api/docs-json').expect(404);
-      await request(server).get(apiPath('/football/leagues')).expect(200);
+      for (const path of ['/api/docs', '/api/docs-json']) {
+        await request(server)
+          .get(path)
+          .set('x-origin-secret', originSecret)
+          .expect(404);
+      }
+      await request(server)
+        .get(apiPath('/football/leagues'))
+        .set('x-origin-secret', originSecret)
+        .expect(200);
     });
   });
 });

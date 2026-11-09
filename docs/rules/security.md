@@ -34,8 +34,20 @@
 - 429 `TOO_MANY_REQUESTS` + заголовки `Retry-After-ip` / `Retry-After-account` (у CORS `exposedHeaders`). Фронт: 429 від `/auth/refresh` — **не** розлогінювати, повторити пізніше
 - Сховище — пам'ять процесу (скидається рестартом). На проді з кількома інстансами — **Redis-сховище** для throttler
 
-**CSRF (окремо від JWT у cookie):**  
-Куки з `SameSite=Lax` вже зменшують класичний CSRF з чужого сайту. Для **defence in depth** перед продакшеном варто додати перевірку для мутацій (заголовок + секрет у cookie або double-submit). Пакет **`csurf` застарілий** — при імплементації краще дивитись на актуальні підходи для Express/Nest 11 (власний middleware, `@edge-csrf/*`, або політика тільки для same-site API + суворий CORS). Не плутати з **Next.js**: подвійний домен (web 3000, api 4000) — це cross-origin; CSRF-токен має видавати API і фронт передає його в заголовку на мутації.
+**CSRF** ⭐ (👤 2026-11-06, [D60](../decisions/D60-csrf.md), було OQ-6) — поверх `SameSite`, без токена:
+- мутації (`POST` / `PUT` / `PATCH` / `DELETE`) — `Sec-Fetch-Site: same-origin` так, `cross-site` — 403 `CROSS_SITE_REQUEST_FORBIDDEN`, інакше `Origin` (якщо є) — лише з `CORS_ORIGINS`; без обох заголовків — не браузер, пропускаємо (`security/request-gate/cross-site-request.ts`);
+- тіло мутації — лише `application/json` (415 `UNSUPPORTED_MEDIA_TYPE`): HTML-форма чужого сайту JSON не надішле;
+- `GET` нічого не змінює — новий `GET`-роут із записом у БД ламає цей захист (перевірено 2026-11-06: сервіси читання записів не мають);
+- cookies сесії адміна — `SameSite=Strict`, решти — `Lax`;
+- `csurf` не використовуємо (застарів); токен (double-submit) — лише коли з'явиться клієнт API з іншого сайту.
+
+**Шлюз до API і закритий тест** ⭐ (👤 2026-11-06, [D59](../decisions/D59-site-gateway.md)):
+- браузер ходить лише на домен web / адмінки (`/api/*` → Route Handler → API); SSR — на API напряму. Сервер сайту надсилає `x-origin-secret` (`API_ORIGIN_SECRET`); API з цією змінною без секрету — 403 (крім `/health`);
+- IP клієнта — лише з `x-client-ip` разом із правильним секретом; `X-Forwarded-For` на Render не довіряємо (`TRUST_PROXY=false`);
+- `APP_ENV` обов'язковий з `NODE_ENV=production`: забута змінна — помилка старту, а не відкритий тест-сервер; `APP_ENV=test` — Basic Auth на web і адмінці (`proxy.ts`), секрети — порівняння за сталий час;
+- адмінка й API — завжди `noindex`; секрет шлюзу — лише серверна змінна (не `NEXT_PUBLIC_*`), у браузер не потрапляє;
+- SSR за редиректом API не йде (`redirect: 'error'`): `fetch` переніс би секрет на адресу з `Location`; ротація секрету без простою — `API_ORIGIN_SECRET_PREVIOUS` в API на час переходу (2026-11-07);
+- БД тест-сервера — окремий проєкт Supabase з вимкненим Data API ([D61](../decisions/D61-separate-test-database.md)): у таблицях Prisma немає RLS, тож єдиний вхід до даних — API через Prisma.
 
 **Frontend:**
 - `DOMPurify` для будь-якого user-generated HTML (зараз HTML не рендериться: контент — текстом, `dangerouslySetInnerHTML` у web / admin немає — перевірено в рев'ю Фаз 1–4)
@@ -58,8 +70,8 @@ const clean = DOMPurify.sanitize(userContent);
 ## ⭐ Нові правила (2026-10-08)
 
 - ⭐ **Репозиторій публічний:** жодних секретів, дампів БД, cookie-файлів у git і в артефактах GitHub Actions (артефакти публічного репо видно всім). Дамп — лише зашифрований і в приватному сховищі ([D32](../decisions/D32-backups.md)).
-- ⭐ **Секрети — свої для кожного середовища** (dev, тест, прод): `JWT_SECRET`, `EMAIL_HASH_SECRET` не переносимо між середовищами; `EMAIL_HASH_SECRET` на проді не змінюємо після запуску.
-- ⭐ **Тест-сервер закритий:** Basic Auth + `noindex`; Swagger — лише за паролем; на проді Swagger вимкнений ([D31](../decisions/D31-test-environment.md)).
+- ⭐ **Секрети — свої для кожного середовища** (dev, тест, прод): `JWT_SECRET`, `EMAIL_HASH_SECRET` не переносимо між середовищами; `EMAIL_HASH_SECRET` на проді не змінюємо після запуску. З 2026-11-07 — і для тесту без винятку: у нього своя БД ([D61](../decisions/D61-separate-test-database.md)), тож `BlockedEmail` не спільна з розробкою.
+- ⭐ **Тест-сервер закритий:** Basic Auth + `noindex`; Swagger — лише за паролем (через сайт, `/api/docs`); на проді Swagger вимкнений ([D31](../decisions/D31-test-environment.md), [D59](../decisions/D59-site-gateway.md)).
 - ⭐ **Текст новин — Markdown без сирого HTML** ([D25](../decisions/D25-markdown-content.md)) — `dangerouslySetInnerHTML` у проєкті заборонено.
 - ⭐ **Зовнішні URL, які API колись фетчитиме** (OG-превʼю, ресайз, імпорт) — лише після перевірки на приватні / локальні IP і без редиректів (вимога в `url-field.decorators.ts`).
 - ⭐ Перед продом — CSP для web, 2FA для адміна, закриття адмінки, аудит залежностей (M3.2). З M1.6.2 у web уже є `Content-Security-Policy: frame-src https://www.youtube-nocookie.com` (`next.config.ts`, [D54](../decisions/D54-post-video.md)): повна політика — розширення цього заголовка, а не новий.

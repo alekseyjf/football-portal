@@ -20,6 +20,7 @@ const API_DESCRIPTION = [
   'Контракт API: з цього документа генеруються типи web і admin (`pnpm gen:api-types`).',
   'Сесія — httpOnly cookies: `POST /auth/login` ставить їх і для Swagger UI (той самий origin).',
   'Помилка — `ApiErrorDto`: код у `message`; коди кожного ендпоінта — в описі його відповідей.',
+  'Будь-який ендпоінт: 403 `DIRECT_API_ACCESS_FORBIDDEN` — запит не від сервера сайту, коли API закритий шлюзом (тест-сервер; крім `/health`); мутація — 403 `CROSS_SITE_REQUEST_FORBIDDEN` з чужого сайту і 415 `UNSUPPORTED_MEDIA_TYPE` з тілом не JSON (CSRF).',
 ].join('\n\n');
 
 const VALIDATION_ERROR_RESPONSE: ResponseObject = {
@@ -96,11 +97,12 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
 }
 
 /**
- * Swagger UI — локально й у e2e; на проді вимкнено (👤 У17). Тест-сервер (за паролем) — M1.11.
+ * Swagger UI — локально, у e2e і на тест-сервері; на проді вимкнено (👤 У17). На тесті API напряму закритий (D59):
+ * Swagger відкривають через сайт — `/api/docs` за паролем тест-сервера, і «Try it out» іде тим самим шлюзом.
  * Документ будується при першому відкритті, а не на старті API.
  */
 export function setupSwaggerUi(app: INestApplication, env: AppEnv): void {
-  if (env.NODE_ENV === 'production') return;
+  if (env.APP_ENV === 'production') return;
   SwaggerModule.setup(SWAGGER_UI_PATH, app, () => createOpenApiDocument(app), {
     raw: ['json'],
     customSiteTitle: API_TITLE,

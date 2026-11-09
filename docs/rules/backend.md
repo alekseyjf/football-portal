@@ -143,12 +143,13 @@ email = dto.email.toLowerCase().trim();
 
 **Rule 16 — Міграції** — до релізу дозволено squash; після — лише нові міграції, expand → backfill → contract, SQL читаємо (`--create-only`), `constraints.sql` не губимо, `pg_dump` перед `migrate deploy` — [`decisions/v5-foundation.md`](../decisions/v5-foundation.md), розділ 11.
 
-> ⭐ **Зміна до Rule 16** (👤 2026-11-06, [D58](../decisions/D58-test-hosting.md)): dev-БД — і БД тест-сервера, тож expand → contract діє вже зараз, а не «після релізу»:
+> ⭐ **Зміна до Rule 16** (👤 2026-11-06, [D58](../decisions/D58-test-hosting.md); 🔁 2026-11-07, [D61](../decisions/D61-separate-test-database.md)): у тест-сервера своя БД, і мігрує її збірка Render — тож expand → contract діє вже зараз, а не «після релізу»:
 > ```bash
-> # ✅ pnpm db:migration:new <назва>          — SQL нової міграції з різниці schema.prisma проти бази гілки (prisma migrate diff), БД не чіпає
-> # ✅ pnpm db:migrate                       — prisma migrate deploy з локальної машини (DIRECT_URL), після воріт rules/process.md
-> # ❌ prisma migrate dev (і --create-only) / migrate reset — ходять у спільну БД; на розбіжності пропонують скинути схему разом з даними тесту
-> # Порядок: expand — до злиття коду, якому він потрібен; contract — коли на тесті вже код, що старого не читає
+> # ✅ Тестова БД — лише prisma migrate deploy у збірці Render: `pnpm build:api && pnpm db:migrate` (DIRECT_URL — session pooler)
+> # ✅ БД розробки — prisma migrate dev або pnpm db:migration:new <назва> (SQL з різниці схем, без БД) + pnpm db:migrate
+> # ❌ Тестову БД з локальної машини не мігруємо; migrate dev / reset / db push на ній — ніколи
+> # Expand → contract: збірка мігрує до старту нового коду, ~1 хв деплою старий код працює з новою схемою, а відкат у Render
+> #   міграцію не відкочує. Contract — коли на тесті вже код, що старого не читає
 > ```
 
 **Rule 17 — Лайки** — окремі таблиці на тип цілі (`PostLike`, `CommentLike`, `MatchLike`), лічильники — у тій самій транзакції; `DISLIKE` зберігаємо, але публічно не показуємо (бачить лише адмін).

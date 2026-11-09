@@ -1,0 +1,81 @@
+# Render Blueprint — API тест-сервера (M1.11.2, D58). Створення: Render → New → Blueprint → цей репозиторій.
+# Зміни цього файлу Render застосовує сам; значення `sync: false` вводяться в панелі лише при створенні Blueprint.
+# Перелік змінних із поясненнями — apps/api/.env.example.
+services:
+  - type: web
+    name: football-portal-api
+    runtime: node
+    plan: free
+    # Як Supabase (eu-central-1); після створення сервісу регіон не змінити
+    region: frankfurt
+    branch: master
+    # Деплой лише коли всі перевірки коміту зелені (verify, e2e-api); коміт без перевірок не деплоїться
+    autoDeployTrigger: checksPass
+    # Перевірка здоров'я — без секрету шлюзу (D59), як і пінг keep-alive.yml
+    healthCheckPath: /api/v1/health
+    # Без rootDir: файлів поза ним Render не дає ні збірці, ні процесу, а API потрібні packages/*.
+    # Кореневі package.json, pnpm-workspace.yaml і .nvmrc теж змінюють збірку
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/**
+        - pnpm-lock.yaml
+        - package.json
+        - pnpm-workspace.yaml
+        - .nvmrc
+    # pnpm — версії з `packageManager` (Corepack; ярлики — у свою теку, а не до Node). Версії Node і pnpm — у журналі.
+    # Сама збірка — `pnpm build:api` у корені: її можна повторити локально.
+    # Міграції тестової БД (D61) — `prisma migrate deploy` (`pnpm db:migrate`, через DIRECT_URL) наприкінці збірки, лише
+    # після успішного build: pre-deploy команди Render Free не має. Міграція застосується й тоді, коли новий процес потім
+    # не пройде health check, а ~1 хв деплою старий код працює вже з новою схемою — тож expand → contract (backend Rule 16)
+    buildCommand: >-
+      mkdir -p "$HOME/.corepack-bin" &&
+      corepack enable --install-directory "$HOME/.corepack-bin" pnpm &&
+      export PATH="$HOME/.corepack-bin:$PATH" &&
+      node --version && pnpm --version &&
+      pnpm build:api &&
+      pnpm db:migrate
+    # Node напряму, без pnpm: SIGTERM деплою доходить до процесу API, а не до обгортки (graceful shutdown, D36)
+    startCommand: node apps/api/dist/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: test
+      # X-Forwarded-For не довіряємо: IP браузера дає сервер сайту разом із API_ORIGIN_SECRET (D59)
+      - key: TRUST_PROXY
+        value: "false"
+      # Плановий синк — на тесті так, LIVE-cron — ні (квота; LIVE оновлює live-touch), D36
+      - key: FOOTBALL_SYNC_CRON_ENABLED
+        value: "true"
+      - key: FOOTBALL_LIVE_CRON_ENABLED
+        value: "false"
+      # Corepack без питання «завантажити pnpm?» — у збірці нікому відповісти
+      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
+        value: "0"
+      # Генерує Render (256 біт): тестовий, ніде більше не потрібен
+      - key: JWT_SECRET
+        generateValue: true
+      # Тестова БД — окремий проєкт Supabase (D61). Застосунок — transaction pooler (:6543)
+      - key: DATABASE_URL
+        sync: false
+      # Лише для міграцій у збірці (prisma.config.ts: DIRECT_URL || DATABASE_URL); застосунок її не читає.
+      # Session pooler (:5432, *.pooler.supabase.com), не пряме з'єднання db.<ref>.supabase.co: воно лише IPv6, а з Render — IPv4
+      - key: DIRECT_URL
+        sync: false
+      # Свій для тесту (D61): HMAC пошт видалених акаунтів у BlockedEmail тестової БД. Після запуску не змінювати
+      - key: EMAIL_HASH_SECRET
+        sync: false
+      # Той самий — у Vercel (web і admin)
+      - key: API_ORIGIN_SECRET
+        sync: false
+      # Origin-и web і admin на Vercel через кому (https)
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FOOTBALL_API_KEY
+        sync: false
+      # https://<web>.vercel.app/api/revalidate і той самий REVALIDATE_SECRET, що у web
+      - key: WEB_REVALIDATE_URL
+        sync: false
+      - key: REVALIDATE_SECRET
+        sync: false

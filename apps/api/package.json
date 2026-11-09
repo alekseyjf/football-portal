@@ -23,7 +23,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "openapi:generate": "nest build && node dist/openapi/write-openapi-document.js ../../packages/types/openapi.json",
     "db:seed": "prisma db seed",
-    "db:migration:new": "node scripts/new-migration.mjs"
+    "db:migration:new": "node scripts/new-migration.mjs",
+    "db:copy-to-test": "node scripts/copy-db-to-test.mjs"
   },
   "dependencies": {
     "@football-portal/validation": "workspace:*",

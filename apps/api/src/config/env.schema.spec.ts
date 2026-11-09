@@ -27,8 +27,10 @@ describe('parseEnv — схема змінних середовища (Rule 13)'
     expect(parseEnv(REQUIRED_ENV)).toEqual({
       ...REQUIRED_ENV,
       CORS_ORIGINS: ['http://localhost:3000', 'http://localhost:3001'],
+      APP_ENV: 'development',
       PORT: 4000,
       FOOTBALL_API_URL: 'https://api.football-data.org/v4',
+      FOOTBALL_SYNC_CRON_ENABLED: false,
       FOOTBALL_LIVE_CRON_ENABLED: false,
       FOOTBALL_HTTP_LOG: true,
       COMMENT_COOLDOWN_MS: 60_000,
@@ -65,11 +67,71 @@ describe('parseEnv — схема змінних середовища (Rule 13)'
     expect(message).not.toContain('short-jwt-secret');
   });
 
-  it('production: TRUST_PROXY обов’язковий, CORS_ORIGINS — лише https', () => {
+  it('production: TRUST_PROXY і APP_ENV обов’язкові, CORS_ORIGINS — лише https', () => {
     const message = startupError({ ...REQUIRED_ENV, NODE_ENV: 'production' });
     expect(message).toContain('TRUST_PROXY: is required in production');
+    expect(message).toContain('APP_ENV: is required in production');
     expect(message).toContain('"http://localhost:3000" must use https:');
     expect(message).toContain('"http://localhost:3001" must use https:');
+  });
+
+  it('API_ORIGIN_SECRET (D59): поза машиною розробника обов’язковий і свій — не інший секрет', () => {
+    const testServerEnv = {
+      ...REQUIRED_ENV,
+      NODE_ENV: 'production',
+      APP_ENV: 'test',
+      TRUST_PROXY: 'false',
+      CORS_ORIGINS: 'https://site.example',
+    };
+    expect(startupError(testServerEnv)).toContain(
+      'API_ORIGIN_SECRET: is required outside development',
+    );
+    expect(
+      startupError({
+        ...testServerEnv,
+        API_ORIGIN_SECRET: REQUIRED_ENV.EMAIL_HASH_SECRET,
+      }),
+    ).toContain('API_ORIGIN_SECRET: must differ from JWT_SECRET');
+    const originSecret = 'origin-secret-origin-secret-origin-secret';
+    expect(
+      parseEnv({ ...testServerEnv, API_ORIGIN_SECRET: originSecret }),
+    ).toMatchObject({ APP_ENV: 'test', API_ORIGIN_SECRET: originSecret });
+    // Локально — необов'язковий: API відкритий, як до шлюзу
+    expect(parseEnv(REQUIRED_ENV).API_ORIGIN_SECRET).toBeUndefined();
+  });
+
+  it('API_ORIGIN_SECRET_PREVIOUS (D59, ротація): лише разом з API_ORIGIN_SECRET і не рівний йому', () => {
+    const originSecret = 'origin-secret-origin-secret-origin-secret';
+    const previousSecret = 'previous-origin-secret-previous-origin-secret';
+    expect(
+      startupError({
+        ...REQUIRED_ENV,
+        API_ORIGIN_SECRET_PREVIOUS: previousSecret,
+      }),
+    ).toContain('API_ORIGIN_SECRET_PREVIOUS: only with API_ORIGIN_SECRET');
+    expect(
+      startupError({
+        ...REQUIRED_ENV,
+        API_ORIGIN_SECRET: originSecret,
+        API_ORIGIN_SECRET_PREVIOUS: originSecret,
+      }),
+    ).toContain(
+      'API_ORIGIN_SECRET_PREVIOUS: must differ from API_ORIGIN_SECRET',
+    );
+    expect(
+      startupError({
+        ...REQUIRED_ENV,
+        API_ORIGIN_SECRET: originSecret,
+        API_ORIGIN_SECRET_PREVIOUS: 'short-previous-secret',
+      }),
+    ).toContain('API_ORIGIN_SECRET_PREVIOUS: must be at least 32 characters');
+    expect(
+      parseEnv({
+        ...REQUIRED_ENV,
+        API_ORIGIN_SECRET: originSecret,
+        API_ORIGIN_SECRET_PREVIOUS: previousSecret,
+      }),
+    ).toMatchObject({ API_ORIGIN_SECRET_PREVIOUS: previousSecret });
   });
 
   it('TRUST_PROXY: `true` заборонено (IP підробляється), `false` → 0, число — хопи, решта — адреси', () => {
@@ -175,6 +237,8 @@ describe('parseEnv — схема змінних середовища (Rule 13)'
     const productionEnv = {
       ...REQUIRED_ENV,
       NODE_ENV: 'production',
+      APP_ENV: 'production',
+      API_ORIGIN_SECRET: 'origin-secret-origin-secret-origin-secret',
       TRUST_PROXY: '1',
       CORS_ORIGINS: 'https://example.com',
       REVALIDATE_SECRET: webhookSecret,

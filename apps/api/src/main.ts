@@ -10,6 +10,8 @@ import type { AppEnv } from './config/env.schema';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // SIGTERM (деплой, рестарт Render) → хуки зупинки: перервані синки — `FAILED` одразу, а не `RUNNING` 10 хв (D36)
+  app.enableShutdownHooks();
   configureHttpApp(app);
 
   const port = app.get<AppEnv>(envConfig.KEY).PORT;

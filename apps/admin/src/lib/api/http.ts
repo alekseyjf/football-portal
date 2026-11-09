@@ -1,12 +1,16 @@
+import { API_BASE_PATH } from '@football-portal/validation';
+
 /**
  * HTTP-клієнт до API (cookies, JSON). Логіка refresh — та сама, що в `apps/web/src/lib/api/http.ts`:
  * змінюєш одну — зміни й іншу.
  *
+ * Адмінка працює лише в браузері, і браузер ходить лише на її власний домен (`/api/v1/*`): запит до API пересилає
+ * сервер адмінки (`app/api/[...path]`, D59) — cookies сесії на домені адмінки.
+ *
  * Сесія: access-cookie живе 15 хв. На 401 клієнт один раз викликає `POST /auth/refresh`
  * і повторює запит (лише в браузері). Паралельні запити чекають один спільний refresh.
  */
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const API_URL = API_BASE_PATH;
 
 /**
  * Помилка відповіді API. `code` (він же `message`) — `message` з тіла Nest: наш код

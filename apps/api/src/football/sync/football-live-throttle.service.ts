@@ -8,7 +8,7 @@ import {
   FOOTBALL_PROVIDER,
   type FootballProvider,
 } from '../integration/football-provider.port';
-import { SyncRunRepository } from '../persistence/sync-run.repository';
+import { SyncRunTracker } from './sync-run-tracker';
 
 /**
  * Троттлінг LIVE-синку на турнір через `SyncRun` (P5-11): спільний для всіх інстансів API
@@ -18,7 +18,7 @@ import { SyncRunRepository } from '../persistence/sync-run.repository';
 export class FootballLiveThrottleService {
   constructor(
     @Inject(FOOTBALL_PROVIDER) private readonly provider: FootballProvider,
-    private readonly syncRuns: SyncRunRepository,
+    private readonly syncRunTracker: SyncRunTracker,
   ) {}
 
   /** id нового LIVE-запуску або `null`: турнір уже синкається чи синкався щойно. */
@@ -26,7 +26,7 @@ export class FootballLiveThrottleService {
     competitionSlug: string,
     trigger: SyncTrigger,
   ): Promise<string | null> {
-    return this.syncRuns.tryStart(
+    return this.syncRunTracker.start(
       {
         provider: this.provider.provider,
         scope: SyncScope.MATCHES_LIVE,

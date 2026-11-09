@@ -14,7 +14,6 @@ import {
   type CurrentSeasonForSync,
   type SyncTargetCompetition,
 } from '../persistence/football-sync.repository';
-import { SyncRunRepository } from '../persistence/sync-run.repository';
 import { FootballLiveThrottleService } from './football-live-throttle.service';
 import {
   createSyncStats,
@@ -23,6 +22,7 @@ import {
   type SyncStats,
 } from './football-sync-stats';
 import { FootballSyncWriter } from './football-sync.writer';
+import { SyncRunTracker } from './sync-run-tracker';
 
 function toIsoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -52,7 +52,7 @@ export class FootballLiveSyncService {
   constructor(
     @Inject(FOOTBALL_PROVIDER) private readonly provider: FootballProvider,
     private readonly syncRepository: FootballSyncRepository,
-    private readonly syncRuns: SyncRunRepository,
+    private readonly syncRunTracker: SyncRunTracker,
     private readonly liveThrottle: FootballLiveThrottleService,
     private readonly writer: FootballSyncWriter,
   ) {}
@@ -117,7 +117,7 @@ export class FootballLiveSyncService {
       this.log.warn(`LIVE-синк ${competition.slug}: ${errorMessage}`);
     }
     try {
-      await this.syncRuns.finish(runId, status, stats, errorMessage);
+      await this.syncRunTracker.finish(runId, status, stats, errorMessage);
     } catch (error) {
       this.log.error(
         `SyncRun ${runId} не закрито: ${describeSyncError(error)}`,
